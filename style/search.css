@@ -1,0 +1,59 @@
+/* =====================================================================
+ * Carnet · 搜索面板   （样式 10 / 16）
+ * ---------------------------------------------------------------------
+ * ① 搜索条与结果列表（含滚动条 gutter 防抖）
+ * ② 结果里的封面缩略图
+ *
+ * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
+ * ===================================================================== */
+/* ============ 搜索面板 ============ */
+.search-panel{
+  position:absolute;left:0;right:0;top:0;z-index:70;padding:14px 16px 12px;
+  padding-top:calc(14px + env(safe-area-inset-top));
+  background:linear-gradient(180deg,rgba(30,34,54,.84),rgba(30,34,54,.7) 70%,rgba(30,34,54,0));
+  backdrop-filter:var(--frost-fx);-webkit-backdrop-filter:var(--frost-fx);
+  transform:translateY(-102%);transition:transform .34s cubic-bezier(.25,.9,.3,1),opacity .3s;
+  opacity:0;pointer-events:none
+}
+.search-panel.show{transform:none;opacity:1;pointer-events:auto}
+.search-row{display:flex;align-items:center;gap:9px}
+.search-panel .text-input{flex:1;background:rgba(255,255,255,.12)}
+.search-close{
+  width:40px;height:40px;flex:0 0 auto;border-radius:50%;display:grid;place-items:center;
+  background:var(--glass);border:1px solid var(--glass-bd);font-size:16px
+}
+.search-results{
+  margin-top:12px;max-height:52vh;overflow-y:auto;overflow-x:hidden;display:grid;gap:8px;
+  /* 预留滚动条位置，结果条数变化时列表不会左右抖 */
+  scrollbar-gutter:stable;padding-right:4px;
+  scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.26) transparent
+}
+/* 滚动条：跟面板同一套毛玻璃语言 —— 细一条半透明白，
+   平时很淡，指针移上去才明显，不抢结果列表的注意力 */
+.search-results::-webkit-scrollbar{width:8px}
+.search-results::-webkit-scrollbar-track{background:transparent;margin:2px 0}
+.search-results::-webkit-scrollbar-thumb{
+  border:2px solid transparent;background-clip:content-box;border-radius:8px;
+  background:linear-gradient(180deg,rgba(255,255,255,.30),rgba(255,255,255,.14));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.38)
+}
+.search-results:hover::-webkit-scrollbar-thumb,
+.search-results::-webkit-scrollbar-thumb:hover{background:linear-gradient(180deg,rgba(255,255,255,.48),rgba(255,255,255,.24))}
+.search-results::-webkit-scrollbar-thumb:active{background:linear-gradient(180deg,rgba(255,255,255,.66),rgba(255,255,255,.36))}
+.search-results::-webkit-scrollbar-corner{background:transparent}
+.sr-item{
+  display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:14px;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);transition:background .2s
+}
+.sr-item:hover{background:rgba(255,255,255,.16)}
+/* 搜索里的封面缩略图：按真实封面等比缩小渲染，图案疏密、圆角比例都跟原封面一致 */
+.sr-thumb{position:relative;width:42px;aspect-ratio:3/4.05;flex:0 0 auto;overflow:hidden;
+  border-radius:2px 4px 4px 2px;box-shadow:0 6px 14px -6px rgba(0,0,0,.6)}
+.sr-thumb .cover{width:var(--sr-cw,148px);border-radius:0;box-shadow:none;
+  transform:scale(var(--sr-k,.2838));transform-origin:top left}
+.sr-item .info{flex:1;min-width:0}
+.sr-item .nm{font-size:14px;font-weight:600;letter-spacing:.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sr-item .nm mark{background:rgba(240,180,120,.42);color:#ffd9a8;border-radius:3px;padding:0 1px}
+.sr-item .meta{font-size:11.5px;opacity:.66;margin-top:3px;letter-spacing:.04em}
+.sr-empty{padding:26px 0;text-align:center;font-size:13px;opacity:.6}
+

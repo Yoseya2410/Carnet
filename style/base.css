@@ -1,0 +1,32 @@
+/* =====================================================================
+ * Carnet · 基础变量与页面骨架   （样式 1 / 16）
+ * ---------------------------------------------------------------------
+ * ① CSS 变量（色板、毛玻璃、圆角、阴影）
+ * ② 全屏布局：#app 高度由 JS 锁定，键盘弹起不顶底栏
+ *
+ * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
+ * ===================================================================== */
+/* ============ 基础 ============ */
+:root{
+  --bg1:#9aa0bb; --bg2:#767c99; --bg3:#565c7a;
+  --ink:#2b2f3d; --paper:#fffdf8; --line:#dfe3ee;
+  --accent:#e0668a; --glass:rgba(255,255,255,.14);
+  --glass-bd:rgba(255,255,255,.22);
+  /* 毛玻璃：所有弹窗面板 / 下拉菜单 / 底栏按键统一用这一套。
+     底色带一点深色（而不是纯白），白字在任意背景图上才读得清；改浓淡只动 --frost 的 alpha。 */
+  --frost:rgba(30,34,54,.6);
+  --frost-bd:rgba(255,255,255,.18);
+  --frost-fx:blur(24px) saturate(170%);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0;overflow:hidden}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Segoe UI",Roboto,sans-serif;
+  color:#fff; user-select:none;
+  background:radial-gradient(130% 110% at 50% 0%,#a2a8c4 0%,#7e849f 42%,#5b6182 100%);
+}
+input,textarea{user-select:text}
+button{font-family:inherit;border:none;background:none;color:inherit;cursor:pointer}
+/* 高度由 JS 锁定为“未弹起输入法时的高度”，键盘出现时底栏不再被顶起 */
+#app{position:fixed;left:0;top:0;width:100%;height:100%;height:var(--app-h,100%);overflow:hidden}
+

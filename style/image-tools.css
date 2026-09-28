@@ -1,0 +1,86 @@
+/* =====================================================================
+ * Carnet · 图片操作控件   （样式 5 / 16）
+ * ---------------------------------------------------------------------
+ * ① 四角拉伸手柄（热区向外扩，不抢按钮）
+ * ② 删除 / 固定 / 铺满按钮的透明毛玻璃样式
+ * ③ 拉伸时按钮让位、贴边时收进纸内
+ *
+ * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
+ * ===================================================================== */
+/* 纸张 / 模板 */
+.paper{position:absolute;inset:0;background:var(--paper);overflow:hidden}
+/* 纸面不再压内侧灰色渐变（去掉后两页之间干干净净，纸张是平的） */
+.paper::after{content:"";position:absolute;inset:0;pointer-events:none;background:none}
+.tplbg{position:absolute;inset:0;background-repeat:repeat;background-position:0 0;pointer-events:none}
+.paper.t-lined .tplbg{
+  background-image:repeating-linear-gradient(transparent 0,transparent 27px,#dfe3ee 27px,#dfe3ee 28px);
+  background-position:0 34px;
+}
+.paper.t-lined::before{content:"";position:absolute;left:34px;top:0;bottom:0;width:1px;background:#eab7c2;opacity:.8}
+.paper.t-grid .tplbg{
+  background-image:linear-gradient(#e8ebf3 1px,transparent 1px),linear-gradient(90deg,#e8ebf3 1px,transparent 1px);
+  background-size:23px 23px;
+}
+.paper.t-dots .tplbg{background-image:radial-gradient(#d2d8e8 1.35px,transparent 1.45px);background-size:20px 20px}
+.paper.t-kraft,.paper.t-kraftplain{background:linear-gradient(160deg,#ecdec4,#e0cfae)}
+.paper.t-kraft .tplbg{
+  background-image:repeating-linear-gradient(transparent 0,transparent 27px,rgba(120,96,64,.22) 27px,rgba(120,96,64,.22) 28px);
+  background-position:0 34px;opacity:.9
+}
+.paper.endpaper{background:linear-gradient(160deg,#3b425e,#2b3048)}
+.paper.endpaper::after{display:none}
+
+.pcontent{position:absolute;inset:0;z-index:2}
+.pimg-wrap,.ptext-wrap{position:absolute;z-index:3;touch-action:none;cursor:grab}
+.pimg-wrap .pimg{
+  width:100%;height:100%;display:block;border-radius:3px;pointer-events:none;background:#fff;
+  object-fit:fill;
+}
+.pimg-wrap.sticker .pimg{background:transparent}
+:is(.pimg-wrap,.ptext-wrap).sel{outline:2px solid var(--accent);outline-offset:2px;z-index:6}
+/* 四角手柄：四个角都能横向 + 纵向拉伸，只归缩放使用，别的控件一律不占角 */
+:is(.pimg-wrap,.ptext-wrap) .hdl{
+  position:absolute;width:18px;height:18px;border-radius:50%;display:none;z-index:12;
+  background:#fff;border:2px solid var(--accent);box-shadow:0 3px 9px rgba(20,22,40,.5)
+}
+/* 热区只向外扩 12px，四角好抓；向内不扩，避免抢按钮 */
+:is(.pimg-wrap,.ptext-wrap) .hdl::after{content:"";position:absolute;border-radius:50%}
+:is(.pimg-wrap,.ptext-wrap) .hdl.tl::after{left:-12px;top:-12px;right:9px;bottom:9px}
+:is(.pimg-wrap,.ptext-wrap) .hdl.tr::after{right:-12px;top:-12px;left:9px;bottom:9px}
+:is(.pimg-wrap,.ptext-wrap) .hdl.bl::after{left:-12px;bottom:-12px;right:9px;top:9px}
+:is(.pimg-wrap,.ptext-wrap) .hdl.br::after{right:-12px;bottom:-12px;left:9px;top:9px}
+:is(.pimg-wrap,.ptext-wrap) .hdl.tl{left:-9px;top:-9px;cursor:nwse-resize}
+:is(.pimg-wrap,.ptext-wrap) .hdl.tr{right:-9px;top:-9px;cursor:nesw-resize}
+:is(.pimg-wrap,.ptext-wrap) .hdl.bl{left:-9px;bottom:-9px;cursor:nesw-resize}
+:is(.pimg-wrap,.ptext-wrap) .hdl.br{right:-9px;bottom:-9px;cursor:nwse-resize}
+/* 删除 / 固定：透明毛玻璃，挂在上下边中点 —— 四个角完整留给拉伸 */
+:is(.pimg-wrap,.ptext-wrap) .img-del,:is(.pimg-wrap,.ptext-wrap) .img-lock,:is(.pimg-wrap,.ptext-wrap) .txt-edit{
+  position:absolute;width:28px;height:28px;border-radius:50%;display:none;place-items:center;z-index:8;
+  background:rgba(24,26,42,.34);border:1px solid rgba(255,255,255,.46);color:#fff;
+  backdrop-filter:blur(9px) saturate(1.5);-webkit-backdrop-filter:blur(9px) saturate(1.5);
+  box-shadow:0 3px 10px rgba(0,0,0,.3);line-height:1
+}
+:is(.pimg-wrap,.ptext-wrap) .img-del{top:0;left:50%;transform:translate(-50%,-50%);font-size:14px}
+:is(.pimg-wrap,.ptext-wrap) .img-lock,:is(.pimg-wrap,.ptext-wrap) .txt-edit{bottom:0;left:50%;transform:translate(-50%,50%)}
+:is(.pimg-wrap,.ptext-wrap) .img-lock svg,:is(.pimg-wrap,.ptext-wrap) .img-del svg,:is(.pimg-wrap,.ptext-wrap) .txt-edit svg{pointer-events:none;display:block}
+:is(.pimg-wrap,.ptext-wrap).sel .hdl{display:block}
+:is(.pimg-wrap,.ptext-wrap).sel .img-del,:is(.pimg-wrap,.ptext-wrap).sel .img-lock,:is(.pimg-wrap,.ptext-wrap).sel .txt-edit{display:grid}
+/* 正在拉伸：按钮彻底让位，不抢手势也不挡视线 */
+:is(.pimg-wrap,.ptext-wrap).resizing .img-del,:is(.pimg-wrap,.ptext-wrap).resizing .img-lock,:is(.pimg-wrap,.ptext-wrap).resizing .txt-edit{display:none !important}
+:is(.pimg-wrap,.ptext-wrap).tiny .img-del,:is(.pimg-wrap,.ptext-wrap).tiny .img-lock,:is(.pimg-wrap,.ptext-wrap).tiny .txt-edit{width:24px;height:24px;font-size:12px}
+:is(.pimg-wrap,.ptext-wrap).tiny .img-del{top:0;left:50%;transform:translate(-50%,-50%)}
+:is(.pimg-wrap,.ptext-wrap).tiny .img-lock,:is(.pimg-wrap,.ptext-wrap).tiny .txt-edit{bottom:0;left:50%;transform:translate(-50%,50%)}
+/* 贴边时按钮收进纸内 */
+:is(.pimg-wrap,.ptext-wrap).edge-t .img-del{top:3px;transform:translate(-50%,0)}
+:is(.pimg-wrap,.ptext-wrap).edge-b .img-lock,:is(.pimg-wrap,.ptext-wrap).edge-b .txt-edit{bottom:3px;transform:translate(-50%,0)}
+/* 图片多一个「铺满整页」按钮，与「固定」并排在底边；文字贴只有固定按钮，仍居中 */
+.pimg-wrap .img-lock:not(.img-fill){left:32%}
+.pimg-wrap .img-fill{left:68%}
+/* 铺满整页：按封面式裁切填满，不拉伸变形 */
+.pimg-wrap.fill .pimg{object-fit:cover;border-radius:0}
+.pimg-wrap.locked{outline:none;cursor:default}
+.pimg-wrap.locked .pimg{cursor:default}
+.pimg-wrap.locked .hdl,.pimg-wrap.locked .img-del,.pimg-wrap.locked .img-lock{display:none !important}
+.pimg-wrap.justlock{animation:lockPulse .44s cubic-bezier(.3,.9,.3,1)}
+@keyframes lockPulse{0%{transform:scale(1)}36%{transform:scale(1.05)}100%{transform:scale(1)}}
+

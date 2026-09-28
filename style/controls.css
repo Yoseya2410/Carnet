@@ -1,0 +1,28 @@
+/* =====================================================================
+ * Carnet · 通用控件   （样式 2 / 16）
+ * ---------------------------------------------------------------------
+ * ① 输入框、按钮、标签的基础样式
+ *
+ * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
+ * ===================================================================== */
+/* ============ 通用控件 ============ */
+.icon-btn{
+  width:42px;height:42px;border-radius:50%;display:grid;place-items:center;
+  background:var(--glass);border:1px solid var(--glass-bd);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  font-size:17px;transition:transform .18s,background .18s;
+}
+.icon-btn:hover{background:rgba(255,255,255,.24);transform:translateY(-1px)}
+.icon-btn:active{transform:scale(.94)}
+.pill{
+  padding:7px 14px;border-radius:999px;background:var(--glass);
+  border:1px solid var(--glass-bd);font-size:13px;letter-spacing:.04em;
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:.06em;font-size:15px}
+.brand .logo{
+  width:30px;height:30px;border-radius:9px;display:grid;place-items:center;
+  background:rgba(255,255,255,.16);border:1px solid var(--glass-bd);
+  font-size:11px;font-weight:800;letter-spacing:-1px
+}
+

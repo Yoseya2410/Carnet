@@ -1,0 +1,96 @@
+/* =====================================================================
+ * Carnet · 阅读器   （样式 4 / 16）
+ * ---------------------------------------------------------------------
+ * ① 书籍骨架、左页右页、翻页叶片
+ * ② 中缝折痕与纸光
+ * ③ 纸张底色与内页模板（网格 / 点阵 / 横线 / 牛皮纸）
+ *
+ * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
+ * ===================================================================== */
+/* ============ 阅读器 ============ */
+#reader{
+  position:absolute;inset:0;display:none;flex-direction:column;
+  background:radial-gradient(120% 100% at 50% -10%,#4a5070 0%,#343a58 45%,#232840 100%);
+}
+#reader.show{display:flex;animation:fadeIn .32s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.rtop{
+  position:relative;
+  display:flex;align-items:center;justify-content:space-between;padding:12px 18px;
+  padding-top:calc(12px + env(safe-area-inset-top));gap:12px
+}
+.rtitle{text-align:center;flex:1;min-width:0}
+.rtitle h2{margin:0;font-size:16px;font-weight:600;letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rtitle .pages{font-size:12px;opacity:.7;margin-top:4px;letter-spacing:.05em}
+.stage{flex:1;position:relative;display:grid;place-items:center;/*overflow:hidden;*/touch-action:none;
+  perspective:2400px;perspective-origin:50% 50%}
+.book{
+  position:relative;height:var(--ph);width:calc(var(--pw) * 2);
+  transform-style:preserve-3d;
+  filter:drop-shadow(0 30px 40px rgba(0,0,0,.5))
+}
+.book.single{width:var(--pw);overflow:hidden;border-radius:3px 10px 10px 3px}
+.page-slot{position:absolute;top:0;height:var(--ph);width:var(--pw);overflow:hidden;background:var(--paper)}
+.page-slot.left{left:0;border-radius:3px 0 0 3px}
+.page-slot.right{left:var(--pw);border-radius:0 10px 10px 0}
+.book.single .page-slot.right{left:0;border-radius:3px 10px 10px 3px}
+.book.single .page-slot.left{display:none}
+/* 双页模式下点「+」时：两页都描边，实线更亮的那页 = 新内容会加到的页，点另一页即可切换 */
+.book.picking .page-slot{outline:none}
+.book.picking .page-slot::before{
+  content:"";position:absolute;inset:0;z-index:30;pointer-events:none;border-radius:inherit;
+  box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.30)
+}
+.book.picking .page-slot.add-target::before{
+  box-shadow:inset 0 0 0 2.5px rgba(255,255,255,.92),inset 0 0 34px rgba(255,255,255,.14)
+}
+.page-slot.add-target::after{
+  content:"添加到此页";position:absolute;left:50%;top:9px;transform:translateX(-50%);
+  z-index:31;pointer-events:none;white-space:nowrap;
+  font-size:11px;letter-spacing:.06em;line-height:1;padding:5px 10px;border-radius:999px;
+  background:rgba(24,26,48,.6);color:#fff;box-shadow:0 3px 10px rgba(0,0,0,.3)
+}
+.leaf{
+  position:absolute;top:0;left:var(--pw);width:var(--pw);height:var(--ph);
+  transform-origin:left center;transform-style:preserve-3d;z-index:20;display:none;
+  will-change:transform
+}
+.book.single .leaf{left:0}
+.leaf.show{display:block}
+.book.spread{box-shadow:-9px 0 0 -4px rgba(255,252,244,.42),9px 0 0 -4px rgba(255,252,244,.42)}
+/* 中缝折痕：中间一道细暗线 + 两侧向内的柔和压暗，模拟纸张凹进书脊 */
+.gutter{
+  position:absolute;left:50%;top:0;bottom:0;width:calc(var(--pw) * .21);
+  transform:translateX(-50%);pointer-events:none;z-index:15;display:none;
+  background:linear-gradient(90deg,
+    rgba(26,22,48,0) 0%,
+    rgba(26,22,48,.05) 13%,
+    rgba(26,22,48,.13) 30%,
+    rgba(26,22,48,.25) 43%,
+    rgba(18,14,36,.36) 49%,
+    rgba(11,8,26,.44) 50%,
+    rgba(18,14,36,.36) 51%,
+    rgba(26,22,48,.25) 57%,
+    rgba(26,22,48,.13) 70%,
+    rgba(26,22,48,.05) 87%,
+    rgba(26,22,48,0) 100%)
+}
+/* 只在双页摊开时显示；封面单独成页 / 合上的书 / 单页模式都没有中缝 */
+.book.spread:not(.cover-only):not(.folded) .gutter{display:block}
+/* 折痕旁的一道纸光，让凹陷有厚度 */
+.gutter::before{
+  content:"";position:absolute;top:0;bottom:0;left:calc(50% + 1.5px);width:1.5px;
+  background:linear-gradient(180deg,rgba(255,255,255,.20),rgba(255,255,255,.10))
+}
+/* 翻页时，叶片靠书脊的一侧也压暗，翻动过程中折痕不会消失 */
+.leaf-face::before{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:5;
+  background:linear-gradient(90deg,rgba(14,10,30,.34),rgba(14,10,30,.10) 12%,rgba(14,10,30,0) 30%)
+}
+.leaf-face.back::before{
+  background:linear-gradient(270deg,rgba(14,10,30,.34),rgba(14,10,30,.10) 12%,rgba(14,10,30,0) 30%)
+}
+.leaf-face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;overflow:hidden;background:var(--paper);box-shadow:0 0 26px rgba(0,0,0,.34)}
+.leaf-face.front{border-radius:0 10px 10px 0}
+.leaf-face.back{transform:rotateY(180deg);border-radius:3px 0 0 3px}
+

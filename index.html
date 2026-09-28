@@ -4,8 +4,24 @@
 <script data-page-node-id="jdhRRuyxF61P0FHeSaZrDe" src="/page/page_comm/inject.js"></script>
 <meta data-page-node-id="nClwkb7FRKriW8a05CEaEo" charset="UTF-8">
 <meta data-page-node-id="m6rHvTsNY0DZKfK7pHL8WI" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" name="viewport">
-<title data-page-node-id="AMkBo7fYY0fEKp0yOp9qQw" data-pnid-children="GnQwls26CENdzqY1ZP8HrY">纸间手账 · Paper Journal</title>
-  <link rel="stylesheet" href="style.css">
+<title data-page-node-id="AMkBo7fYY0fEKp0yOp9qQw" data-pnid-children="GnQwls26CENdzqY1ZP8HrY">Carnet · 手帐本</title>
+  <!-- 样式：按功能拆分，加载顺序即层叠顺序（后面的同权重规则优先） -->
+  <link rel="stylesheet" href="style/base.css">
+  <link rel="stylesheet" href="style/controls.css">
+  <link rel="stylesheet" href="style/home.css">
+  <link rel="stylesheet" href="style/reader.css">
+  <link rel="stylesheet" href="style/image-tools.css">
+  <link rel="stylesheet" href="style/text.css">
+  <link rel="stylesheet" href="style/scrub.css">
+  <link rel="stylesheet" href="style/modal.css">
+  <link rel="stylesheet" href="style/colorpicker.css">
+  <link rel="stylesheet" href="style/search.css">
+  <link rel="stylesheet" href="style/confirm.css">
+  <link rel="stylesheet" href="style/book-anim.css">
+  <link rel="stylesheet" href="style/view-toggle.css">
+  <link rel="stylesheet" href="style/shelf.css">
+  <link rel="stylesheet" href="style/menus.css">
+  <link rel="stylesheet" href="style/background.css">
 </head>
 <body data-page-node-id="fyhITFSae6zxcmzB16cSQh">
 <div data-page-node-id="FaGVY50w6eg6p918jzsNIa" id="app">
@@ -13,7 +29,14 @@
   <!--pnid:HoPSHlsLUYxKLkJgJNrMkz--><!-- ============ 主页 ============ -->
   <section data-page-node-id="stgr5ViTEVqnHfw0fXCMgD" id="home">
     <div data-page-node-id="gyQOrG09vQz6wBpbWpPbqx" class="topbar">
-      <div data-page-node-id="DDkftmqMqHIFpjzVMMaGt2" class="brand"><span data-page-node-id="nNTbXV0eJUnuRvMnLtLhxT" class="logo"><!--pnid:otDqvyCRNZFyYYy0VyXssT-->|||\|</span><span data-page-node-id="1flQO5UOinzR24YOFmIVf2"><!--pnid:XVLbsQmEAn4yqzwI8gIxnI-->纸间手账</span></div>
+      <div data-page-node-id="DDkftmqMqHIFpjzVMMaGt2" class="view-toggle" id="viewToggle">
+        <button data-page-node-id="VTCar" id="vtCarousel" data-vt="carousel" title="左右滑动模式">
+          <svg data-page-node-id="VTCarIco" fill="none" height="17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="17"><path data-page-node-id="VTCarP1" d="M9.5 7.5L5 12l4.5 4.5"/><path data-page-node-id="VTCarP2" d="M14.5 7.5L19 12l-4.5 4.5"/></svg>
+        </button>
+        <button data-page-node-id="VTShf" id="vtShelf" data-vt="shelf" title="书架模式">
+          <svg data-page-node-id="VTShfIco" fill="none" height="17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="17"><path data-page-node-id="VTShfP1" d="M4 9h16"/><path data-page-node-id="VTShfP2" d="M4 15h16"/><path data-page-node-id="VTShfP3" d="M7.5 9v6"/><path data-page-node-id="VTShfP4" d="M12 9v6"/><path data-page-node-id="VTShfP5" d="M16.5 9v6"/></svg>
+        </button>
+      </div>
       <div data-page-node-id="NHrMC4YA1fIeBIbTyBIHCK" class="topright">
         <button data-page-node-id="3YDQF09ElHBDtdg4DuDSEJ" class="pill" id="countPill"><!--pnid:21r3YNwY7ODGzGeIFxtJgz-->0 / 0</button>
         <button data-page-node-id="zrncdmC3d2DPEIgoyyf1WC" class="icon-btn" id="searchBtn" title="搜索">
@@ -37,15 +60,35 @@
     <div data-page-node-id="ZExng0NuQeX0wDfyfsaJZG" class="carousel-wrap" id="carouselWrap">
       <div data-page-node-id="0aGtPsHZqoqiP3I8XeOBJW" class="carousel" id="carousel"></div>
     </div>
-    <div data-page-node-id="eDTTzYIxaSpWHcpovEoyiT" class="hint" id="hint"><!--pnid:6IqQAo7UyXqIUDf9FjfGcB-->左右滑动选择 · 点击封面翻开 · 长按拖动排序</div>
-
+    <div data-page-node-id="ShelfWrap" class="shelf-wrap" id="shelfWrap" hidden></div>
+    <div data-page-node-id="PickBar" class="actionbar pickbar" id="pickBar" hidden>
+      <span data-page-node-id="PickCount" class="pick-count" id="pickCount">已选 0 本</span>
+      <button data-page-node-id="PickAll" class="pick-btn" id="pickAll">全选</button>
+      <div data-page-node-id="PickWrap" class="share-wrap">
+        <button data-page-node-id="PickExp" class="pick-btn primary" id="pickExport">导出</button>
+        <div data-page-node-id="PickMenu" class="addmenu share-pop" id="pickMenu">
+          <button data-page-node-id="PMjson" data-pickact="json"><svg data-page-node-id="PMjsonIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><path data-page-node-id="PMjsonP1" d="M12 4v11"/><path data-page-node-id="PMjsonP2" d="M8 11l4 4 4-4"/><path data-page-node-id="PMjsonP3" d="M4.6 15.2v4.3a1.1 1.1 0 001.1 1.1h12.6a1.1 1.1 0 001.1-1.1v-4.3"/></svg>导出源文件</button>
+          <button data-page-node-id="PMpdf" data-pickact="pdf"><svg data-page-node-id="PMpdfIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><path data-page-node-id="PMpdfP1" d="M7 4.5h7l4 4V19a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 7 19V5a.5.5 0 0 1 0-.5z"/><path data-page-node-id="PMpdfP2" d="M14 4.5V8.5h4"/><path data-page-node-id="PMpdfP3" d="M10 15h4"/></svg>导出 PDF</button>
+          <button data-page-node-id="PMsvg" data-pickact="svg"><svg data-page-node-id="PMsvgIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><path data-page-node-id="PMsvgP1" d="M9 6.5L4 12l5 5.5"/><path data-page-node-id="PMsvgP2" d="M15 6.5L20 12l-5 5.5"/><circle data-page-node-id="PMsvgC1" cx="12" cy="12" r="1.5"/></svg>导出 SVG（矢量）</button>
+        </div>
+      </div>
+      <button data-page-node-id="PickDel" class="pick-btn danger" id="pickDelete">删除</button>
+      <button data-page-node-id="PickCancel" class="pick-btn" id="pickCancel">取消</button>
+    </div>
     <div data-page-node-id="b54lkYScSSWUVIbtcPYhAv" class="actionbar">
-      <button data-page-node-id="RLPa22vt0cVTfo6ydSu6Z1" class="icon-btn" data-act="more" title="更多">
+      <button data-page-node-id="RLPa22vt0cVTfo6ydSu6Z1" class="icon-btn" data-act="more" title="背景设置">
         <svg data-page-node-id="ZYf6OCewQLFZKUzqnJzUhQ" fill="currentColor" height="20" viewBox="0 0 24 24" width="20"><circle data-page-node-id="qjRa8MkHL4xfjbI4zoo4AJ" cx="5.5" cy="12" r="1.7"/><circle data-page-node-id="Wa8Z6PubotUsofffR7MFOL" cx="12" cy="12" r="1.7"/><circle data-page-node-id="lPLkR0IeyuhhSmgR1deIIg" cx="18.5" cy="12" r="1.7"/></svg>
       </button>
-      <button data-page-node-id="41E2nJf4eaGoJDNmE6uiok" class="icon-btn" data-act="share" title="分享">
-        <svg data-page-node-id="A3OXP95tXfyGvyaSQQ6bkf" fill="none" height="21" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="21"><path data-page-node-id="qPgkoypr6WfgNe33jEOblP" d="M12 15.5V4"/><path data-page-node-id="VqFxbyNy0MZFpOq18KTmWj" d="M8 7.6L12 3.5l4 4.1"/><path data-page-node-id="r3qu3JS3sQoRXwLh19SUkm" d="M4.6 13v6.4a1.1 1.1 0 001.1 1.1h12.6a1.1 1.1 0 001.1-1.1V13"/></svg>
-      </button>
+      <div data-page-node-id="SWrap" class="share-wrap">
+        <button data-page-node-id="41E2nJf4eaGoJDNmE6uiok" class="icon-btn" data-act="share" title="分享 / 导出">
+          <svg data-page-node-id="A3OXP95tXfyGvyaSQQ6bkf" fill="none" height="21" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="21"><path data-page-node-id="qPgkoypr6WfgNe33jEOblP" d="M12 15.5V4"/><path data-page-node-id="VqFxbyNy0MZFpOq18KTmWj" d="M8 7.6L12 3.5l4 4.1"/><path data-page-node-id="r3qu3JS3sQoRXwLh19SUkm" d="M4.6 13v6.4a1.1 1.1 0 001.1 1.1h12.6a1.1 1.1 0 001.1-1.1V13"/></svg>
+        </button>
+        <div data-page-node-id="ShMenu" class="addmenu share-pop" id="shareMenu">
+          <button data-page-node-id="SHjson" data-shareact="json"><svg data-page-node-id="SHjsonIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><path data-page-node-id="SHjsonP1" d="M12 4v11"/><path data-page-node-id="SHjsonP2" d="M8 11l4 4 4-4"/><path data-page-node-id="SHjsonP3" d="M4.6 15.2v4.3a1.1 1.1 0 001.1 1.1h12.6a1.1 1.1 0 001.1-1.1v-4.3"/></svg>导出源文件</button>
+          <button data-page-node-id="SHpdf" data-shareact="pdf"><svg data-page-node-id="SHpdfIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><path data-page-node-id="SHpdfP1" d="M7 4.5h7l4 4V19a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 7 19V5a.5.5 0 0 1 0-.5z"/><path data-page-node-id="SHpdfP2" d="M14 4.5V8.5h4"/><path data-page-node-id="SHpdfP3" d="M10 15h4"/></svg>导出 PDF</button>
+          <button data-page-node-id="SHsvg" data-shareact="svg"><svg data-page-node-id="SHsvgIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><path data-page-node-id="SHsvgP1" d="M9 6.5L4 12l5 5.5"/><path data-page-node-id="SHsvgP2" d="M15 6.5L20 12l-5 5.5"/><circle data-page-node-id="SHsvgC1" cx="12" cy="12" r="1.5"/></svg>导出 SVG（矢量）</button>
+        </div>
+      </div>
       <button data-page-node-id="F8B7W1c0gr3Z02ip7wkPk6" class="icon-btn danger" data-act="del" title="删除">
         <svg data-page-node-id="78F3dUv48uxTrjt3Q4Pv1w" fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="20"><path data-page-node-id="MXr7t5JgOGG8oBdRPUBEib" d="M4 6.5h16"/><path data-page-node-id="KcrwDlL0QNuVAmFeEzaR8g" d="M9.2 6.5V4.4h5.6v2.1"/><path data-page-node-id="f8q2Df283TmahgItCfHCQm" d="M6.4 6.5l.95 13.1h9.3l.95-13.1"/><path data-page-node-id="YvWgigUyIKHFyHK009gc8A" d="M10 10v6.4M14 10v6.4"/></svg>
       </button>
@@ -68,16 +111,17 @@
           <button data-page-node-id="AML" class="am-side" data-side="L">左页</button>
           <button data-page-node-id="AMR" class="am-side" data-side="R">右页</button>
         </div>
-        <button data-page-node-id="AMpage" data-addact="page"><svg data-page-node-id="AMpageIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><path data-page-node-id="AMpageP1" d="M7 4.5h7l4 4V19a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 7 19V5a.5.5 0 0 1 0-.5z"/><path data-page-node-id="AMpageP2" d="M14 4.5V8.5h4"/></svg><!--pnid:J6Mm35le86Y66zkaOEgbtd-->加一页<span data-page-node-id="AMpageP" class="am-p"></span></button>
+        <button data-page-node-id="AMpage" data-addact="page"><svg data-page-node-id="AMpageIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><path data-page-node-id="AMpageP1" d="M7 4.5h7l4 4V19a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 7 19V5a.5.5 0 0 1 0-.5z"/><path data-page-node-id="AMpageP2" d="M14 4.5V8.5h4"/></svg><!--pnid:J6Mm35le86Y66zkaOEgbtd-->添加页<span data-page-node-id="AMpageP" class="am-p"></span></button>
         <button data-page-node-id="AMimg" data-addact="img"><svg data-page-node-id="AMimgIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><rect data-page-node-id="AMimgR" height="14" rx="2" width="16" x="4" y="5"/><path data-page-node-id="AMimgP1" d="M4 15l4-4 4 4 3-3 5 5"/><circle data-page-node-id="AMimgC" cx="9" cy="9" r="1.2"/></svg><!--pnid:1jWXATsjyDjflrECmEcdnl-->添加图片<span data-page-node-id="AMimgP" class="am-p"></span></button>
         <button data-page-node-id="AMtext" data-addact="text"><span data-page-node-id="AMtextIco" class="am-t"><!--pnid:daEy0hddPu4xJt9odUGyku-->T</span><!--pnid:wmvfMHu0bJp1J0W4jKw40h-->添加文字<span data-page-node-id="AMtextP" class="am-p"></span></button>
+        <button data-page-node-id="AMdel" class="am-del" data-addact="del"><svg data-page-node-id="AMdelIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><path data-page-node-id="AMdelP1" d="M4.5 6.6h15"/><path data-page-node-id="AMdelP2" d="M9.6 6.6V4.9h4.8v1.7"/><path data-page-node-id="AMdelP3" d="M6.4 6.6l.9 11.9a1 1 0 001 .9h7.4a1 1 0 001-.9l.9-11.9"/><path data-page-node-id="AMdelP4" d="M10.4 10.4v5.6"/><path data-page-node-id="AMdelP5" d="M13.6 10.4v5.6"/></svg><!--pnid:AMdelTx-->删除本页<span data-page-node-id="AMdelP" class="am-p"></span></button>
       </div>
     </div>
     <div data-page-node-id="aUGvTkHxYVqi3kcigYS7En" class="stage" id="stage">
       <div data-page-node-id="FmGJ7VyULppa4wz67x1RIp" class="book" id="book">
         <div data-page-node-id="NuZIMyCTYc7r3XmkYSi9s0" class="page-slot left" id="slotL"></div>
         <div data-page-node-id="YUiUy6TZpZhxhue4Tz1oCP" class="page-slot right" id="slotR"></div>
-        <div data-page-node-id="GTgutTer000000000000000" class="gutter" id="gutter"></div>
+        <div data-page-node-id="GTgutTer000000000000000" class="gutter"></div>
         <div data-page-node-id="7OzEG9xgqL278Fk9xfglns" class="leaf" id="leaf">
           <div data-page-node-id="FMmNrx58wJGs3yZtI998eW" class="leaf-face front" id="leafF"></div>
           <div data-page-node-id="9x5eVRr9TwZqQSFezMUfqR" class="leaf-face back" id="leafB"></div>
@@ -129,7 +173,7 @@
       <div data-page-node-id="Kf65IY873wb6bIs70mllw2" class="pat-grid" id="edPatterns"></div>
 
       <div data-page-node-id="PCwrap" id="edPatColorWrap">
-        <label data-page-node-id="PClabel"><!--pnid:PClabelTxt-->图案颜色<span data-page-node-id="PChint" class="pc-hint" id="edPatHint">选了封面图案后生效</span></label>
+        <label data-page-node-id="PClabel"><!--pnid:PClabelTxt-->图案颜色<span data-page-node-id="PChint" class="pc-hint">选了封面图案后生效</span></label>
         <div data-page-node-id="PCrow" class="swatches" id="edPatColors"></div>
       </div>
 
@@ -195,11 +239,53 @@
     </div>
   </div>
 
-  <div data-page-node-id="vZVnyypar6LYoM3GOsFXr4" class="toast" id="toast"></div>
+  <div data-page-node-id="BGmask" class="cp-mask" id="bgMask">
+    <div data-page-node-id="BGpanel" class="cp-panel">
+      <div data-page-node-id="BGhead" class="cp-head"><span data-page-node-id="BGtitle" id="bgTitle">背景设置</span><button data-page-node-id="BGclose" class="cp-x" id="bgClose" title="关闭">✕</button></div>
+      <div data-page-node-id="BGtabs" class="bg-note" id="bgTabs">主页和阅读器共用同一份背景</div>
+      <div data-page-node-id="BGlabel1" class="bg-label">预设颜色</div>
+      <div data-page-node-id="BGcolors" class="swatches" id="bgColors"></div>
+      <div data-page-node-id="BGlabel2" class="bg-label">背景图片</div>
+      <div data-page-node-id="BGrow" class="upload-row">
+        <button data-page-node-id="BGup" class="btn ghost" id="bgUpload">选择图片</button>
+        <button data-page-node-id="BGclr" class="btn ghost" id="bgClearImg" disabled>移除图片</button>
+      </div>
+      <div data-page-node-id="BGnote" class="bg-note">图片会压缩后只存在本机，不会跟着导出文件走</div>
+      <div data-page-node-id="BGact" class="cp-actions">
+        <button data-page-node-id="BGreset" class="btn ghost" id="bgReset">恢复默认</button>
+        <button data-page-node-id="BGok" class="btn primary" id="bgOk">完成</button>
+      </div>
+    </div>
+  </div>
+  <input data-page-node-id="BGfile" accept="image/*" hidden id="bgFile" type="file">
+
   <input data-page-node-id="0Lio0A3H1Vxl0cqCsqHD1u" accept="image/*" hidden id="filePicker" type="file">
   <input data-page-node-id="PfKLvwIHF0oGvl7g7C4CMc" accept="image/*" hidden id="coverFile" type="file">
 </div>
 
-  <script src="app.js" defer></script>
+  <!-- 脚本：按依赖顺序加载（defer 保证 DOM 就绪且顺序执行），各文件职责见 README.md -->
+  <script src="src/core.js" defer></script>
+  <script src="src/visuals.js" defer></script>
+  <script src="src/storage.js" defer></script>
+  <script src="src/io-export.js" defer></script>
+  <script src="src/io-doc.js" defer></script>
+  <script src="src/io-share.js" defer></script>
+  <script src="src/io-import.js" defer></script>
+  <script src="src/io-example.js" defer></script>
+  <script src="src/state.js" defer></script>
+  <script src="src/home-view.js" defer></script>
+  <script src="src/carousel.js" defer></script>
+  <script src="src/reader-view.js" defer></script>
+  <script src="src/page-flip.js" defer></script>
+  <script src="src/page-edit.js" defer></script>
+  <script src="src/text-sticker.js" defer></script>
+  <script src="src/media.js" defer></script>
+  <script src="src/widgets.js" defer></script>
+  <script src="src/editor.js" defer></script>
+  <script src="src/home-events.js" defer></script>
+  <script src="src/reader-flow.js" defer></script>
+  <script src="src/scrub.js" defer></script>
+  <script src="src/system.js" defer></script>
+  <script src="src/main.js" defer></script>
 </body>
 </html>

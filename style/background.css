@@ -1,0 +1,40 @@
+/* =====================================================================
+ * Carnet · 背景设置面板与浅色适配   （样式 16 / 16）
+ * ---------------------------------------------------------------------
+ * ① 背景面板（预设色 / 图片操作区）
+ * ② 浅色背景下文字与玻璃控件自动换深色
+ *
+ * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
+ * ===================================================================== */
+/* ============ 背景设置面板 ============ */
+/* 主页 / 阅读器 共用同一份背景，不再有切换页签 */
+.bg-label{font-size:12.5px;opacity:.72;margin:14px 0 8px;letter-spacing:.05em}
+.bg-note{font-size:11px;opacity:.5;margin-top:10px;letter-spacing:.03em}
+#bgClearImg[disabled]{opacity:.4;pointer-events:none}
+
+/* ============ 浅色自定义背景：文字与玻璃控件自动换深色 ============ */
+#home.bg-light .brand,#home.bg-light .home-head h1{color:#2b2f3d;text-shadow:none}
+#home.bg-light .home-head .pages{color:#3a3f52}
+#home.bg-light .topbar .icon-btn,#home.bg-light .topbar .pill{background:rgba(40,44,66,.4);border-color:rgba(40,44,66,.22)}
+#home.bg-light .view-toggle{background:rgba(40,44,66,.4);border-color:rgba(40,44,66,.22)}
+#home.bg-light .view-toggle button{color:#2b2f3d}
+#home.bg-light .view-toggle button:hover{background:rgba(40,44,66,.16)}
+/* 浅色背景下：玻璃偏白一点、图标换深色，不然白玻璃+白图标会糊成一片 */
+#home.bg-light .view-toggle button.on{
+  color:#2b2f3d;
+  background:rgba(255,255,255,.14);
+  border-color:rgba(255,255,255,.6);
+  backdrop-filter:blur(6px) saturate(140%) contrast(1.05) brightness(1.12);
+  -webkit-backdrop-filter:blur(6px) saturate(140%) contrast(1.05) brightness(1.12);
+  box-shadow:
+    0 4px 12px -5px rgba(40,44,66,.35),
+    inset 0 0 0 .5px rgba(255,255,255,.7)
+}
+.lg-refract #home.bg-light .view-toggle button.on{
+  backdrop-filter:url(#lgToggleBtn) blur(6px) saturate(140%) contrast(1.05) brightness(1.12);
+  -webkit-backdrop-filter:url(#lgToggleBtn) blur(6px) saturate(140%) contrast(1.05) brightness(1.12);
+}
+#reader.bg-light .rtitle h2{color:#2b2f3d}
+#reader.bg-light .rtitle .pages{color:#3a3f52}
+#reader.bg-light .rtop .icon-btn,#reader.bg-light .rbot .pill-btn{background:rgba(40,44,66,.4);border-color:rgba(40,44,66,.22)}
+#reader.bg-light .rbot .pager{color:#3a3f52}

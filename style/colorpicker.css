@@ -1,0 +1,92 @@
+/* =====================================================================
+ * Carnet · 自定义取色盘   （样式 9 / 16）
+ * ---------------------------------------------------------------------
+ * ① 饱和度 / 明度面板与色相条
+ * ② 手输色值时键盘弹起把面板顶上去
+ *
+ * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
+ * ===================================================================== */
+/* ============ 自定义取色盘 ============ */
+.cp-mask{
+  position:absolute;inset:0;z-index:120;display:none;place-items:center;padding:20px;
+  background:rgba(20,22,38,.62);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)
+}
+.cp-mask.show{display:grid;animation:fadeIn .2s ease}
+/* 取色盘要压在「背景设置」面板上面：两者同为 .cp-mask（z-index:120），
+   而背景面板在 DOM 里更靠后，不抬高就会被它盖住 —— 自定义颜色点开了却看不见 */
+#cpMask{z-index:170}
+/* 手输色值时键盘会盖住底部按钮，此时把面板顶上去 */
+.cp-mask.kb{place-items:start center;padding-top:6vh}
+.cp-panel{
+  width:min(330px,100%);padding:16px;border-radius:20px;
+  /*background:var(--frost);*/border:1px solid var(--frost-bd);
+  backdrop-filter:var(--frost-fx);-webkit-backdrop-filter:var(--frost-fx);
+  box-shadow:0 30px 60px -18px rgba(0,0,0,.7);animation:pop .24s cubic-bezier(.2,.9,.3,1.2)
+}
+.cp-head{display:flex;align-items:center;justify-content:space-between;font-size:14px;font-weight:600;letter-spacing:.05em;margin-bottom:12px}
+.cp-x{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.1);font-size:12px}
+/* 上：饱和度 / 明度面板；下：色相条。都自己接管手势，不依赖系统取色器 */
+.cp-sv{
+  position:relative;height:172px;border-radius:14px;overflow:hidden;touch-action:none;cursor:crosshair;
+  border:1px solid rgba(255,255,255,.16)
+}
+.cp-dot{
+  position:absolute;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;border:2px solid #fff;
+  box-shadow:0 0 0 1px rgba(0,0,0,.45),0 2px 6px rgba(0,0,0,.4);pointer-events:none
+}
+.cp-hue{
+  position:relative;height:22px;margin-top:12px;border-radius:11px;touch-action:none;
+  background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00);border:1px solid rgba(255,255,255,.16)
+}
+.cp-hue-dot{
+  position:absolute;top:50%;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;background:#fff;
+  box-shadow:0 0 0 1px rgba(0,0,0,.4),0 2px 6px rgba(0,0,0,.35);pointer-events:none
+}
+.cp-row{display:flex;align-items:center;gap:10px;margin-top:12px}
+.cp-prev{width:46px;height:46px;flex:0 0 auto;border-radius:12px;border:2px solid rgba(255,255,255,.22)}
+.cp-hex{
+  flex:1;min-width:0;padding:11px 12px;border-radius:12px;font-size:14px;letter-spacing:.06em;
+  background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);color:#fff;outline:none;
+  font-variant-numeric:tabular-nums
+}
+.cp-hex:focus{border-color:var(--accent);background:rgba(255,255,255,.13)}
+.cp-actions{display:flex;gap:12px;margin-top:14px}
+.pat-grid,.tpl-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.pat,.tpl{
+  aspect-ratio:3/4.05;border-radius:12px;border:2px solid rgba(255,255,255,.18);overflow:hidden;
+  position:relative;background:#eee;transition:transform .15s,border-color .2s
+}
+.pat:hover,.tpl:hover{transform:translateY(-2px)}
+.pat.on,.tpl.on{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.3)}
+.pat .pv{position:absolute;inset:0;background-size:cover;background-position:center}
+.pat .pspine{
+  position:absolute;left:0;top:0;bottom:0;width:9.5%;z-index:2;
+  box-shadow:2px 0 7px rgba(0,0,0,.3),inset -1px 0 0 rgba(255,255,255,.16)
+}
+.pat.on::after{
+  content:"✓";position:absolute;top:4px;right:5px;width:16px;height:16px;border-radius:50%;
+  background:#fff;color:#2b2f3d;font-size:10px;font-weight:800;line-height:1;
+  display:grid;place-items:center;z-index:3;box-shadow:0 2px 7px rgba(0,0,0,.32)
+}
+.pat span,.tpl span{position:absolute;bottom:0;left:0;right:0;font-size:9.5px;text-align:center;
+  padding:2px 0;background:rgba(0,0,0,.34);letter-spacing:.04em;z-index:3}
+.tpl{aspect-ratio:3/4;border-radius:8px}
+.editor-preview{display:flex;justify-content:center;margin-bottom:4px}
+.editor-preview .cover{width:130px;aspect-ratio:3/4.05;box-shadow:0 18px 32px -14px rgba(0,0,0,.65)}
+/* 操作按钮吸底：滚动内容时也一直贴在弹窗底部 */
+.modal-actions{
+  position:sticky;bottom:0;z-index:6;display:flex;gap:12px;margin-top:22px;
+  padding:14px 0 calc(18px + env(safe-area-inset-bottom));
+  background:linear-gradient(180deg,rgba(45,51,80,0),#2d3350d4 26%);
+}
+.btn{flex:1;padding:12px;border-radius:13px;font-size:14.5px;font-weight:600;letter-spacing:.04em;transition:transform .15s,filter .2s}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:linear-gradient(135deg,#ef7ba0,#e0668a);color:#fff;box-shadow:0 10px 22px -10px rgba(224,102,138,.9)}
+.btn.ghost{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18)}
+.btn:hover{filter:brightness(1.06)}
+.upload-row{display:flex;gap:10px;align-items:center}
+.upload-row .btn{flex:0 0 auto;padding:10px 16px;font-size:13px}
+.upload-thumb{width:44px;height:56px;border-radius:8px;background-size:cover;background-position:center;border:1px solid rgba(255,255,255,.2)}
+
+/* 提示浮层已废弃：信息统一走控制台（见 src/system.js 的 toast()），界面不再有浮层 */
+

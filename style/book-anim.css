@@ -1,0 +1,64 @@
+/* =====================================================================
+ * Carnet · 开合书动画   （样式 12 / 16）
+ * ---------------------------------------------------------------------
+ * ① 封面飞入放大成书、ghost 相位
+ * ② 合书 / 退场动画，以及封面的单独成页态
+ *
+ * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
+ * ===================================================================== */
+/* ============ 开合书动画 ============ */
+.cover-ghost{
+  position:fixed;z-index:60;pointer-events:none;transform-origin:0 0;
+  border-radius:5px 13px 13px 5px;overflow:hidden;will-change:transform,opacity
+}
+.cover-ghost .cover{
+  width:100% !important;height:100% !important;aspect-ratio:auto !important;
+  border-radius:0;box-shadow:0 30px 60px -22px rgba(10,12,26,.7)
+}
+/* 只在最后 1/4 收一下：ghost 全程清晰，落点和书完全重合后才悄悄退场 */
+@keyframes ghostOut{
+  0%{opacity:1;border-radius:5px 13px 13px 5px;box-shadow:0 30px 60px -22px rgba(10,12,26,.7)}
+  70%{opacity:1;border-radius:4px 11px 11px 4px;box-shadow:0 20px 40px -20px rgba(10,12,26,.62)}
+  100%{opacity:0;border-radius:3px 10px 10px 3px;box-shadow:0 12px 26px -18px rgba(10,12,26,.5)}
+}
+#home{transition:transform .5s cubic-bezier(.32,.86,.3,1),opacity .42s ease,filter .42s ease}
+#home.book-opening{transform:scale(.93);opacity:0;filter:blur(7px);pointer-events:none}
+#home.noanim{transition:none !important}
+/* 关闭：主页先瞬回最终布局（这样封面落点才准），再淡入接住飞回来的封面 */
+#home.book-returning{opacity:0;transition:opacity .24s ease}
+#reader{opacity:0;transition:opacity .42s ease}
+#reader.show{display:flex;opacity:1}
+#reader.book-opening{opacity:1;transition:none}
+#reader.book-opening .rtop,#reader.book-opening .rbot{opacity:0;transition:opacity .3s ease .2s}
+#reader.book-opening.show .rtop,#reader.book-opening.show .rbot{opacity:1}
+/* 由 ghost 负责「变大」，书只做淡入，两者尺寸始终一致，不会出现错位 */
+.book.book-in{animation:bookIn .58s ease both;will-change:opacity}
+@keyframes bookIn{
+  0%,46%{opacity:0}
+  76%{opacity:1}
+  100%{opacity:1}
+}
+.book.book-out{animation:bookOut .3s ease-out both}
+@keyframes bookOut{from{opacity:1}to{opacity:0}}
+/* 封面单独一页：书仍是跨页的骨架，整本左移半页宽、左页收起来，
+   封面就正好落在正中；翻页用的叶子位置与静止时完全重合，翻页动画可以原样沿用 */
+.book.cover-only{transform:translateX(calc(var(--pw) * -.5))}
+.book.cover-only .page-slot.left{display:none}
+.book.cover-only .page-slot.right{border-radius:4px 11px 11px 4px}
+.book.cover-only .leaf-face.front{border-radius:4px 11px 11px 4px}
+/* 退出时封面立刻让位给飞回主页的那一张，不做淡出 */
+.book.gone{opacity:0}
+/* 合上后：宽度收成一张封面，位移抵消「居中」带来的偏移，
+   让封面视觉位置跟合上前完全重合，接着才能无缝缩小回主页 */
+.book.folded{width:var(--pw);overflow:hidden;transform:translateX(calc(var(--pw) * -.5))}
+/* 退场动画期间锁住书页与底栏交互，只留返回键可以点（再点一次=跳过动画） */
+#reader.closing #stage,#reader.closing .rbot{pointer-events:none}
+@media (prefers-reduced-motion:reduce){
+  #home,#reader,.book.book-in,.book.book-out{transition:none;animation:none}
+}
+
+@media (max-width:560px){
+  .pat-grid,.tpl-grid{grid-template-columns:repeat(3,1fr)}
+  .carousel{padding:0 40vw}
+}
+

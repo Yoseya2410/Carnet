@@ -1,0 +1,84 @@
+/* =====================================================================
+ * Carnet · 书架模式   （样式 14 / 16）
+ * ---------------------------------------------------------------------
+ * ① 每排书 + 亚克力搁板（配金属螺丝）
+ * ② 拖动排序：被拎起的淡坑、跟随手指的悬浮副本
+ *
+ * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
+ * ===================================================================== */
+/* ============ 书架模式：一行一本搁板，书本竖立摆上去 ============ */
+.shelf-wrap{
+  flex:1;overflow-y:auto;overflow-x:hidden;padding:2.2vh 4vw 2.6vh;
+  /* 只放纵向平移和双指缩放：横向 overscroll 就抢不走长按后的拖动手势了 */
+  touch-action:pan-y pinch-zoom;
+  scrollbar-width:none;-webkit-overflow-scrolling:touch;animation:fadeIn .28s ease
+}
+.shelf-wrap::-webkit-scrollbar{display:none}
+/* 一排 = 一列书 + 它脚下的搁板；排与排之间留出明显间距，上下两排不打架 */
+.shelf-row{margin-bottom:clamp(24px,3.6vh,42px)}
+.shelf-row:last-child{margin-bottom:2px}
+.shelf-books{display:flex;justify-content:center;align-items:flex-end;gap:var(--sgap,20px);position:relative;z-index:1;margin-bottom:-7px}
+/* 书架上不做轮播的缩放/明暗处理，全部原色 */
+.shelf-books .book-item,.shelf-books .book-item.active{filter:none;transform:none;cursor:pointer}
+.shelf-books .cover{width:var(--sbw,120px)}
+/* 没碰到的手帐本：页数与编辑按钮都藏着，只留干净的封面。
+   选择器要写满三层 —— 否则会被前面 .book-item.active .gear 的同权重规则压过去，
+   当前选中的那本会一直挂着编辑按钮 */
+.shelf-books .book-item .gear{
+  opacity:0;pointer-events:none;width:26px;height:26px;top:7px;right:7px;transform:none;
+  transition:opacity .2s ease,transform .25s,background .18s
+}
+.shelf-books .cover-badge{
+  font-size:10px;padding:2px 7px;bottom:7px;opacity:0;transition:opacity .2s ease
+}
+/* 触碰到了（悬停 / 长按）才显出来 */
+.shelf-books .book-item.touched .gear,
+.shelf-books .book-item.touched .cover-badge{opacity:.92}
+.shelf-books .book-item.touched .gear{pointer-events:auto}
+@media (hover:hover){
+  .shelf-books .book-item:hover .gear,
+  .shelf-books .book-item:hover .cover-badge{opacity:.92}
+  .shelf-books .book-item:hover .gear{pointer-events:auto}
+}
+/* 亚克力搁板：半透明玻璃条压在书脚前面，两端各一颗金属螺丝。
+   宽度由 JS 按这一排实际占用的长度算出来（--bw），保证整排书都站得下 */
+.shelf-board{
+  position:relative;z-index:2;height:13px;width:var(--bw,94%);max-width:100%;margin:0 auto;border-radius:7px;
+  background:linear-gradient(180deg,rgba(255,255,255,.62),rgba(255,255,255,.30) 52%,rgba(255,255,255,.46));
+  box-shadow:0 12px 24px -10px rgba(20,22,40,.45),inset 0 1px 0 rgba(255,255,255,.65),inset 0 -1px 0 rgba(255,255,255,.28)
+}
+.shelf-board .screw{
+  position:absolute;top:50%;width:11px;height:11px;margin-top:-5.5px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#ffffff,#c9ccd8 55%,#9498a8);
+  box-shadow:inset 0 0 2px rgba(0,0,0,.4),0 1px 2px rgba(20,22,40,.3)
+}
+.shelf-board .screw.sl{left:12px}
+.shelf-board .screw.sr{right:12px}
+.shelf-empty{padding:9vh 20px;text-align:center;font-size:13.5px;opacity:.7;letter-spacing:.05em}
+/* ---- 书架拖动排序 ---- */
+/* 长按封面时不要出现系统的「保存图片 / 拷贝」浮层和点击高亮，
+   它们在手机上会把手势一并吃掉，导致拖不动 */
+.shelf-wrap .book-item,.shelf-ghost{
+  -webkit-touch-callout:none;-webkit-tap-highlight-color:transparent
+}
+.shelf-wrap.sorting{cursor:grabbing;touch-action:none;user-select:none;-webkit-user-select:none}
+/* 排序过程中每本书都可能被 FLIP 位移，提前提示合成层，滑动更跟手 */
+.shelf-wrap.sorting .book-item{cursor:grabbing;will-change:transform}
+.shelf-wrap.sorting .book-item .gear,
+.shelf-wrap.sorting .book-item .cover-badge{opacity:0!important;pointer-events:none}
+/* 被拎起来的那本留在原位当一个淡淡的「坑」，提示松手会落在哪 */
+.shelf-books .book-item.lifted{opacity:.22}
+/* 跟着手指走的悬浮副本。
+   transition:none 是必须的 —— 它是 .book-item 的克隆，会继承
+   .book-item{transition:transform .5s}；那样刚长按出来时副本会从屏幕左上角
+   「飞」到手指底下。要的就是它老老实实直接出现在手指下 */
+.shelf-ghost{
+  position:fixed;left:0;top:0;z-index:60;pointer-events:none;transform-origin:50% 50%;
+  filter:drop-shadow(0 20px 30px rgba(8,10,24,.55));will-change:transform;
+  transition:none
+}
+.shelf-ghost .cover{
+  width:100%!important;height:100%!important;aspect-ratio:auto!important;
+  box-shadow:0 26px 46px -18px rgba(20,22,40,.62),0 6px 14px rgba(20,22,40,.28)
+}
+

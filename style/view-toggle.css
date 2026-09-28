@@ -1,0 +1,49 @@
+/* =====================================================================
+ * Carnet · 展示模式切换按钮   （样式 13 / 16）
+ * ---------------------------------------------------------------------
+ * ① 左右滑动 / 书架 两态切换
+ * ② 选中态苹果「液态玻璃」效果（含浏览器支持时的折射版）
+ *
+ * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
+ * ===================================================================== */
+/* ============ 展示模式切换（左右滑动 / 书架） ============ */
+/* hidden 属性必须压过 .carousel-wrap 的 display:flex */
+[hidden]{display:none !important}
+/* 模式切换顶替原来的标题，落在主页左上角 */
+.view-toggle{
+  display:flex;gap:3px;padding:4px;border-radius:999px;flex:0 0 auto;
+  background:var(--glass);border:1px solid var(--glass-bd);
+  /* 容器的模糊别给太重：它会先把按钮背后的画面糊平，选中那颗的折射就没东西可折了。
+     3px 刚好既保住胶囊的毛玻璃感，又让按钮里的位移贴图能拉出真实的折射边（实测对比见 _vt4.js） */
+  backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)
+}
+.view-toggle button{
+  width:36px;height:36px;border-radius:50%;display:grid;place-items:center;color:#fff;opacity:.62;
+  border:1px solid transparent;
+  transition:background .18s,color .18s,opacity .18s,transform .14s,
+             box-shadow .18s,border-color .18s
+}
+.view-toggle button:hover{background:rgba(255,255,255,.16);opacity:1}
+.view-toggle button:active{transform:scale(.92)}
+/* 选中态：苹果「液态玻璃」。
+   ⚠️ 关键是**不吃任何白色高光/渐变**（之前那版的水滴反光已按需求去掉）：
+   玻璃本身完全透明，质感全交给 backdrop-filter —— 模糊 + 提亮 + 加饱和 + 对比，
+   再加上 SVG 位移贴图做出边缘折射（折射版见下面 .lg-refract）。
+   只留一圈 .5px 的极细玻璃边交代轮廓，外加一点投影让它浮起来。
+   ⚠️ 别在这里写 transform：.on 在 :active 之后，会盖掉按下时的 scale(.92) 反馈。 */
+.view-toggle button.on{
+  opacity:1;color:#fff;
+  background:rgba(255,255,255,.05);        /* 近乎全透明，只做 backdrop-filter 失效时的兜底 */
+  border-color:rgba(255,255,255,.2);
+  backdrop-filter:blur(6px) saturate(180%) contrast(1.08) brightness(1.06);
+  -webkit-backdrop-filter:blur(6px) saturate(180%) contrast(1.08) brightness(1.06);
+  box-shadow:
+    0 4px 12px -5px rgba(10,12,26,.5),      /* 悬在玻璃上的投影 */
+    inset 0 0 0 .5px rgba(255,255,255,.22)  /* 极细一圈玻璃边 */
+}
+/* 探测到浏览器吃 backdrop-filter 里的 url() 时，升级成带折射的版本（贴图由 src/home-view.js 生成） */
+.lg-refract .view-toggle button.on{
+  backdrop-filter:url(#lgToggleBtn) blur(6px) saturate(180%) contrast(1.08) brightness(1.06);
+  -webkit-backdrop-filter:url(#lgToggleBtn) blur(6px) saturate(180%) contrast(1.08) brightness(1.06);
+}
+

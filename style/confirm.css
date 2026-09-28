@@ -1,0 +1,29 @@
+/* =====================================================================
+ * Carnet · 确认弹窗   （样式 11 / 16）
+ * ---------------------------------------------------------------------
+ * ① 删除等破坏性操作前的二次确认框
+ *
+ * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
+ * ===================================================================== */
+/* ============ 确认弹窗 ============ */
+.confirm-mask{
+  position:absolute;inset:0;z-index:150;display:none;place-items:center;padding:22px;
+  background:rgba(16,18,30,.5);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)
+}
+.confirm-mask.show{display:grid;animation:fadeIn .2s ease}
+.confirm-box{
+  width:min(340px,100%);padding:22px;border-radius:20px;text-align:center;
+  background:var(--frost);border:1px solid var(--frost-bd);
+  backdrop-filter:var(--frost-fx);-webkit-backdrop-filter:var(--frost-fx);
+  box-shadow:0 34px 70px -22px rgba(0,0,0,.72);animation:pop .26s cubic-bezier(.2,.9,.3,1.2)
+}
+.confirm-box .ci{
+  width:44px;height:44px;margin:0 auto 12px;border-radius:50%;display:grid;place-items:center;
+  background:rgba(224,102,138,.16);border:1px solid rgba(224,102,138,.4);color:var(--accent);font-size:20px
+}
+.confirm-box h3{margin:0 0 8px;font-size:16px;font-weight:600;letter-spacing:.04em}
+.confirm-box p{margin:0 0 18px;font-size:13px;opacity:.72;line-height:1.7;word-break:break-word}
+.confirm-actions{display:flex;gap:10px}
+.confirm-actions .btn{padding:11px;font-size:14px}
+.confirm-actions .btn.danger{background:rgba(224,102,138,.16);border:1px solid rgba(224,102,138,.44);color:#ff92ab}
+

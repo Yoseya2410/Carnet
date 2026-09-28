@@ -1,0 +1,85 @@
+/* =====================================================================
+ * Carnet · 分享菜单与多选选择条   （样式 15 / 16）
+ * ---------------------------------------------------------------------
+ * ① 向上弹出的分享 / 导出菜单
+ * ② 书架多选时的底部选择条
+ * ③ 封面上的勾选圈
+ *
+ * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
+ * ===================================================================== */
+/* ============ 分享导出菜单（从分享按钮向上弹） ============ */
+.share-wrap{position:relative}
+.share-pop{right:auto;left:50%;top:auto;bottom:calc(100% + 12px);min-width:172px;transform-origin:bottom center}
+.share-pop:not(.show){transform:translateX(-50%) translateY(6px) scale(.97)}
+.share-pop.show{transform:translateX(-50%)}
+
+/* ============ 书架多选导出：底部选择条 ============ */
+/* 和底栏同一套布局（position 里的渐变也跟着复用），进入多选时顶掉底栏 */
+.pickbar{gap:clamp(8px,1.8vw,16px);padding:12px 14px;padding-bottom:calc(22px + env(safe-area-inset-bottom))}
+.pick-count{
+  font-size:13px;letter-spacing:.06em;opacity:.82;white-space:nowrap;
+  padding:8px 4px;min-width:66px;text-align:center
+}
+.pick-btn{
+  padding:9px 15px;border-radius:999px;font-size:13.5px;letter-spacing:.06em;white-space:nowrap;
+  color:rgba(255,255,255,.88);background:rgba(255,255,255,.14);
+  border:1px solid rgba(255,255,255,.18);transition:background .18s,color .18s,transform .14s
+}
+.pick-btn:hover{background:rgba(255,255,255,.24)}
+.pick-btn:active{transform:scale(.95)}
+.pick-btn.primary{
+  background:linear-gradient(135deg,#ef7ba0,#e0668a);color:#fff;border-color:transparent;
+  box-shadow:0 8px 18px -8px rgba(224,102,138,.9)
+}
+.pick-btn.primary:hover{filter:brightness(1.06)}
+.pick-btn.danger{
+  color:#ff92ab;background:rgba(224,102,138,.16);border-color:rgba(224,102,138,.44)
+}
+.pick-btn.danger:hover{background:rgba(224,102,138,.26)}
+#home.bg-light .pick-btn.danger{color:#c33b5c;background:rgba(224,102,138,.14);border-color:rgba(224,102,138,.4)}
+.pick-btn[disabled]{opacity:.38;pointer-events:none}
+/* 从底栏「删除」进入多选时：删除是主操作（实心），导出退成次要 */
+.pickbar.purpose-del .pick-btn#pickDelete{
+  background:linear-gradient(135deg,#ef7ba0,#e0668a);color:#fff;border-color:transparent;
+  box-shadow:0 8px 18px -8px rgba(224,102,138,.9)
+}
+.pickbar.purpose-del .pick-btn#pickDelete:hover{filter:brightness(1.06)}
+.pickbar.purpose-del .pick-btn#pickExport{
+  background:rgba(255,255,255,.14);color:rgba(255,255,255,.88);
+  border-color:rgba(255,255,255,.18);box-shadow:none
+}
+#home.bg-light .pickbar.purpose-del .pick-btn#pickExport{
+  color:#2b2f3d;background:rgba(40,44,66,.12);border-color:rgba(40,44,66,.16)
+}
+/* 窄屏：选择条五个按钮收紧，避免挤出屏幕 */
+@media (max-width:430px){
+  .pickbar{gap:6px;padding:10px 9px;padding-bottom:calc(18px + env(safe-area-inset-bottom))}
+  .pick-btn{padding:8px 11px;font-size:12.5px;letter-spacing:.03em}
+  .pick-count{min-width:52px;padding:6px 2px;font-size:12.5px}
+}
+#home.bg-light .pick-btn{color:#2b2f3d;background:rgba(40,44,66,.12);border-color:rgba(40,44,66,.16)}
+#home.bg-light .pick-btn.primary{color:#fff}
+/* 封面上那个勾选圈：只有多选时才出现 */
+.pick{
+  position:absolute;left:7px;top:7px;width:23px;height:23px;border-radius:50%;z-index:5;
+  display:none;place-items:center;box-sizing:border-box;
+  background:rgba(20,22,40,.34);border:1.6px solid rgba(255,255,255,.9);
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  box-shadow:0 3px 9px rgba(0,0,0,.32);transition:background .18s,transform .18s
+}
+.pick::after{
+  content:'';width:10px;height:5.5px;box-sizing:border-box;
+  border-left:2px solid #fff;border-bottom:2px solid #fff;
+  transform:rotate(-45deg) translate(0,-1px);opacity:0;transition:opacity .15s
+}
+.shelf-wrap.picking .pick{display:grid}
+.book-item.picked .pick{background:linear-gradient(135deg,#ef7ba0,#e0668a);border-color:#fff;transform:scale(1.06)}
+.book-item.picked .pick::after{opacity:1}
+/* 多选时：不翻开、不排序，编辑按钮和页数都让位给勾选圈 */
+.shelf-wrap.picking .book-item{cursor:pointer}
+.shelf-wrap.picking .gear,.shelf-wrap.picking .cover-badge{opacity:0 !important;pointer-events:none}
+.shelf-wrap.picking .cover{outline:2px solid rgba(255,255,255,.5);outline-offset:3px}
+.shelf-wrap.picking .book-item.picked .cover{outline:2.5px solid #ef7ba0;outline-offset:3px}
+.shelf-wrap.picking .book-item.picked{transform:translateY(-4px)}
+.shelf-wrap.picking .book-item.picked .cover{filter:brightness(1.05)}
+
