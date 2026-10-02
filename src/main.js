@@ -81,3 +81,31 @@
   window.addEventListener('load', () => layoutCarousel(false));
   setTimeout(() => layoutCarousel(true), 60);
 })();
+
+/* ==================== 字体自检 ==================== */
+/* @font-face 加载失败时浏览器一声不响：拉丁字母会退到系统自带的手写字体上
+   （Windows 的 Lucida Handwriting / Comic Sans），肉眼很难分清「自定义字体没到」
+   和「本来就是这个样子」；只有中文落到楷体 / 雅黑才会显出不对劲。
+   所以这里直接问 FontFace 的身体状况：status 为 loaded 才算数，
+   error 说明字体拿到了但解析失败（已实测：文件 404、以及托管把找不到的路径
+   回落成 index.html —— 请求看着 200，内容却是一段 HTML —— 都是 error）。
+   别用「量字形宽度」判断：手写体和 serif 都是全角汉字，宽度会撞在一起分不出来。
+   也正因为这个坑，字体文件名必须是纯 ASCII（它曾经叫 %E6%89%8B%E5%86%99%E4%BD%93.woff2）。 */
+async function handFontStatus() {
+  if (!document.fonts) return 'unsupported';
+  try { await document.fonts.load('64px CarnetHand', '手帐本Aa0'); } catch (e) {}
+  const faces = [...document.fonts].filter(f => f.family.replace(/['"]/g, '') === 'CarnetHand');
+  if (!faces.length) return 'not-declared';
+  return faces.some(f => f.status === 'loaded') ? 'ok' : faces[0].status;
+}
+(async () => {
+  const st = await handFontStatus();
+  if (st !== 'ok') {
+    console.error(`[Carnet] 手写体 CarnetHand 没生效（${st}），已退回系统字体。`
+      + '到 Network 面板看 assets/font/carnet-hand.woff2 这个请求是不是真的返回了字体：'
+      + '部分静态托管对找不到的路径会回落成 index.html，于是「200 + text/html」，'
+      + '浏览器拿到一段 HTML 当字体解析，失败后整个字族静默作废。');
+  }
+})();
+/* 手动排查用：控制台 await window.carnetFontOK() */
+window.carnetFontOK = handFontStatus;
