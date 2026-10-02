@@ -8,15 +8,17 @@
  * ===================================================================== */
 /* ============ 基础 ============ */
 /* 手写体（免费商用）：整包放在项目里随应用加载，不依赖系统装没装。
-   woff2 只要 1.7MB（旧的那套 851tegakizatsu.ttf 有 28MB，已换掉），解析快、首屏几乎无感；
-   后面再挂一份 woff 给不认 woff2 的老浏览器兜底。
+   woff2 只要 2.55MB（旧的那套 851tegakizatsu.ttf 有 28MB，这里是它裁出来的子集），解析快、首屏几乎无感；
+   它是用 fontTools 从那支全字形 TTF 裁的「GB2312 全覆盖」版（6763 汉字 + 全角标点一个不缺，
+   比原先用在线转换器生成的那版多 2500 字、且补齐了漏掉的 ，？；：），已实测与母字体逐像素同形。
+   要重裁的命令见 README「字体」一节。
    font-display:swap 让文字先用回退字体顶着、加载完再换，不阻塞首屏。
    注意：只对本页显示生效——导出 PDF / 长图走的是独立文档，吃不到这里的 @font-face，
    导出前 io-doc.js 会探测手写体画不画得出来，画不出就整段按楷体导出。 */
 @font-face{
   font-family:'CarnetHand';
-  src:url('../assets/font/手写体.woff2') format('woff2'),
-      url('../assets/font/手写体.woff') format('woff');
+  src:url('../assets/font/carnet-hand.woff2') format('woff2'),
+      url('../assets/font/carnet-hand.woff') format('woff');
   font-display:swap;
   font-weight:400;
   font-style:normal;
