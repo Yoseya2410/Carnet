@@ -130,7 +130,7 @@ const TEXT_BGS = ['', '#ffe066', '#ffc2d8', '#bfe4ff', '#c9f0d4', '#e6d4ff'];
    song 走系统字体栈（项目里只自带一套手写体，宋体靠系统），栈末的通用族不能省。
    黑体（hei）2026-10-02 撤掉了，见下面的 FONT_ALIAS。 */
 const TEXT_FONTS = [
-  { k: 'hand',  n: '手写杂书体', abbr: '手写', css: 'var(--font-hand)' },
+  { k: 'hand',  n: '手写体',    abbr: '手写', css: 'var(--font-hand)' },
   { k: 'kai',   n: '楷体',      abbr: '楷体', css: 'var(--font-kai)' },
   { k: 'song',  n: '宋体',      abbr: '宋体', css: "'Songti SC','STSong','SimSun','宋体',serif" },
   { k: 'plain', n: '默认字体',  abbr: '默认', css: '' }

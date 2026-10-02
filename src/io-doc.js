@@ -13,7 +13,7 @@
  * 说明：模块间共用全局作用域，加载顺序即依赖顺序（见 index.html 与 README）。
  * ===================================================================== */
 /* ==================== 导出 PDF / 长图（纯前端生成，无外部依赖） ==================== */
-/* 手写杂书体是随页面 @font-face 加载的，而导出的 XHTML 要塞进 SVG 图片里栅格化——
+/* 手写体是随页面 @font-face 加载的，而导出的 XHTML 要塞进 SVG 图片里栅格化——
    那是个独立文档，吃不到本页的 @font-face，只能用系统里真装了的字体。
    所以导出前实际画一次探针：拿手写体字族和一个「一定不存在」的字族各渲染一小块，
    两者像素完全相同就说明手写体在导出环境里没生效（都退回了默认字体），整段改按楷体导出。
@@ -47,14 +47,13 @@ function samePix(a, b) {
 async function probeExportFont() {
   if (__expHand != null) return __expHand;
   try {
-    /* 28MB 的 @font-face 不一定加载完了，先等它就绪再测，否则会误判成「画不出来」；
+    /* @font-face 不一定加载完了，先等它就绪再测，否则会误判成「画不出来」；
        load 失败（比如字体文件丢了）也不拦着，往下按没加载测 */
-    try { await document.fonts.load('64px "851tegakizatsu"', '手帐Abj'); } catch (_) {}
-    /* 手写体的三个名字：项目内 @font-face 只有英文名，后两个只有在系统里装过才认得到 */
-    const hand = await rasterExportText(`'851tegakizatsu','851手写杂书体','851手書き雑フォント'`);
+    try { await document.fonts.load('64px "CarnetHand"', '手帐Abj'); } catch (_) {}
+    const hand = await rasterExportText(`'CarnetHand'`);
     const none = await rasterExportText(`'__CarnetNoSuchFont__'`);
     __expHand = !samePix(hand, none);
-    if (!__expHand) toast('导出环境用不了手写杂书体，手写文字将按楷体导出');
+    if (!__expHand) toast('导出环境用不了手写体，手写文字将按楷体导出');
   } catch (e) { __expHand = true; }
   return __expHand;
 }

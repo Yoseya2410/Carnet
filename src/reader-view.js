@@ -67,7 +67,8 @@ function imgWrapHTML(im, i) {
   return `
     <div class="pimg-wrap${String(im.src).startsWith('data:image/svg') ? ' sticker' : ''}${im.locked ? ' locked' : ''}${im.fill ? ' fill' : ''}${tinyCls(im, hw)}" data-page="${i}" data-id="${im.id}"
          style="left:${(im.x * 100).toFixed(2)}%;top:${(im.y * 100).toFixed(2)}%;width:${(im.w * 100).toFixed(2)}%;height:${(hw * 100).toFixed(2)}%;${rotStyle(im)}">
-      <img class="pimg" draggable="false" src="${im.src}" alt="">
+      <!-- decoding="async"：图片交给后台线程解码，翻页 / 重绘时主线程不等它，不会卡一下 -->
+      <img class="pimg" draggable="false" decoding="async" src="${im.src}" alt="">
       ${objBarHTML('image', !!im.fill)}
       ${rotHandleHTML()}
       <div class="hdl tl" data-h="tl"></div>

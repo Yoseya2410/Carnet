@@ -84,9 +84,21 @@ function objAction(act, w, pid, iid, isText) {
 }
 
 function bindPage() {
+  /* 拖动 / 拉伸 / 旋转统一走这里。pointermove 在 120Hz 屏上一秒能来 120+ 次，
+     来一次就改一次样式会把主线程挤爆（拖动就会一顿一顿的）。
+     这里把事件攒起来、一帧只跑一次 move，收尾时把最后那一下补上，位置一点不丢。 */
   const track = (startX, startY, move, done) => {
-    const mv = ev => move(ev, startX, startY);
-    const up = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); done && done(); };
+    let raf = 0, last = null;
+    const run = () => { raf = 0; if (last) move(last, startX, startY); };
+    const mv = ev => { last = ev; if (!raf) raf = requestAnimationFrame(run); };
+    const up = () => {
+      if (raf) { cancelAnimationFrame(raf); raf = 0; }
+      if (last) move(last, startX, startY);        // 攒着没画的那一帧别丢，否则松手位置会差一点
+      window.removeEventListener('pointermove', mv);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      done && done();
+    };
     window.addEventListener('pointermove', mv);
     window.addEventListener('pointerup', up);
     window.addEventListener('pointercancel', up);

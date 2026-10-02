@@ -20,28 +20,43 @@ const carousel = (() => {
   let holdTimer = 0, pendingEl = null, pendingX = 0, sorting = null;
   const HOLD_MS = 420;                          // 长按多久进入排序
 
-  const centerOf = el => el.offsetLeft + el.offsetWidth / 2;
+  /* 每本书的中心点 / 宽度只在 measure() 里量一次，之后一直复用：
+     translate / scale 走的是 transform，不参与布局，拖动过程中这两个数不会变。
+     原来是边写 el.style.transform 边读 el.offsetWidth —— 写一次就强制重排一次，
+     n 本书就是每帧 n 次重排，拖起来发涩全花在这上面。 */
+  let mets = [], wrapW = 0;
   function measure() {
     items = [...track.children];
+    wrapW = wrap.clientWidth;
+    mets = items.map(el => ({ c: el.offsetLeft + el.offsetWidth / 2, w: el.offsetWidth }));
     if (!items.length) { minOff = maxOff = 0; return; }
-    const w = wrap.clientWidth;
-    maxOff = w / 2 - centerOf(items[0]);
-    minOff = w / 2 - centerOf(items[items.length - 1]);
+    maxOff = wrapW / 2 - mets[0].c;
+    minOff = wrapW / 2 - mets[mets.length - 1].c;
     if (minOff > maxOff) { const t = minOff; minOff = maxOff; maxOff = t; }
   }
   function styleItems() {
-    const view = wrap.clientWidth / 2 - off;
-    items.forEach(el => {
-      const d = Math.abs(centerOf(el) - view) / Math.max(el.offsetWidth * 1.25, 1);
+    const view = wrapW / 2 - off;
+    for (let i = 0; i < items.length; i++) {
+      const m = mets[i];
+      const d = Math.abs(m.c - view) / Math.max(m.w * 1.25, 1);
       const k = Math.max(0, 1 - d);
+      const el = items[i];
       el.style.transform = `scale(${(1 + 0.055 * k).toFixed(4)})`;
       el.style.filter = `saturate(${(0.86 + 0.14 * k).toFixed(3)}) brightness(${(0.94 + 0.06 * k).toFixed(3)})`;
-    });
+    }
   }
   function paint() {
     track.style.transform = `translate3d(${off.toFixed(2)}px,0,0)`;
     styleItems();
   }
+  /* 跟手那一下按帧画：pointermove 一秒能来上百次，每次都立刻写样式会把主线程堵住。
+     攒到下一帧统一画一次 —— 看上去一样跟手，掉帧没了。snap() 走的是带缓动的落位，直接 paint。 */
+  let paintRaf = 0;
+  function schedulePaint() {
+    if (paintRaf) return;
+    paintRaf = requestAnimationFrame(() => { paintRaf = 0; paint(); });
+  }
+  function cancelPaint() { if (paintRaf) { cancelAnimationFrame(paintRaf); paintRaf = 0; } }
   function ease(animate) {
     track.style.transition = animate ? EASE : 'none';
     items.forEach(el => el.style.transition = animate ? EASE + ',filter .46s ease' : 'none');
@@ -58,7 +73,7 @@ const carousel = (() => {
       $('#homePages').innerHTML = `<span>▤</span><span>${j.pages.length} 页</span>`;
     }
     $('#countPill').textContent = `${idx + 1} / ${items.length}`;
-    off = wrap.clientWidth / 2 - centerOf(items[idx]);
+    off = wrapW / 2 - mets[idx].c;
     ease(animate);
     paint();
   }
@@ -101,14 +116,15 @@ const carousel = (() => {
     s.to = clamp(s.from + Math.round((s.dx + s.scroll) / s.step), 0, s.els.length - 1);
     if (s.to !== s.lastTo) { s.lastTo = s.to; buzz(8); }
     s.el.style.transform = `translateX(${s.dx.toFixed(1)}px) scale(1.07)`;
-    const view = wrap.clientWidth / 2 - off;
+    const view = wrapW / 2 - off;
     s.els.forEach((e, i) => {
       if (e === s.el) return;
       let shift = 0;
       if (s.to > s.from) { if (i > s.from && i <= s.to) shift = -s.step; }
       else if (s.to < s.from) { if (i >= s.to && i < s.from) shift = s.step; }
       shift -= s.scroll;
-      const d = Math.abs(s.bases[i] + e.offsetWidth / 2 + shift - view) / Math.max(e.offsetWidth * 1.25, 1);
+      const m = mets[i] || { c: s.bases[i] + e.offsetWidth / 2, w: e.offsetWidth };
+      const d = Math.abs(m.c + shift - view) / Math.max(m.w * 1.25, 1);
       const k = Math.max(0, 1 - d);
       e.style.transform = `translateX(${shift.toFixed(1)}px) scale(${(1 + 0.055 * k).toFixed(4)})`;
     });
@@ -171,17 +187,18 @@ const carousel = (() => {
     if (t > maxOff) t = maxOff + (t - maxOff) * 0.3;
     else if (t < minOff) t = minOff + (t - minOff) * 0.3;
     off = t;
-    paint();
+    schedulePaint();
   }, { passive: true });
   const endDrag = () => {
     clearTimeout(holdTimer); pendingEl = null;
     if (sorting) { endSort(); return; }
     if (!dragging) return;
     dragging = false;
+    cancelPaint();
     const proj = off + vel * 5;
     let best = state.sel, bd = Infinity;
     items.forEach((el, i) => {
-      const d = Math.abs(centerOf(el) + proj - wrap.clientWidth / 2);
+      const d = Math.abs(mets[i].c + proj - wrapW / 2);
       if (d < bd) { bd = d; best = i; }
     });
     best = clamp(best, state.sel - 2, state.sel + 2);
