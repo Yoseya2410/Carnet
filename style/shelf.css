@@ -13,7 +13,9 @@
   padding:calc(var(--topbar-h,76px) + 2.2vh) 4vw calc(var(--botbar-h,90px) + 2.6vh);
   /* 只放纵向平移和双指缩放：横向 overscroll 就抢不走长按后的拖动手势了 */
   touch-action:pan-y pinch-zoom;
-  scrollbar-width:none;-webkit-overflow-scrolling:touch;animation:fadeIn .28s ease
+  overscroll-behavior:contain;            /* 滑到头别把整页带着一起弹 */
+  /* 书架故意不画滚动条：一行行书本身就是进度指示，旁边再竖一条反而碍眼 */
+  scrollbar-width:none;animation:fadeIn .28s ease
 }
 .shelf-wrap::-webkit-scrollbar{display:none}
 /* 一排 = 一列书 + 它脚下的搁板；排与排之间留出明显间距，上下两排不打架 */

@@ -7,14 +7,19 @@
  * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
  * ===================================================================== */
 /* ============ 基础 ============ */
-/* 手写杂书体（851tegakizatsu，免费商用）：整包放在项目里随应用加载，不依赖系统装没装。
-   字体有 28MB，font-display:swap 让文字先用回退字体顶着、加载完再换，不阻塞首屏。
+/* 手写体（免费商用）：整包放在项目里随应用加载，不依赖系统装没装。
+   woff2 只要 1.7MB（旧的那套 851tegakizatsu.ttf 有 28MB，已换掉），解析快、首屏几乎无感；
+   后面再挂一份 woff 给不认 woff2 的老浏览器兜底。
+   font-display:swap 让文字先用回退字体顶着、加载完再换，不阻塞首屏。
    注意：只对本页显示生效——导出 PDF / 长图走的是独立文档，吃不到这里的 @font-face，
    导出前 io-doc.js 会探测手写体画不画得出来，画不出就整段按楷体导出。 */
 @font-face{
-  font-family:'851tegakizatsu';
-  src:url('../assets/font/851tegakizatsu.ttf') format('truetype');
+  font-family:'CarnetHand';
+  src:url('../assets/font/手写体.woff2') format('woff2'),
+      url('../assets/font/手写体.woff') format('woff');
   font-display:swap;
+  font-weight:400;
+  font-style:normal;
 }
 :root{
   --bg1:#9aa0bb; --bg2:#767c99; --bg3:#565c7a;
@@ -26,11 +31,18 @@
   --frost:rgba(30,34,54,.6);
   --frost-bd:rgba(255,255,255,.18);
   --frost-fx:blur(24px) saturate(170%);
-  /* 文字贴字体：手写杂书体打头（项目内自带，见上面的 @font-face），往后是华文行楷等系统手写体兜底；
+  /* 文字贴字体：项目自带的手写体打头（见上面的 @font-face），往后是华文行楷等系统手写体兜底；
      楷体那档给想写得工整点的人。系统里不一定都装了，所以是一整条回退链——前面的没有就往后找。
      JS 导出（PDF / 长图 / DOC）时会把这两条原样读走，改字体只动这里。 */
-  --font-hand:"851tegakizatsu","851手写杂书体","851手書き雑フォント","华文行楷","STXingkai","Xingkai SC","Hanzipen SC","Hannotate SC","Lucida Handwriting","Segoe Script","Bradley Hand","Comic Sans MS","华文楷体","STKaiti","Kaiti SC","KaiTi","楷体",cursive;
+  --font-hand:"CarnetHand","华文行楷","STXingkai","Xingkai SC","Hanzipen SC","Hannotate SC","Lucida Handwriting","Segoe Script","Bradley Hand","Comic Sans MS","华文楷体","STKaiti","Kaiti SC","KaiTi","楷体",cursive;
   --font-kai:"华文楷体","STKaiti","Kaiti SC","KaiTi","楷体","BiauKai","STSong",serif;
+  /* 滚动条：全项目只此一份（滑块 / 轨道 / 粗细 / 悬停加深，见下面「滚动条」那段）。
+     要调浓淡只动这四个色值；--sb-size 是整条宽度，滑块两边各留 2px 透明边，实际看着更细。 */
+  --sb-size:9px;
+  --sb-track:rgba(255,255,255,.055);
+  --sb-thumb:rgba(255,255,255,.30);
+  --sb-thumb-hi:rgba(255,255,255,.50);
+  --sb-thumb-act:rgba(255,255,255,.68);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;margin:0;overflow:hidden}
@@ -40,7 +52,47 @@ body{
   background:radial-gradient(130% 110% at 50% 0%,#a2a8c4 0%,#7e849f 42%,#5b6182 100%);
 }
 input,textarea{user-select:text}
-button{font-family:inherit;border:none;background:none;color:inherit;cursor:pointer}
+/* touch-action:manipulation —— 去掉移动端「点一下先等 300ms 看是不是双击缩放」的那段延迟，
+   按钮按下去立刻有反应。只有按钮加：纸面上的文字贴要靠双击进编辑，不能全局改 */
+button{font-family:inherit;border:none;background:none;color:inherit;cursor:pointer;touch-action:manipulation}
 /* 高度由 JS 锁定为“未弹起输入法时的高度”，键盘出现时底栏不再被顶起 */
 #app{position:fixed;left:0;top:0;width:100%;height:100%;height:var(--app-h,100%);overflow:hidden}
+
+/* ============ 滚动条：全项目统一一套 ============
+   细条 + 半透明白胶囊滑块 + 一条极淡的凹槽轨道；悬停 / 按住时滑块逐级提亮。
+   用 * 兜住所有滚动容器（弹窗、底部面板、文字输入框、搜索结果、本页底色面板……），
+   一处改处处跟着改 —— 别再往各个样式文件里单独写 ::-webkit-scrollbar，那边选择器更具体，
+   会把这里盖掉。唯一例外是书架 .shelf-wrap：它故意把滚动条藏了，那条规则本来就更具体，保留。
+   Firefox 认不到 ::-webkit-*，走上面那行 scrollbar-color（只支持「滑块 / 轨道」两色）。 */
+*,*::before,*::after{
+  scrollbar-width:thin;
+  scrollbar-color:var(--sb-thumb) var(--sb-track);
+  -webkit-overflow-scrolling:touch;      /* iOS 惯性滚动 */
+}
+::-webkit-scrollbar{width:var(--sb-size);height:var(--sb-size)}
+::-webkit-scrollbar-track{
+  background:var(--sb-track);border-radius:99px;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.055)
+}
+::-webkit-scrollbar-thumb{
+  border:2px solid transparent;background-clip:content-box;border-radius:99px;
+  background:var(--sb-thumb);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.42),0 1px 5px rgba(0,0,0,.22)
+}
+::-webkit-scrollbar-thumb:hover{background:var(--sb-thumb-hi)}
+::-webkit-scrollbar-thumb:active{background:var(--sb-thumb-act)}
+::-webkit-scrollbar-corner{background:transparent}
+/* 弹窗：滑块上下各让出一点，别顶到圆角上 */
+.modal::-webkit-scrollbar-track{margin:10px 2px}
+
+/* ============ 输入框 / 选区的统一手感 ============ */
+::placeholder{color:rgba(255,255,255,.40);opacity:1}
+::selection{background:rgba(224,102,138,.45);color:#fff}
+/* 键盘走查时给个看得见的焦点圈，鼠标点不出现（:focus-visible 只在键盘聚焦时命中）。
+   只给 outline —— 别顺手改 border-radius，那会真的把元素本身的圆角改掉 */
+:focus-visible{outline:2px solid rgba(255,255,255,.72);outline-offset:2px}
+/* 系统里开了「减弱动态效果」就别再飞了：动画缩到一帧，功能不受影响 */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;transition-duration:.01ms !important}
+}
 

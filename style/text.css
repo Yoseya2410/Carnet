@@ -21,7 +21,8 @@
 .ptext-wrap.editing{outline:1.5px dashed var(--accent);outline-offset:3px;z-index:7;cursor:text}
 .ptext-wrap.editing .ptxt{
   cursor:text;user-select:text;-webkit-user-select:text;touch-action:auto;
-  box-shadow:0 0 0 1px rgba(224,102,138,.38);background:rgba(255,255,255,.55);overflow:auto
+  box-shadow:0 0 0 1px rgba(224,102,138,.38);background:rgba(255,255,255,.55);
+  overflow:auto;overscroll-behavior:contain
 }
 /* 双击进来的编辑态：四角手柄 + 旋转手柄 + 上方工具条全都在 ——
    拖动挪位置、打字、改大小、旋转、复制删除都在这一个状态里做完。
@@ -144,9 +145,15 @@
 .ts-input{
   flex:none;width:100%;min-height:62px;max-height:124px;padding:12px 13px;border-radius:14px;
   font-size:15px;line-height:1.5;color:#fff;outline:none;resize:none;overflow-y:auto;
-  background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.14);font-family:inherit
+  background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.14);font-family:inherit;
+  overscroll-behavior:contain;      /* 文字滚到底别把下面的字体面板一起带着滚 */
+  transition:border-color .2s ease,background .2s ease,box-shadow .2s ease
 }
-.ts-input:focus{border-color:rgba(255,255,255,.34);background:rgba(255,255,255,.13)}
+.ts-input:hover{border-color:rgba(255,255,255,.22)}
+.ts-input:focus{
+  border-color:rgba(255,255,255,.38);background:rgba(255,255,255,.13);
+  box-shadow:0 0 0 3px rgba(255,255,255,.09)
+}
 .ts-tabs{display:flex;gap:22px;margin:14px 0 4px;flex:none;border-bottom:1px solid rgba(255,255,255,.1)}
 .ts-tabs button{position:relative;padding:8px 0 10px;font-size:14.5px;color:rgba(255,255,255,.5);letter-spacing:.05em;transition:color .2s}
 .ts-tabs button.on{color:#fff;font-weight:700}
