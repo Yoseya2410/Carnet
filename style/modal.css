@@ -52,13 +52,39 @@
 /* 自定义颜色：＋ 色块点开页面自带的取色盘 */
 .swatch.custom{overflow:hidden;background:conic-gradient(from 210deg,#f4a9b8,#f3c98b,#cfe3c9,#9fc9b6,#bcd4f0,#c9b8ec,#f4a9b8)}
 .swatch.custom .cus-ico{position:absolute;inset:0;display:grid;place-items:center;font-size:15px;font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.55);pointer-events:none}
-/* 「自动」色块：表示图案颜色跟随底色深浅 */
+/* 「自动」色块：图案颜色跟随底色深浅（内页底色那栏已撤掉，不再需要 paper-auto） */
 .swatch.pat-auto{display:grid;place-items:center;font-size:10.5px;font-weight:700;letter-spacing:.05em;
   color:#7d8394;background:linear-gradient(135deg,#ffffff 46%,#c3c7d4 54%)}
+/* 小节里的补充说明：比正文小一号、压暗，说明这一档设置的作用范围 */
 .cus-tip{font-size:12px;opacity:.6;letter-spacing:.04em;font-variant-numeric:tabular-nums}
-/* 图案颜色：整栏常驻显示（新建时默认没有图案，也要能先挑好颜色）；
-   没选图案时整栏压暗并在标题后给出提示，但仍可点，挑好的颜色会在选图案后生效 */
-.pc-hint{display:none;margin-left:8px;font-size:11px;opacity:.85;letter-spacing:.03em;font-weight:400}
-#edPatColorWrap.pat-off .pc-hint{display:inline}
-#edPatColorWrap.pat-off #edPatColors{opacity:.55}
+/* 彩带「透明」档：白底 + 一道红斜杠，表示不画书脊 */
+.swatch.ribbon-none{background:linear-gradient(135deg,#fbfbfd 46%,#c9cdda 54%)}
+.swatch.ribbon-none::after{
+  content:"";position:absolute;left:15%;right:15%;top:50%;height:2px;margin-top:-1px;
+  background:#e0668a;border-radius:2px;transform:rotate(-45deg)
+}
+/* 可折叠的小节（封面图案）：标题带三角指示，收起时正文整块隐藏 */
+/* 用 .fold-sec .fold-head 提高优先级，盖过 .modal label 的 display:block */
+.fold-sec .fold-head{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;-webkit-user-select:none}
+.fold-sec .fold-head:hover{opacity:1}
+.fold-caret{
+  margin-left:auto;width:0;height:0;opacity:.55;
+  border-left:4.5px solid transparent;border-right:4.5px solid transparent;border-top:6px solid currentColor;
+  transition:transform .22s cubic-bezier(.25,.8,.3,1)
+}
+.fold-sec.folded .fold-caret{transform:rotate(-90deg)}
+.fold-hint{font-size:11px;opacity:.72;letter-spacing:.03em;font-weight:400;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fold-sec.folded .fold-body{display:none}
+/* 整块不参与这一轮（编辑已有本子时的「页数」）：连标题一起不显示 */
+.fold-sec.gone{display:none}
+/* 收起的小节：标题下边不留空，两块之间的间距交给下一块标题的上边距 */
+.fold-sec.folded > .fold-head{margin-bottom:0}
+/* 图案颜色：没选封面图案时整栏收起（图案都没选，颜色无从谈起），
+   选了图案才展开 —— 折叠动画用 max-height，别用 display:none，不然展开会很生硬 */
+#edPatColorWrap{
+  overflow:hidden;max-height:180px;opacity:1;
+  transition:max-height .24s cubic-bezier(.25,.8,.3,1),opacity .18s ease,margin-top .24s ease
+}
+#edPatColorWrap.fold{max-height:0;opacity:0;margin-top:0;pointer-events:none}
 

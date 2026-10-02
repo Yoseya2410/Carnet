@@ -1,12 +1,16 @@
 /* =====================================================================
- * Carnet · 基础工具 · 视口   （脚本 1 / 23）
+ * Carnet · 基础工具 · 视口与通用小工具   （脚本 1 / 24）
  * ---------------------------------------------------------------------
- * ① 输入法弹起时锁定应用高度（键盘不再顶起底栏，编辑文字时底栏跟随抬起）
- * ② $ / $$ / uid / clamp / enc / esc / shade 等通用小工具
+ * ① $ / $$ / uid / clamp / enc / esc / shade 等通用小工具
+ * ② 输入法弹起时锁定应用高度（底栏不被顶起、编辑文字时跟随抬起）
+ * ③ 底栏高度记在 window.__syncBotBar / __kbHeight 上，text-sticker 会读
+ * ④ 关面板后抑制翻页的统一记号 markFlipSuppressed / flipSuppressed
+ *
+ * 对外接口：$, $$, uid, clamp, enc, esc, shade, markFlipSuppressed, flipSuppressed
  *
  * 依赖模块：无
  *
- * 说明：模块间共用全局作用域，按下面的顺序加载，顺序即依赖顺序。
+ * 说明：模块间共用全局作用域，加载顺序即依赖顺序（见 index.html 与 README）。
  * ===================================================================== */
 /* ==================== 输入法弹起时锁住应用高度 ====================
    键盘出现会把视口压矮，导致底栏被顶上去。这里把 #app 的高度固定在
@@ -53,18 +57,60 @@
     el.style.transform = kb > 4 ? `translateY(${-kb}px)` : '';
   };
   window.__syncBotBar = syncBotBar;
-  const syncAll = () => { sync(); syncBotBar(); };
+  /* ---- 输入法挡住页面：把整页往上抬，让正在编辑的文字露在键盘上方 ----
+     #app 高度是锁死的（键盘不会压缩布局），所以键盘是盖在内容上的。
+     这里按「编辑框底部 与 底栏顶部」的差值来抬 .stage，抬到刚好看见光标为止。 */
+  let typeShift = 0;
+  const kbHeight = () => {
+    const vv = window.visualViewport;
+    return vv ? Math.max(0, Math.round(baseH - vv.height - (vv.offsetTop || 0))) : 0;
+  };
+  const syncTypeShift = () => {
+    const stage = document.querySelector('.stage');
+    const w = document.querySelector('.ptext-wrap.editing');
+    if (!stage) return;
+    const apply0 = v => {
+      if (Math.abs(v - typeShift) < .5) return;
+      typeShift = v;
+      stage.style.transform = v > .5 ? `translateY(${-v}px)` : '';
+    };
+    if (!w) { apply0(0); return; }
+    const kb = kbHeight();
+    if (kb <= 4) { apply0(0); return; }        // 键盘没弹起 / 已收起：不用抬
+    const rbot = document.querySelector('.rbot');
+    const rtop = document.querySelector('.rtop');
+    const floor = rbot ? rbot.getBoundingClientRect().top - 8 : baseH - kb - 8;   // 底栏已经跟着抬上来了
+    const ceil = (rtop ? rtop.getBoundingClientRect().bottom : 0) + 6;            // 别把框顶到标题栏底下
+    const r = w.getBoundingClientRect();       // 已含当前位移
+    const want = typeShift + (r.bottom - floor);      // 还差多少才露出底部
+    const max = Math.max(0, r.top + typeShift - ceil);
+    apply0(clamp(want, 0, max));
+  };
+  window.__syncTypeShift = syncTypeShift;
+  window.__kbHeight = kbHeight;          // 文字编辑面板也要按这个高度把自己抬到键盘上面
+  const syncAll = () => { sync(); syncBotBar(); syncTypeShift(); };
+  const syncBars = () => { syncBotBar(); syncTypeShift(); };
   window.addEventListener('resize', syncAll);
   if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', syncBotBar);
-    window.visualViewport.addEventListener('scroll', syncBotBar);
+    window.visualViewport.addEventListener('resize', syncBars);
+    window.visualViewport.addEventListener('scroll', syncBars);
   }
-  document.addEventListener('focusin', () => setTimeout(syncBotBar, 40));
-  document.addEventListener('focusout', () => setTimeout(syncBotBar, 120));
+  /* 键盘升起有动画，多加几次延迟重试，抬升才跟得上最终高度 */
+  const later = fn => { setTimeout(fn, 60); setTimeout(fn, 220); setTimeout(fn, 460); setTimeout(fn, 700); };
+  document.addEventListener('focusin', () => later(syncBars));
+  document.addEventListener('focusout', () => later(syncBars));
   document.addEventListener('focusout', () => setTimeout(sync, 60));
 })();
 
 /* ==================== 工具 ==================== */
+/* ---- 「刚退出某个面板」的统一记号 ----
+   关掉文字编辑面板 / 底色面板 /「＋」菜单的那一下，手指往往还落在纸面上，
+   紧接着抬起的 pointerup 不该被当成「翻页」或「点选」。
+   各面板关闭时统一调一次 markFlipSuppressed()，翻页判定处用
+   flipSuppressed(ms) 问一句即可 —— 别在各处自己记时间戳，容易漏判。 */
+let flipSuppressedAt = 0;
+function markFlipSuppressed() { flipSuppressedAt = performance.now(); }
+function flipSuppressed(ms) { return performance.now() - flipSuppressedAt < (ms || 450); }
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const uid = () => 'x' + Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);

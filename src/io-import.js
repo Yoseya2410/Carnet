@@ -1,13 +1,15 @@
 /* =====================================================================
- * Carnet · 导入 · 校验与查重   （脚本 7 / 23）
+ * Carnet · 导入 · 校验与查重   （脚本 7 / 24）
  * ---------------------------------------------------------------------
  * ① normalizeJournal：补全缺省字段，保留未知字段，导出→导入不丢东西
- * ② readJournals：兼容单本/裸对象/多本数组三种写法，带 checksum 校验
- * ③ importJournals：按内容摘要查重后收进书架，并出核对报告
+ * ② readJournals：兼容单本 / 裸对象 / 多本数组三种写法，带 checksum 校验
+ * ③ importJournals：按内容摘要查重后收进书架，并出核对报告 importReport
+ *
+ * 对外接口：normalizeJournal, readJournals, importJournals, pickImportFile
  *
  * 依赖模块：core, storage, io-export
  *
- * 说明：模块间共用全局作用域，按下面的顺序加载，顺序即依赖顺序。
+ * 说明：模块间共用全局作用域，加载顺序即依赖顺序（见 index.html 与 README）。
  * ===================================================================== */
 function normalizeJournal(raw) {
   if (!raw || typeof raw !== 'object') return null;
@@ -29,7 +31,9 @@ function normalizeJournal(raw) {
       pattern: normPat(cv.pattern),
       img: (typeof cv.img === 'string' && cv.img) ? cv.img : null
     },
-    ribbon: /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(String(j.ribbon || '')) ? j.ribbon : '#c98a8a',
+    /* 彩带：'none' 是「透明」那一档，要原样留住；不是合法色值才回落到默认色 */
+    ribbon: String(j.ribbon || '') === RIBBON_NONE ? RIBBON_NONE
+      : (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(String(j.ribbon || '')) ? j.ribbon : '#c98a8a'),
     /* 已下线的「日历」模板映射到现在的空白牛皮纸，导入老文件时页面不丢 */
     template: j.template === 'calendar' ? 'kraftplain'
       : (TEMPLATES.some(t => t.k === j.template) ? j.template : 'blank'),

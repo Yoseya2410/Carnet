@@ -1,21 +1,29 @@
 /* =====================================================================
- * Carnet · 主页渲染 · 书架与轮播骨架   （脚本 10 / 23）
+ * Carnet · 主页渲染 · 书架与轮播骨架   （脚本 10 / 24）
  * ---------------------------------------------------------------------
- * ① 封面 HTML coverHTML / 单本书 bookItemHTML / 书架 renderShelf
- * ② 书架多选模式切换 enterPickMode / exitPickMode / togglePick
- * ③ 主页总渲染 renderHome、两种展示模式切换、模式按钮的液态玻璃折射贴图
+ * ① 封面 coverHTML / 单本书 bookItemHTML / 书架 renderShelf
+ * ② 书架多选模式 enterPickMode / exitPickMode / togglePick 与选择条 syncPickBar
+ * ③ 主页总渲染 renderHome、两种展示模式切换 syncViewToggle / setView
  *
- * 依赖模块：core, visuals, state, storage, carousel
+ * 对外接口：renderHome, renderShelf, coverHTML, bookItemHTML, enterPickMode, exitPickMode, togglePick, setView
  *
- * 说明：模块间共用全局作用域，按下面的顺序加载，顺序即依赖顺序。
+ * 依赖模块：core, visuals, state, storage（carousel 后置，只在运行时调用）
+ *
+ * 说明：模块间共用全局作用域，加载顺序即依赖顺序（见 index.html 与 README）。
  * ===================================================================== */
 /* ==================== 封面渲染 ==================== */
 function coverHTML(j) {
   const bg = j.cover.img ? `background-image:url('${j.cover.img}');background-size:cover;background-position:center;` : `background:${j.cover.value};`;
+  /* 上传了封面图片就不叠图案（图案是按底色深浅配色的，压在照片上只会糊成一片） */
+  const pat = j.cover.img ? '' : patternStyle(j.cover.pattern, j.cover);
+  const spine = ribbonSpine(j.ribbon);                 // 彩带选「透明」时为空
+  /* 透明彩带：颜色带不画，但保留装订处那道压暗阴影 + 内侧高光，封面才不像一张平卡 */
+  const none = j.ribbon === RIBBON_NONE;
   return `<div class="cover" style="${bg}">
-    <div class="pattern" data-pat="${j.cover.pattern || 'none'}" style="${patternStyle(j.cover.pattern, j.cover)}"></div>
+    <div class="pattern" data-pat="${j.cover.img ? 'none' : (j.cover.pattern || 'none')}" style="${pat}"></div>
     <div class="gloss"></div>
-    <div class="spine" style="background:linear-gradient(90deg,${shade(j.ribbon, -22)},${j.ribbon} 55%,${shade(j.ribbon, 14)})"></div>
+    ${spine ? `<div class="spine" style="background:${spine}"></div>`
+            : (none ? `<div class="spine ghost"></div>` : '')}
     <div class="edge"></div>
   </div>`;
 }
@@ -153,11 +161,15 @@ function renderHome() {
   /* 书架模式：整排封面摆在那儿就是书名，顶部不再重复显示名称和页数 */
   const head = $('.home-head');
   if (head) head.hidden = shelfMode;
+  /* 换模式 / 增删本时把「滑动中让开的浮层按钮」收回来，免得停在隐藏态 */
+  $('#home').classList.remove('bars-away');
   syncHomeHead();
   if (state.picking) syncPickBar();     // 增删本之后「已选 N 本」跟着更新
 }
 /* 切换主页展示模式，记住选择，下次打开还是这个模式 */
 function syncViewToggle() {
+  const box = $('#viewToggle');
+  if (box) box.dataset.vt = state.prefs.view;      // 白色圆钮滑到哪一格（CSS 只管位移）
   $$('#viewToggle button').forEach(b => b.classList.toggle('on', b.dataset.vt === state.prefs.view));
 }
 function setView(v) {
@@ -167,74 +179,3 @@ function setView(v) {
   savePrefs();
   renderHome();
 }
-/* ==================== 模式切换按钮的「液态玻璃」折射贴图 ====================
-   照 shuding/liquid-glass 的路子：用圆形 SDF 算出一张位移贴图喂给 feDisplacementMap，
-   再把整个滤镜挂到 backdrop-filter 上，把按钮背后的画面在边缘那圈往圆心拉 ——
-   被拉伸放大的这一圈就是玻璃的折射感。玻璃本身不吃任何白色高光，全靠 backdrop-filter。
-   ⚠️ backdrop-filter 里带 url() 不是所有浏览器都吃，先探测；不支持就保持 CSS 里的纯模糊版本。 */
-(function liquidGlassToggle() {
-  const SIZE = 36, DPI = 2, REFRACT = .2;
-  const smoothStep = (a, b, t) => { t = Math.max(0, Math.min(1, (t - a) / (b - a))); return t * t * (3 - 2 * t); };
-  try {
-    const p = document.createElement('div');
-    p.style.backdropFilter = 'url(#__lg_probe) blur(1px)';
-    p.style.webkitBackdropFilter = 'url(#__lg_probe) blur(1px)';
-    if (!/url\(/.test(p.style.backdropFilter || p.style.webkitBackdropFilter || '')) return;
-  } catch (_) { return; }
-
-  const id = 'lgToggleBtn', w = SIZE * DPI, h = SIZE * DPI;
-  const data = new Uint8ClampedArray(w * h * 4);
-  const raw = new Float64Array(w * h * 2);
-  let maxAbs = 0, k = 0;
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const ix = x / w - .5, iy = y / h - .5;
-      const d = Math.sqrt(ix * ix + iy * iy) / .5;          // 0 圆心 → 1 边缘
-      const scaled = 1 - smoothStep(.42, 1, d) * REFRACT;    // 只在靠外一圈把采样点往圆心拉
-      const dx = (ix * scaled + .5) * w - x;
-      const dy = (iy * scaled + .5) * h - y;
-      raw[k++] = dx; raw[k++] = dy;
-      if (Math.abs(dx) > maxAbs) maxAbs = Math.abs(dx);
-      if (Math.abs(dy) > maxAbs) maxAbs = Math.abs(dy);
-    }
-  }
-  if (!maxAbs) return;
-  k = 0;
-  for (let i = 0; i < data.length; i += 4) {
-    data[i]     = (raw[k++] / maxAbs + .5) * 255;   // R → 横向位移
-    data[i + 1] = (raw[k++] / maxAbs + .5) * 255;   // G → 纵向位移
-    data[i + 3] = 255;                              // B 恒 0，A 满
-  }
-  const cv = document.createElement('canvas');
-  cv.width = w; cv.height = h;
-  cv.getContext('2d').putImageData(new ImageData(data, w, h), 0, 0);
-
-  const NS = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(NS, 'svg');
-  svg.setAttribute('width', '0'); svg.setAttribute('height', '0');
-  svg.style.cssText = 'position:fixed;left:0;top:0;pointer-events:none';
-  const defs = document.createElementNS(NS, 'defs'), f = document.createElementNS(NS, 'filter');
-  f.setAttribute('id', id);
-  f.setAttribute('filterUnits', 'userSpaceOnUse');
-  f.setAttribute('colorInterpolationFilters', 'sRGB');
-  f.setAttribute('x', '0'); f.setAttribute('y', '0');
-  f.setAttribute('width', String(SIZE)); f.setAttribute('height', String(SIZE));
-  const img = document.createElementNS(NS, 'feImage');
-  img.setAttribute('id', id + '_map');
-  img.setAttribute('width', String(SIZE)); img.setAttribute('height', String(SIZE));
-  const disp = document.createElementNS(NS, 'feDisplacementMap');
-  disp.setAttribute('in', 'SourceGraphic');
-  disp.setAttribute('in2', id + '_map');
-  disp.setAttribute('xChannelSelector', 'R');
-  disp.setAttribute('yChannelSelector', 'G');
-  disp.setAttribute('scale', String(maxAbs / DPI));
-  f.appendChild(img); f.appendChild(disp);
-  defs.appendChild(f); svg.appendChild(defs);
-  document.body.appendChild(svg);
-  const url = cv.toDataURL();
-  img.setAttribute('href', url);
-  img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', url);
-  document.documentElement.classList.add('lg-refract');   // 通知 CSS 可以上折射版
-})();
-
-/* 轮播：跟手拖拽 + 速度惯性吸附，缩放/明暗随与中心的距离实时变化 */

@@ -1,17 +1,21 @@
 /* =====================================================================
- * Carnet · 导出 · 多选批量导出   （脚本 6 / 23）
+ * Carnet · 导出 · 多选批量导出   （脚本 6 / 24）
  * ---------------------------------------------------------------------
- * ① 书架多选后一本一个文件导出 exportMany
- * ② 可写时用 showDirectoryPicker 只问一次文件夹，否则逐个下载
+ * ① buildExportFile：造出一本要导出的文件（格式与单本导出一致，但不碰文件系统）
+ * ② exportMany / exportPicked：书架多选后一本一个文件
+ * ③ 可写时用 showDirectoryPicker 只问一次文件夹，否则逐个下载
+ *
+ * 对外接口：buildExportFile, exportMany, exportPicked
  *
  * 依赖模块：core, io-export, io-doc
  *
- * 说明：模块间共用全局作用域，按下面的顺序加载，顺序即依赖顺序。
+ * 说明：模块间共用全局作用域，加载顺序即依赖顺序（见 index.html 与 README）。
  * ===================================================================== */
 /* ==================== 多选导出：一本一个文件 ==================== */
 /* 造出一本要导出的文件：格式跟单本导出完全一致（源文件仍是单本那套带 checksum 的结构），
    只是不碰文件系统，交给外面决定「写到哪」 */
 async function buildExportFile(j, kind) {
+  if (kind !== 'json') await probeExportFont();    // 渲染前先探明手写体导不导得出，不行就按楷体
   if (kind === 'json') {
     const sum = await checksum(stableStringify(j));
     const text = JSON.stringify({
@@ -24,7 +28,7 @@ async function buildExportFile(j, kind) {
   }
   if (kind === 'svg') {
     const pages = exportPages(j);
-    const W = EX_W, H = Math.round(W * 4.05 / 3);
+    const W = EX_W, H = Math.round(W * PAGE_RATIO);
     const body = pages.map((idx, i) =>
       `<foreignObject x="0" y="${i * H}" width="${W}" height="${H}">`
       + pageExportXHTML(j, idx, W, H) + `</foreignObject>`).join('');
@@ -39,14 +43,14 @@ async function buildExportFile(j, kind) {
   }
   /* pdf */
   const pages = exportPages(j);
-  const CW = EX_W, CH = Math.round(EX_W * 4.05 / 3);
+  const CW = EX_W, CH = Math.round(EX_W * PAGE_RATIO);
   const jpegs = [];
   for (let i = 0; i < pages.length; i++) {
     const c = await renderExportCanvas(j, pages[i], CW);
     const b = await canvasBytes(c, 0.9);
     jpegs.push({ w: CW, h: CH, data: new Uint8Array(await b.arrayBuffer()) });
   }
-  const bytes = buildPdf(jpegs, 595, +(595 * 4.05 / 3).toFixed(2));
+  const bytes = buildPdf(jpegs, 595, +(595 * PAGE_RATIO).toFixed(2));
   return {
     name: exportBaseName(j) + '.pdf', mime: 'application/pdf',
     blob: new Blob([bytes], { type: 'application/pdf' })
@@ -106,4 +110,3 @@ async function exportPicked(kind) {
   }
   exitPickMode();
 }
-/* 校验收进来的数据并补全缺省字段：封面、彩带、内页图片与文字原样保留，导入后照常可编辑 */

@@ -2,8 +2,8 @@
  * Carnet · 图片操作控件   （样式 5 / 16）
  * ---------------------------------------------------------------------
  * ① 四角拉伸手柄（热区向外扩，不抢按钮）
- * ② 删除 / 固定 / 铺满按钮的透明毛玻璃样式
- * ③ 拉伸时按钮让位、贴边时收进纸内
+ * ② 纸张底色与内页模板纹理
+ * ③ 选中 / 固定 / 铺满三种状态（按钮本身已收进选中工具条，见 text.css 的 .objbar）
  *
  * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
  * ===================================================================== */
@@ -37,7 +37,7 @@
   object-fit:fill;
 }
 .pimg-wrap.sticker .pimg{background:transparent}
-:is(.pimg-wrap,.ptext-wrap).sel{outline:2px solid var(--accent);outline-offset:2px;z-index:6}
+:is(.pimg-wrap,.ptext-wrap).sel{outline:1.5px dashed var(--accent);outline-offset:3px;z-index:6}
 /* 四角手柄：四个角都能横向 + 纵向拉伸，只归缩放使用，别的控件一律不占角 */
 :is(.pimg-wrap,.ptext-wrap) .hdl{
   position:absolute;width:18px;height:18px;border-radius:50%;display:none;z-index:12;
@@ -53,34 +53,39 @@
 :is(.pimg-wrap,.ptext-wrap) .hdl.tr{right:-9px;top:-9px;cursor:nesw-resize}
 :is(.pimg-wrap,.ptext-wrap) .hdl.bl{left:-9px;bottom:-9px;cursor:nesw-resize}
 :is(.pimg-wrap,.ptext-wrap) .hdl.br{right:-9px;bottom:-9px;cursor:nwse-resize}
-/* 删除 / 固定：透明毛玻璃，挂在上下边中点 —— 四个角完整留给拉伸 */
-:is(.pimg-wrap,.ptext-wrap) .img-del,:is(.pimg-wrap,.ptext-wrap) .img-lock,:is(.pimg-wrap,.ptext-wrap) .txt-edit{
-  position:absolute;width:28px;height:28px;border-radius:50%;display:none;place-items:center;z-index:8;
-  background:rgba(24,26,42,.34);border:1px solid rgba(255,255,255,.46);color:#fff;
-  backdrop-filter:blur(9px) saturate(1.5);-webkit-backdrop-filter:blur(9px) saturate(1.5);
-  box-shadow:0 3px 10px rgba(0,0,0,.3);line-height:1
-}
-:is(.pimg-wrap,.ptext-wrap) .img-del{top:0;left:50%;transform:translate(-50%,-50%);font-size:14px}
-:is(.pimg-wrap,.ptext-wrap) .img-lock,:is(.pimg-wrap,.ptext-wrap) .txt-edit{bottom:0;left:50%;transform:translate(-50%,50%)}
-:is(.pimg-wrap,.ptext-wrap) .img-lock svg,:is(.pimg-wrap,.ptext-wrap) .img-del svg,:is(.pimg-wrap,.ptext-wrap) .txt-edit svg{pointer-events:none;display:block}
 :is(.pimg-wrap,.ptext-wrap).sel .hdl{display:block}
-:is(.pimg-wrap,.ptext-wrap).sel .img-del,:is(.pimg-wrap,.ptext-wrap).sel .img-lock,:is(.pimg-wrap,.ptext-wrap).sel .txt-edit{display:grid}
-/* 正在拉伸：按钮彻底让位，不抢手势也不挡视线 */
-:is(.pimg-wrap,.ptext-wrap).resizing .img-del,:is(.pimg-wrap,.ptext-wrap).resizing .img-lock,:is(.pimg-wrap,.ptext-wrap).resizing .txt-edit{display:none !important}
-:is(.pimg-wrap,.ptext-wrap).tiny .img-del,:is(.pimg-wrap,.ptext-wrap).tiny .img-lock,:is(.pimg-wrap,.ptext-wrap).tiny .txt-edit{width:24px;height:24px;font-size:12px}
-:is(.pimg-wrap,.ptext-wrap).tiny .img-del{top:0;left:50%;transform:translate(-50%,-50%)}
-:is(.pimg-wrap,.ptext-wrap).tiny .img-lock,:is(.pimg-wrap,.ptext-wrap).tiny .txt-edit{bottom:0;left:50%;transform:translate(-50%,50%)}
-/* 贴边时按钮收进纸内 */
-:is(.pimg-wrap,.ptext-wrap).edge-t .img-del{top:3px;transform:translate(-50%,0)}
-:is(.pimg-wrap,.ptext-wrap).edge-b .img-lock,:is(.pimg-wrap,.ptext-wrap).edge-b .txt-edit{bottom:3px;transform:translate(-50%,0)}
-/* 图片多一个「铺满整页」按钮，与「固定」并排在底边；文字贴只有固定按钮，仍居中 */
-.pimg-wrap .img-lock:not(.img-fill){left:32%}
-.pimg-wrap .img-fill{left:68%}
+/* 旋转手柄：挂在右边外侧的正中 —— 上方那条是工具条的位置，四角是拉伸手柄，只有这里是空的。
+   里面放一个转圈箭头图标，看一眼就知道这颗是管转的（比空白圆点好认） */
+:is(.pimg-wrap,.ptext-wrap) .hdl.rot{
+  right:-36px;top:50%;width:24px;height:24px;margin-top:-12px;cursor:grab;
+  background:#fff;border:2px solid var(--accent);color:var(--accent)
+}
+:is(.pimg-wrap,.ptext-wrap) .hdl.rot.turning{cursor:grabbing}
+:is(.pimg-wrap,.ptext-wrap) .hdl.rot::after{left:-10px;right:-10px;top:-10px;bottom:-10px}
+/* 图标绝对居中，不能用 flex —— .hdl 的 display 由「选中才显示」那条规则管着，改了会一直露出来 */
+:is(.pimg-wrap,.ptext-wrap) .hdl.rot svg{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:block
+}
+/* 一根细线连回对象，看得出这颗是管它的 */
+:is(.pimg-wrap,.ptext-wrap) .hdl.rot::before{
+  content:"";position:absolute;right:100%;top:50%;width:13px;height:2px;margin-top:-1px;
+  background:var(--accent);opacity:.5;border-radius:1px
+}
+:is(.pimg-wrap,.ptext-wrap).tiny .hdl.rot{right:-31px;width:20px;height:20px;margin-top:-10px}
+:is(.pimg-wrap,.ptext-wrap).tiny .hdl.rot svg{width:10px;height:10px}
+/* 贴边时手柄也收进纸内 */
+:is(.pimg-wrap,.ptext-wrap).tiny .hdl{width:15px;height:15px}
 /* 铺满整页：按封面式裁切填满，不拉伸变形 */
 .pimg-wrap.fill .pimg{object-fit:cover;border-radius:0}
 .pimg-wrap.locked{outline:none;cursor:default}
 .pimg-wrap.locked .pimg{cursor:default}
-.pimg-wrap.locked .hdl,.pimg-wrap.locked .img-del,.pimg-wrap.locked .img-lock{display:none !important}
+.pimg-wrap.locked .hdl{display:none !important}
 .pimg-wrap.justlock{animation:lockPulse .44s cubic-bezier(.3,.9,.3,1)}
-@keyframes lockPulse{0%{transform:scale(1)}36%{transform:scale(1.05)}100%{transform:scale(1)}}
+/* 关键帧里必须带上 rotate(var(--rot))：动画期间会盖掉行内的 transform，
+   不写的话固定那一瞬间会先把角度抹掉、闪一下 */
+@keyframes lockPulse{
+  0%{transform:scale(1) rotate(var(--rot,0deg))}
+  36%{transform:scale(1.05) rotate(var(--rot,0deg))}
+  100%{transform:scale(1) rotate(var(--rot,0deg))}
+}
 

@@ -13,7 +13,7 @@
 #bgClearImg[disabled]{opacity:.4;pointer-events:none}
 
 /* ============ 浅色自定义背景：文字与玻璃控件自动换深色 ============ */
-#home.bg-light .brand,#home.bg-light .home-head h1{color:#2b2f3d;text-shadow:none}
+#home.bg-light .home-head h1{color:#2b2f3d;text-shadow:none}
 #home.bg-light .home-head .pages{color:#3a3f52}
 #home.bg-light .topbar .icon-btn,#home.bg-light .topbar .pill{background:rgba(40,44,66,.4);border-color:rgba(40,44,66,.22)}
 #home.bg-light .view-toggle{background:rgba(40,44,66,.4);border-color:rgba(40,44,66,.22)}
@@ -29,10 +29,6 @@
   box-shadow:
     0 4px 12px -5px rgba(40,44,66,.35),
     inset 0 0 0 .5px rgba(255,255,255,.7)
-}
-.lg-refract #home.bg-light .view-toggle button.on{
-  backdrop-filter:url(#lgToggleBtn) blur(6px) saturate(140%) contrast(1.05) brightness(1.12);
-  -webkit-backdrop-filter:url(#lgToggleBtn) blur(6px) saturate(140%) contrast(1.05) brightness(1.12);
 }
 #reader.bg-light .rtitle h2{color:#2b2f3d}
 #reader.bg-light .rtitle .pages{color:#3a3f52}

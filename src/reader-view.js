@@ -1,13 +1,16 @@
 /* =====================================================================
- * Carnet · 阅读器渲染 · 书页与排版   （脚本 12 / 23）
+ * Carnet · 阅读器渲染 · 书页与排版   （脚本 12 / 24）
  * ---------------------------------------------------------------------
- * ① 单页 / 双页摊开判定，书的尺寸与中缝布局 layoutBook
- * ② 封面页、内页（图片 / 文字 / 模板）渲染 coverPageHTML / pageHTML
- * ③ renderReader 总渲染
+ * ① 单页 / 双页摊开判定 isSpread、书的尺寸与中缝布局 layoutBook
+ * ② 封面页与内页渲染 coverPageHTML / pageHTML（图片与文字按 z 合排 pageObjs）
+ * ③ 对象的公共外壳：工具条 objBarHTML、旋转 rotStyle、四角与旋转手柄 rotHandleHTML
+ * ④ renderReader 总渲染、currentIndices 当前左右页下标
  *
- * 依赖模块：core, visuals, state, carousel
+ * 对外接口：renderReader, layoutBook, pageHTML, objBarHTML, rotStyle, isSpread, isCoverView, currentIndices
  *
- * 说明：模块间共用全局作用域，按下面的顺序加载，顺序即依赖顺序。
+ * 依赖模块：core, visuals, state（media / text-sticker 后置，只在运行时调用）
+ *
+ * 说明：模块间共用全局作用域，加载顺序即依赖顺序（见 index.html 与 README）。
  * ===================================================================== */
 /* ==================== 阅读器 ==================== */
 function isSpread() {
@@ -15,11 +18,13 @@ function isSpread() {
 }
 function layoutBook() {
   const stage = $('#stage'), book = $('#book');
-  const availW = stage.clientWidth, availH = stage.clientHeight;
+  const availW = stage.clientWidth;
+  /* 文字编辑面板占住下半截时，书只在上面那一段里排版（__sheetCov 由 sheetLayout() 量出来） */
+  const availH = Math.max(140, stage.clientHeight - (window.__sheetCov || 0));
   const spread = state.mode === 'spread';
   /* 纸张统一用 3:4.05 —— 与封面（.cover）同比例，
      这样阅读器里铺满整页的封面和主页显示的封面完全一样 */
-  const RATIO = 3 / 4.05;
+  const RATIO = 1 / PAGE_RATIO;                 // 页宽 ÷ 页高（PAGE_RATIO 是页高 ÷ 页宽）
   let pageH, pageW;
   if (spread) {
     pageH = Math.min(availH * 0.9, (availW * 0.94) / (2 * RATIO));
@@ -31,12 +36,74 @@ function layoutBook() {
   pageH = Math.max(pageH, 180);
   book.style.setProperty('--pw', pageW + 'px');
   book.style.setProperty('--ph', pageH + 'px');
-  state.pw = pageW;                              // 封面翻页时要按半页宽做位移
+  state.pw = pageW;          // page-flip.js 翻页时按半页宽做位移，字号换算也用它（见 state 的注释）
 }
 /* 封面页：不属于正文页，-1 表示“封面” */
 function coverPageHTML() {
   const j = cur();
   return `<div class="paper coverpage">${coverHTML(j)}</div>`;
+}
+/* 选中对象时浮在它上方的那条工具条（形状在 style/text.css 的 .objbar 里）。
+   直接挂进对象内部：拖动 / 拉伸 / 重绘都自动跟着走，不用另算坐标。
+   kind='text' 第三颗是「编辑文字」，kind='image' 换成「铺满整页 / 还原原比例」 */
+function objBarHTML(kind, on) {
+  const mid = kind === 'image'
+    ? { t: on ? '还原原比例' : '铺满整页', svg: on ? RESTORE_SVG : FILL_SVG, cls: on ? ' on' : '' }
+    : { t: '编辑文字', svg: OB_EDIT_SVG, cls: '' };
+  return `<div class="objbar">
+      <button class="ob" data-ob="close" title="完成">${OB_OK_SVG}</button>
+      <button class="ob" data-ob="copy" title="复制一份">${OB_COPY_SVG}</button>
+      <button class="ob${mid.cls}" data-ob="edit" title="${mid.t}">${mid.svg}</button>
+      <button class="ob ob-del" data-ob="del" title="删除">${OB_DEL_SVG}</button>
+    </div>`;
+}
+/* 旋转写进 style：transform 转整块，--rot 留给工具条反着转回来（见 text.css 的 .objbar） */
+function rotStyle(o) {
+  const r = +(o.rot || 0);
+  return r ? `--rot:${r.toFixed(1)}deg;transform:rotate(${r.toFixed(1)}deg);` : '';
+}
+function imgWrapHTML(im, i) {
+  const hw = im.h || clamp(im.w / 0.68, .04, IMG_MAX);   // 老数据补兜底高度，加载后自动校准
+  return `
+    <div class="pimg-wrap${String(im.src).startsWith('data:image/svg') ? ' sticker' : ''}${im.locked ? ' locked' : ''}${im.fill ? ' fill' : ''}${tinyCls(im, hw)}" data-page="${i}" data-id="${im.id}"
+         style="left:${(im.x * 100).toFixed(2)}%;top:${(im.y * 100).toFixed(2)}%;width:${(im.w * 100).toFixed(2)}%;height:${(hw * 100).toFixed(2)}%;${rotStyle(im)}">
+      <img class="pimg" draggable="false" src="${im.src}" alt="">
+      ${objBarHTML('image', !!im.fill)}
+      ${rotHandleHTML()}
+      <div class="hdl tl" data-h="tl"></div>
+      <div class="hdl tr" data-h="tr"></div>
+      <div class="hdl bl" data-h="bl"></div>
+      <div class="hdl br" data-h="br"></div>
+    </div>`;
+}
+function textWrapHTML(t, i) {
+  const st = textStyle(t);
+  const cls = (t.text || '').trim() ? '' : ' placeholder';
+  return `
+    <div class="ptext-wrap${t.locked === false ? '' : ' locked'}" data-page="${i}" data-id="${t.id}"
+         style="left:${(t.x * 100).toFixed(2)}%;top:${(t.y * 100).toFixed(2)}%;width:${(t.w * 100).toFixed(2)}%;height:${(t.h * 100).toFixed(2)}%;${rotStyle(t)}">
+      <div class="ptxt${cls}" style="${st}">${t.text ? esc(t.text) : '双击编辑文字'}</div>
+      ${objBarHTML('text')}
+      ${rotHandleHTML()}
+      <div class="hdl tl" data-h="tl"></div>
+      <div class="hdl tr" data-h="tr"></div>
+      <div class="hdl bl" data-h="bl"></div>
+      <div class="hdl br" data-h="br"></div>
+    </div>`;
+}
+/* 旋转手柄：挂在右边外侧的正中，往外挪开不跟四角抢位置；拖着转，双击摆正 */
+function rotHandleHTML() {
+  return `<div class="hdl rot" data-h="rot" title="拖动旋转 · 双击摆正">${ROT_SVG}</div>`;
+}
+/* 一页里的图片与文字按 z 从小到大排（z 越大越靠上）：先加的在下、后加的盖在上面。
+   不再「图片一律在下、文字一律在上」—— 后贴的图就该压住先前写的字 */
+function pageObjs(pg) {
+  ensureZ(pg);
+  const list = [];
+  (pg.images || []).forEach(im => list.push({ k: 'img', o: im }));
+  (pg.texts || []).forEach(t => list.push({ k: 'txt', o: t }));
+  list.sort((a, b) => (a.o.z || 0) - (b.o.z || 0));
+  return list;
 }
 function pageHTML(i, side) {
   const j = cur();
@@ -44,39 +111,16 @@ function pageHTML(i, side) {
   if (i === -1) return coverPageHTML();
   if (i < 0 || i >= n) return `<div class="paper endpaper"></div>`;
   const pg = j.pages[i];
-  const imgs = pg.images.map(im => {
-    const hw = im.h || clamp(im.w / 0.68, .04, IMG_MAX);   // 老数据补兜底高度，加载后自动校准
-    return `
-    <div class="pimg-wrap${String(im.src).startsWith('data:image/svg') ? ' sticker' : ''}${im.locked ? ' locked' : ''}${im.fill ? ' fill' : ''}${tinyCls(im, hw)}" data-page="${i}" data-id="${im.id}"
-         style="left:${(im.x * 100).toFixed(2)}%;top:${(im.y * 100).toFixed(2)}%;width:${(im.w * 100).toFixed(2)}%;height:${(hw * 100).toFixed(2)}%">
-      <img class="pimg" draggable="false" src="${im.src}" alt="">
-      <button class="img-del" title="删除">${DEL_SVG}</button>
-      <div class="hdl tl" data-h="tl"></div>
-      <div class="hdl tr" data-h="tr"></div>
-      <div class="hdl bl" data-h="bl"></div>
-      <div class="hdl br" data-h="br"></div>
-      <button class="img-lock" title="固定到这一页">${LOCK_SVG}</button>
-      <button class="img-lock img-fill" title="${im.fill ? '还原原比例' : '铺满整页'}">${im.fill ? RESTORE_SVG : FILL_SVG}</button>
-    </div>`;
-  }).join('');
-  const txts = pageTexts(pg).map(t => {
-    const st = textStyle(t);
-    const cls = (t.text || '').trim() ? '' : ' placeholder';
-    return `
-    <div class="ptext-wrap${t.locked === false ? '' : ' locked'}" data-page="${i}" data-id="${t.id}"
-         style="left:${(t.x * 100).toFixed(2)}%;top:${(t.y * 100).toFixed(2)}%;width:${(t.w * 100).toFixed(2)}%;height:${(t.h * 100).toFixed(2)}%">
-      <div class="ptxt${cls}" style="${st}">${t.text ? esc(t.text) : '双击输入文字'}</div>
-      <button class="img-del" title="删除文字">${DEL_SVG}</button>
-      <div class="hdl tl" data-h="tl"></div>
-      <div class="hdl tr" data-h="tr"></div>
-      <div class="hdl bl" data-h="bl"></div>
-      <div class="hdl br" data-h="br"></div>
-    </div>`;
-  }).join('');
+  const inner = pageObjs(pg).map(o => o.k === 'img' ? imgWrapHTML(o.o, i) : textWrapHTML(o.o, i)).join('');
   const kraft = (j.template === 'kraft' || j.template === 'kraftplain') ? 'background:linear-gradient(160deg,#ecdec4,#e0cfae);' : '';
-  return `<div class="paper t-${j.template}" style="${kraft}">
+  /* 自定义内页底色写在 kraft 后面：设了色就盖住模板自己的底色，没设才沿用。
+     用 pageBgShown 而不是 pageBgOf：底色面板开着时按「正在挑的那一档」显示，
+     按了「完成」才真写进 pg.bg（没按就是预览，关掉面板纸面自己会回去） */
+  const shown = pageBgShown(pg, j, i);
+  const dark = pageBgDarkShown(pg, j, i) ? ' dark' : '';    // 深色纸：页码改浅色才看得见
+  return `<div class="paper t-${j.template}${dark}" style="${kraft}${shown ? 'background:' + shown + ';' : ''}">
     <div class="tplbg" style="${tplStyle(j.template)}"></div>
-    <div class="pcontent">${imgs}${txts}</div>
+    <div class="pcontent">${inner}</div>
     <div class="pnum">${i + 1}</div>
   </div>`;
 }

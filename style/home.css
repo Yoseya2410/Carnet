@@ -8,10 +8,36 @@
  * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
  * ===================================================================== */
 /* ============ 主页 ============ */
-#home{position:absolute;inset:0;display:flex;flex-direction:column}
+#home{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  /* z-index:0 是必须的：不让 #home 自己成为一个层叠上下文，里面 z-index:5 的浮层栏
+     会窜到阅读器上面（走「减少动画」那条分支时 #home 并没有被 opacity 藏起来） */
+  z-index:0;
+  /* 两条浮层栏的高度：正文靠它们避让（书架上下留白、标题下移）。
+     数值 = 栏的上下 padding + 里面最高的那颗按钮 */
+  --topbar-h:calc(76px + env(safe-area-inset-top));
+  --botbar-h:calc(90px + env(safe-area-inset-bottom));
+}
+/* ---- 顶栏 / 底栏：整块浮在内容上面，不再占布局高度 ---- */
+/* 主页没有顶栏底栏这两条栏了：它们只是浮在页面上的一层按钮。
+   书架因此吃满整屏高度，上下滑动时也不会被两条栏压着。
+   栏本身不吃点击（空白处直接落到下面的书架上），只有里面的按钮收点击 */
+.topbar,.pickbar,.actionbar{
+  position:absolute;left:0;right:0;z-index:5;pointer-events:none;
+  transition:opacity .2s ease,visibility 0s
+}
+.topbar{top:0}
+.pickbar,.actionbar{bottom:0}
+.topbar > *,.pickbar > *,.actionbar > *{pointer-events:auto}
+/* 书架上下滑动时整块让开：先淡出，淡完才 visibility:hidden（不吃点击）；
+   滑动停下再淡回来 —— 滑动过程中屏幕上只剩书，一点遮挡都没有 */
+#home.bars-away .topbar,#home.bars-away .pickbar,#home.bars-away .actionbar{
+  opacity:0;visibility:hidden;transition:opacity .2s ease,visibility 0s linear .2s
+}
 .topbar{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;padding-top:calc(16px + env(safe-area-inset-top))}
 .topright{display:flex;align-items:center;gap:10px;position:relative}
-.home-head{text-align:center;margin-top:1.5vh;pointer-events:none}
+/* 顶栏浮起来了，标题自己往下让出它的高度，不然名字会压在按钮底下 */
+.home-head{text-align:center;margin-top:calc(var(--topbar-h) + 1.5vh);pointer-events:none}
 .home-head h1{
   margin:0;font-size:clamp(21px,3.1vw,33px);font-weight:700;letter-spacing:.06em;
   text-shadow:0 2px 14px rgba(0,0,0,.18);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 12px
@@ -33,7 +59,9 @@
 
 /* 封面 */
 .cover{
-  position:relative;width:clamp(148px,19vw,238px);aspect-ratio:3/4.05;
+  /* 屏幕一窄就按宽度走（44vw，屏幕上占得满满的），屏幕矮就按高度让一让（40vh），
+     宽屏不再一路放大，收在 246px。以前只有 19vw，手机上直接跌到 148px 的下限，看着偏小 */
+  position:relative;width:clamp(158px,min(44vw,40vh),246px);aspect-ratio:3/4.05;
   border-radius:5px 13px 13px 5px;overflow:hidden;
   box-shadow:0 26px 46px -18px rgba(20,22,40,.62),0 6px 14px rgba(20,22,40,.28),
              inset 0 0 0 1px rgba(255,255,255,.14);
@@ -45,6 +73,12 @@
   box-shadow:2px 0 8px rgba(0,0,0,.35),inset -1px 0 0 rgba(255,255,255,.18);
 }
 .cover .spine::after{content:"";position:absolute;left:34%;top:0;bottom:0;width:1px;background:rgba(255,255,255,.16)}
+/* 透明彩带：只留装订压痕（无颜色带），阴影收淡一点，免得看着像一条脏印子 */
+.cover .spine.ghost{
+  background:none;
+  box-shadow:2px 0 7px rgba(0,0,0,.24),inset -1px 0 0 rgba(255,255,255,.15)
+}
+.cover .spine.ghost::after{background:rgba(255,255,255,.12)}
 .cover .gloss{
   position:absolute;inset:0;pointer-events:none;
   background:linear-gradient(112deg,rgba(255,255,255,.28) 0%,rgba(255,255,255,0) 34%,rgba(255,255,255,0) 68%,rgba(255,255,255,.12) 100%);
@@ -62,17 +96,13 @@
   border-radius:999px;background:rgba(0,0,0,.34);color:#fff;letter-spacing:.05em;backdrop-filter:blur(4px)
 }
 .actionbar{
-  position:relative;
+  /* 位置统一由上面的浮层规则给（position:absolute;bottom:0），这里不要再写 position */
   display:flex;justify-content:center;gap:clamp(12px,2.4vw,22px);
   padding:14px 0;padding-bottom:calc(24px + env(safe-area-inset-bottom))
 }
-/* 底栏顶部的透明渐变过渡：滚到底的书和按钮都不会显得硬切 */
-.actionbar::before{
-  content:'';position:absolute;left:0;right:0;bottom:0;top:-80px;pointer-events:none;
-  background:linear-gradient(to bottom,transparent 0%,var(--ab-fade,rgba(12,14,28,.02)) 34%,var(--ab-fade-2,rgba(12,14,28,.38)) 100%)
-}
-/* 浅色背景时反过来向白色过渡，强度收一点免得底部发白过头 */
-#home.bg-light .actionbar{--ab-fade:rgba(255,255,255,.03);--ab-fade-2:rgba(255,255,255,.48)}
+/* 底栏背景全透明：原来这里有一层自下而上的压暗渐变（让滚到底的书不硬切），
+   现在整层去掉，底栏区域直接透出背景图，只有毛玻璃圆钮本身还在 */
+.actionbar::before{content:none}
 /* 底栏按键：毛玻璃圆钮（原来是近乎不透明的白色 rgba(255,255,255,.9)，压不住背景） */
 .actionbar .icon-btn{
   width:52px;height:52px;font-size:19px;

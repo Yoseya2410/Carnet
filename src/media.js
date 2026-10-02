@@ -1,23 +1,28 @@
 /* =====================================================================
- * Carnet · 图片 · 上传压缩与尺寸   （脚本 16 / 23）
+ * Carnet · 图片 · 上传压缩与落位   （脚本 17 / 24）
  * ---------------------------------------------------------------------
  * ① 选图入口与压缩 shrinkImageFile（统一缩到长边像素上限）
  * ② 图片按真实比例落位、补齐高度 ensureImageHeights
- * ③ 封面图片上传
+ * ③ 对象盒子与旋转的统一下发 applyBox（内部调 applyRot）
+ * ④ 封面图片上传（会用到 editor.js 的 ed / syncEditor）
  *
- * 依赖模块：core
+ * 对外接口：shrinkImageFile, ensureImageHeights, applyBox, applyRot, paperAspect
  *
- * 说明：模块间共用全局作用域，按下面的顺序加载，顺序即依赖顺序。
+ * 依赖模块：core（state / storage / reader-view / editor 后置，只在运行时回调里用）
+ *
+ * 说明：模块间共用全局作用域，加载顺序即依赖顺序（见 index.html 与 README）。
  * ===================================================================== */
 /* ==================== 图片上传 ==================== */
 /* 纸张宽高比：图片数据的 h 是“占页高的比例”，需要用纸的比例换算 */
+/* 纸的宽高比兜底值：量不到真实纸张时用（真实值从 .paper 量，见 paperAspect） */
+const PAPER_ASPECT_FALLBACK = 0.68;
 function paperAspect() {
   const el = $('#slotR .paper') || $('#slotL .paper');
   if (el) {
     const r = el.getBoundingClientRect();
     if (r.width > 0 && r.height > 0) return r.width / r.height;
   }
-  return 0.68;
+  return PAPER_ASPECT_FALLBACK;
 }
 function imgRatio(src) {
   return new Promise(res => {
@@ -46,11 +51,19 @@ function syncTiny(w, im) {
   if (im.w < TINY_W || (im.h || 0) < TINY_H) w.classList.add('tiny');
   else w.classList.remove('tiny');
 }
+/* 旋转：整块（内容 + 四角手柄）一起转，绕中心；--rot 同时给工具条反着转回来用 */
+function applyRot(w, im) {
+  if (!w) return;
+  const r = (+(im.rot || 0)).toFixed(1) + 'deg';
+  w.style.setProperty('--rot', r);
+  w.style.transform = 'rotate(' + r + ')';
+}
 function applyBox(w, im) {
   w.style.left = (im.x * 100).toFixed(2) + '%';
   w.style.top = (im.y * 100).toFixed(2) + '%';
   w.style.width = (im.w * 100).toFixed(2) + '%';
   if (im.h) w.style.height = (im.h * 100).toFixed(2) + '%';
+  applyRot(w, im);
   syncTiny(w, im);
 }
 /* 老数据只有宽度：按图片原始比例补齐高度，只跑一次 */
@@ -114,7 +127,7 @@ $('#filePicker').addEventListener('change', async e => {
   if (!j.pages[pid]) return;
   const w = 0.42;
   const h = clamp(w * (await imgRatio(src)) * paperAspect(), .04, IMG_MAX);   // 保持原始宽高比
-  j.pages[pid].images.push({ id: uid(), src, x: 0.22, y: 0.2, w, h });
+  j.pages[pid].images.push({ id: uid(), src, x: 0.22, y: 0.2, w, h, z: nextZ(j.pages[pid]) });
   save(); renderReader();
   toast('已添加到第 ' + (pid + 1) + ' 页');
 });

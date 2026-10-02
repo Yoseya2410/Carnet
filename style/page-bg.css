@@ -1,0 +1,40 @@
+/* =====================================================================
+ * 本页底色面板（#bgsheet）
+ * 复用「编辑文字」面板（.tsheet）的深色玻璃底与升起动画，这里只铺内容：
+ * 顶部当前色预览 + 九种颜色、每种六档「由浅到深」+ 恢复上一次颜色 / 自定义。
+ * ===================================================================== */
+.bsheet{max-height:78%}
+/* 当前色：左颗色块 + 右一句「#XXXXXX · 本页 / 模板纸色」 */
+.bs-now{display:flex;align-items:center;gap:9px;flex:none;margin:2px 0 13px}
+.bs-now-sw{
+  width:26px;height:26px;border-radius:8px;flex:none;background:#fffdf8;
+  border:1px solid rgba(255,255,255,.2);box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)
+}
+.bs-now-tx{font-size:12.5px;color:rgba(255,255,255,.62);letter-spacing:.04em}
+/* 色阶区：九种颜色横着排成一列列，列内六档竖着由浅到深（上浅下深） */
+.bs-ramps{
+  flex:none;display:flex;gap:6px;justify-content:space-between;
+  padding:2px 0 4px
+}
+.bs-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+.bs-cn{
+  margin-top:2px;text-align:center;font-size:11.5px;line-height:1.3;
+  color:rgba(255,255,255,.55);letter-spacing:.02em
+}
+.bs-sw{
+  flex:none;height:32px;border-radius:8px;padding:0;
+  border:1px solid rgba(255,255,255,.16);transition:transform .14s ease
+}
+.bs-sw:active{transform:scale(.94)}
+.bs-sw.on{border-color:#fff;box-shadow:0 0 0 2.5px rgba(255,255,255,.3)}
+.bs-foot{display:flex;gap:10px;flex:none;margin-top:12px}
+.bs-btn{
+  flex:1;height:38px;border-radius:12px;font-size:13.5px;letter-spacing:.05em;
+  color:rgba(255,255,255,.74);background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.14);transition:transform .12s ease
+}
+.bs-btn:active{transform:scale(.97)}
+.bs-btn.on{border-color:#fff;background:rgba(255,255,255,.16);color:#fff}
+/* 「完成」是主按钮：挑了新色才点亮，提醒这一档还没存 */
+.bs-btn.done{color:#fff;background:rgba(255,255,255,.14)}
+.bs-btn.done.on{background:#fff;color:#22242f;border-color:#fff;font-weight:700}

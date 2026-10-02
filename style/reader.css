@@ -22,8 +22,10 @@
 .rtitle{text-align:center;flex:1;min-width:0}
 .rtitle h2{margin:0;font-size:16px;font-weight:600;letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rtitle .pages{font-size:12px;opacity:.7;margin-top:4px;letter-spacing:.05em}
+/* 输入法弹起时会给 .stage 加 translateY 把正在编辑的文字顶到键盘上方，这里给个跟手一点的过渡 */
 .stage{flex:1;position:relative;display:grid;place-items:center;/*overflow:hidden;*/touch-action:none;
-  perspective:2400px;perspective-origin:50% 50%}
+  perspective:2400px;perspective-origin:50% 50%;
+  transition:transform .24s cubic-bezier(.32,.86,.3,1)}
 .book{
   position:relative;height:var(--ph);width:calc(var(--pw) * 2);
   transform-style:preserve-3d;

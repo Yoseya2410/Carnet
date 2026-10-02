@@ -1,12 +1,15 @@
 /* =====================================================================
- * Carnet · 页数轴 · 拖着页码选页   （脚本 21 / 23）
+ * Carnet · 页数轴 · 拖着页码选页与滑动翻页   （脚本 22 / 24）
  * ---------------------------------------------------------------------
- * ① 长按页码唤出页数轴，拖动/点选快速跳页
- * ② 键盘左右键翻页
+ * ① 长按页码唤出页数轴 openScrub，拖动 / 点选快速跳页
+ * ② 左右滑动翻页、点左右半区翻页、键盘左右键翻页
+ * ③ 关面板后的短窗口内抑制翻页：统一问 core.js 的 flipSuppressed(ms)
  *
- * 依赖模块：core, state, reader-view
+ * 对外接口：openScrub, closeScrub, buildScrub, queueScrub
  *
- * 说明：模块间共用全局作用域，按下面的顺序加载，顺序即依赖顺序。
+ * 依赖模块：core, state, reader-view（reader-flow / text-sticker 后置，只在运行时调用）
+ *
+ * 说明：模块间共用全局作用域，加载顺序即依赖顺序（见 index.html 与 README）。
  * ===================================================================== */
 /* ==================== 页数轴：长按页码拖着选页 ==================== */
 const SCRUB_PAD = 18;            // 轴两端留白，滑块不会顶到边缘
@@ -163,16 +166,16 @@ window.addEventListener('keydown', e => {
   const stage = $('#stage');
   let sx = 0, sy = 0, active = false;
   stage.addEventListener('pointerdown', e => {
-    if (performance.now() - menuClosedAt < 500) { active = false; return; }  // 刚关菜单：只关菜单
-    if (e.target.closest('.tstyle')) return;
+    if (flipSuppressed(500)) { active = false; return; }        // 刚关菜单：只关菜单
+    if (e.target.closest('.objbar')) return;                 // 工具条上的按键不算滑动手势
     syncAddFocusFrom(e.target);               // 在哪一页上操作，新内容就默认加到那一页
     const img = e.target.closest('.pimg-wrap');
     if (img && !img.classList.contains('locked')) return;
     const tw = e.target.closest('.ptext-wrap');
     // 正在输入 / 正在调整大小的文字贴自己处理手势；已固定的文字和固定图片一样可以滑动翻页
     if (tw && (tw.classList.contains('editing') || tw.classList.contains('adjust'))) return;
-    if (!e.target.closest('.img-del,.hdl,.img-lock,.txt-edit')) {
-      hideTextBar();                                // 点空白处：收起文字样式条
+    if (!e.target.closest('.objbar,.hdl')) {
+      hideTextBar();                                // 点空白处：收起编辑面板与选中态
     }
     $$('.pimg-wrap,.ptext-wrap').forEach(x => { if (x !== tw) x.classList.remove('sel', 'adjust'); });
     sx = e.clientX; sy = e.clientY; active = true;
@@ -183,8 +186,8 @@ window.addEventListener('keydown', e => {
     const dx = e.clientX - sx, dy = e.clientY - sy;
     if (Math.abs(dx) > 46 && Math.abs(dx) > Math.abs(dy)) flip(dx < 0 ? 1 : -1);
     else if (Math.abs(dx) < 6 && Math.abs(dy) < 6) {
-      // 刚收尾文字编辑：这一下只是「退出输入」，不要顺手翻页
-      if (performance.now() - (window.__textCommitAt || 0) < 450) return;
+      /* 刚收尾行内打字 / 刚关掉编辑面板或底色面板：这一下只是「退出编辑」，不要顺手翻页 */
+      if (flipSuppressed(450)) return;
       /* 「+」菜单开着时点页面 = 切换目标页（右页也能选），不翻页 */
       const m = $('#addMenu');
       if (m && m.classList.contains('show') && state.mode === 'spread' && !isCoverView()) {
@@ -199,7 +202,7 @@ window.addEventListener('keydown', e => {
       }
       // 点击左右半区翻页（图片 / 文字区域除外，避免误触）
       if (e.target.closest('.pimg-wrap') || e.target.closest('.ptext-wrap')) return;
-      if (e.target.closest('.img-del') || e.target.closest('.hdl') || e.target.closest('.img-lock') || e.target.closest('.txt-edit')) return;
+      if (e.target.closest('.objbar') || e.target.closest('.hdl')) return;
       const r = stage.getBoundingClientRect();
       const x = e.clientX - r.left;
       flip(x > r.width / 2 ? 1 : -1);

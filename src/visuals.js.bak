@@ -89,37 +89,16 @@ function flowerTile(flower, leaf) {
     + `</svg>`);
 }
 /* 铺满整页 / 还原原比例：四角向外为铺满，向内为还原 */
-const FILL_SVG =
-  '<svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" viewBox="0 0 24 24" width="13">'
-  + '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
-const RESTORE_SVG =
-  '<svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" viewBox="0 0 24 24" width="13">'
-  + '<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>';
+const FILL_SVG = '<svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" viewBox="0 0 24 24" width="13"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
+const RESTORE_SVG = '<svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" viewBox="0 0 24 24" width="13"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>';
 /* ---- 选中对象时那条工具条上的图标（完成 / 复制 / 编辑 / 删除 / 铺满） ---- */
 /* 「完成」用对勾（这颗钮的意思是「做好了、固定下来」，不是「关掉」） */
-const OB_OK_SVG =
-  '<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" viewBox="0 0 24 24" width="16">'
-  + '<path d="M5 12.6l4.6 4.6L19 7.4"/></svg>';
-const OB_COPY_SVG =
-  '<svg fill="none" height="16" stroke="currentColor" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16">'
-  + '<rect height="11.4" rx="2.6" width="11.4" x="8.4" y="8.4"/>'
-  + '<path d="M15.9 8.4V6.3a2.3 2.3 0 00-2.3-2.3H6.3A2.3 2.3 0 004 6.3v7.3a2.3 2.3 0 002.3 2.3h2.1"/></svg>';
-const OB_EDIT_SVG =
-  '<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16">'
-  + '<path d="M4.4 19.6h4.1L19.4 8.7a1.9 1.9 0 000-2.7l-1.4-1.4a1.9 1.9 0 00-2.7 0L4.4 15.5v4.1z"/>'
-  + '<path d="M14.6 5.9l3.5 3.5"/></svg>';
-const OB_DEL_SVG =
-  '<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24" width="16">'
-  + '<path d="M4.6 6.7h14.8"/>'
-  + '<path d="M9.7 6.7V4.9h4.6v1.8"/>'
-  + '<path d="M6.5 6.7l.85 11.7a1 1 0 001 .93h7.3a1 1 0 001-.93l.85-11.7"/>'
-  + '<path d="M10.4 10.4v5.5"/>'
-  + '<path d="M13.6 10.4v5.5"/></svg>';
+const OB_OK_SVG = '<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" viewBox="0 0 24 24" width="16"><path d="M5 12.6l4.6 4.6L19 7.4"/></svg>';
+const OB_COPY_SVG = '<svg fill="none" height="16" stroke="currentColor" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><rect height="11.4" rx="2.6" width="11.4" x="8.4" y="8.4"/><path d="M15.9 8.4V6.3a2.3 2.3 0 00-2.3-2.3H6.3A2.3 2.3 0 004 6.3v7.3a2.3 2.3 0 002.3 2.3h2.1"/></svg>';
+const OB_EDIT_SVG = '<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><path d="M4.4 19.6h4.1L19.4 8.7a1.9 1.9 0 000-2.7l-1.4-1.4a1.9 1.9 0 00-2.7 0L4.4 15.5v4.1z"/><path d="M14.6 5.9l3.5 3.5"/></svg>';
+const OB_DEL_SVG = '<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24" width="16"><path d="M4.6 6.7h14.8"/><path d="M9.7 6.7V4.9h4.6v1.8"/><path d="M6.5 6.7l.85 11.7a1 1 0 001 .93h7.3a1 1 0 001-.93l.85-11.7"/><path d="M10.4 10.4v5.5"/><path d="M13.6 10.4v5.5"/></svg>';
 /* 旋转手柄上的图标：一个转圈的箭头，让人一眼看出这颗管的是转 */
-const ROT_SVG =
-  '<svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.3" viewBox="0 0 24 24" width="13">'
-  + '<path d="M21 12a9 9 0 11-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>'
-  + '<path d="M21 3v5h-5"/></svg>';
+const ROT_SVG = '<svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.3" viewBox="0 0 24 24" width="13"><path d="M21 12a9 9 0 11-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>';
 /* 文字色板：深浅都在，白色给深色纸用 */
 const TEXT_COLORS = ['#2b2f3d', '#ffffff', '#e0668a', '#4a6ea8', '#4d8a6a', '#b5651d', '#8d94ab'];
 /* 文字高亮：空串 = 不加高亮（面板上画成一个空心圆） */

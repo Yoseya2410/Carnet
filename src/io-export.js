@@ -1,12 +1,15 @@
 /* =====================================================================
- * Carnet · 导出 · 单本与分享   （脚本 4 / 23）
+ * Carnet · 导出 · 单本序列化与落盘   （脚本 4 / 24）
  * ---------------------------------------------------------------------
- * ① 稳定序列化 stableStringify / 摘要 checksum / 资产计数 countAssets
- * ② 导出文件名、单本导出、deliverBlob「另存为 / 系统分享 / 下载」、downloadBlob
+ * ① 稳定序列化 stableStringify / 内容摘要 checksum / 资产计数 countAssets
+ * ② 导出文件名 exportName、保存位置选择 pickSaveTarget
+ * ③ deliverBlob「另存为 / 系统分享 / 下载」与 downloadBlob、exportJournal
+ *
+ * 对外接口：stableStringify, checksum, exportName, downloadBlob, deliverBlob, exportJournal
  *
  * 依赖模块：core, storage
  *
- * 说明：模块间共用全局作用域，按下面的顺序加载，顺序即依赖顺序。
+ * 说明：模块间共用全局作用域，加载顺序即依赖顺序（见 index.html 与 README）。
  * ===================================================================== */
 /* ==================== 导出 / 导入 ==================== */
 const EXPORT_TAG = 'carnet';

@@ -1,13 +1,15 @@
 /* =====================================================================
- * Carnet · 主页交互 · 书架拖动排序 · 菜单与搜索   （脚本 19 / 23）
+ * Carnet · 主页交互 · 书架排序 / 菜单 / 搜索   （脚本 20 / 24）
  * ---------------------------------------------------------------------
- * ① 轮播点击、书架长按/单击、书架拖动排序（FLIP 位移 + 命中判定）
- * ② 右上角菜单、分享菜单、多选选择条、删除二次确认
- * ③ 搜索面板：按名称过滤并跳转
+ * ① 轮播点击、书架长按 / 单击、书架拖动排序（FLIP 位移 + 命中判定）
+ * ② 右上角菜单、分享菜单、多选选择条、删除二次确认 askConfirm
+ * ③ 搜索面板：按名称过滤并跳转 toggleSearch / renderSearch
+ *
+ * 对外接口：askConfirm, toggleSearch, renderSearch, toggleMenu, closeMenus
  *
  * 依赖模块：core, state, home-view, editor, io-*
  *
- * 说明：模块间共用全局作用域，按下面的顺序加载，顺序即依赖顺序。
+ * 说明：模块间共用全局作用域，加载顺序即依赖顺序（见 index.html 与 README）。
  * ===================================================================== */
 /* ==================== 主页交互 ==================== */
 $('#carousel').addEventListener('click', e => {
@@ -304,6 +306,17 @@ $('#shelfWrap').addEventListener('click', e => {
 $$('#viewToggle button').forEach(btn => {
   btn.addEventListener('click', () => setView(btn.dataset.vt));
 });
+/* 书架上下滑动时把浮层按钮整块让开（顶栏底栏都不挡视线），停下 0.48s 再淡回来。
+   书架已经吃满整屏高度，滑动的这一下屏幕上就只剩书 */
+(function floatBarsAway() {
+  const home = $('#home');
+  let timer = 0;
+  $('#shelfWrap').addEventListener('scroll', () => {
+    home.classList.add('bars-away');
+    clearTimeout(timer);
+    timer = setTimeout(() => home.classList.remove('bars-away'), 480);
+  }, { passive: true });
+})();
 /* ==================== 通用确认弹窗 ==================== */
 let confirmCb = null;
 function askConfirm(text, opt) {

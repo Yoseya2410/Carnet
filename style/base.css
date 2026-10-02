@@ -7,6 +7,15 @@
  * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
  * ===================================================================== */
 /* ============ 基础 ============ */
+/* 手写杂书体（851tegakizatsu，免费商用）：整包放在项目里随应用加载，不依赖系统装没装。
+   字体有 28MB，font-display:swap 让文字先用回退字体顶着、加载完再换，不阻塞首屏。
+   注意：只对本页显示生效——导出 PDF / 长图走的是独立文档，吃不到这里的 @font-face，
+   导出前 io-doc.js 会探测手写体画不画得出来，画不出就整段按楷体导出。 */
+@font-face{
+  font-family:'851tegakizatsu';
+  src:url('../assets/font/851tegakizatsu.ttf') format('truetype');
+  font-display:swap;
+}
 :root{
   --bg1:#9aa0bb; --bg2:#767c99; --bg3:#565c7a;
   --ink:#2b2f3d; --paper:#fffdf8; --line:#dfe3ee;
@@ -17,6 +26,11 @@
   --frost:rgba(30,34,54,.6);
   --frost-bd:rgba(255,255,255,.18);
   --frost-fx:blur(24px) saturate(170%);
+  /* 文字贴字体：手写杂书体打头（项目内自带，见上面的 @font-face），往后是华文行楷等系统手写体兜底；
+     楷体那档给想写得工整点的人。系统里不一定都装了，所以是一整条回退链——前面的没有就往后找。
+     JS 导出（PDF / 长图 / DOC）时会把这两条原样读走，改字体只动这里。 */
+  --font-hand:"851tegakizatsu","851手写杂书体","851手書き雑フォント","华文行楷","STXingkai","Xingkai SC","Hanzipen SC","Hannotate SC","Lucida Handwriting","Segoe Script","Bradley Hand","Comic Sans MS","华文楷体","STKaiti","Kaiti SC","KaiTi","楷体",cursive;
+  --font-kai:"华文楷体","STKaiti","Kaiti SC","KaiTi","楷体","BiauKai","STSong",serif;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;margin:0;overflow:hidden}

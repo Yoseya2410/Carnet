@@ -1,13 +1,15 @@
 /* =====================================================================
- * Carnet · 主页 · 左右滑动轮播   （脚本 11 / 23）
+ * Carnet · 主页 · 左右滑动轮播   （脚本 11 / 24）
  * ---------------------------------------------------------------------
- * ① 轮播的排布与跟手：按屏幕比例算书的大小与间距
+ * ① 排布与跟手：按屏幕比例算书的大小与间距 layoutCarousel
  * ② 滑动松手后落到最近的一本、居中吸附
- * ③ layoutCarousel / selectJournal 对外入口
+ * ③ selectJournal / consumeClick 对外入口
+ *
+ * 对外接口：carousel.layoutCarousel, carousel.selectJournal, carousel.consumeClick
  *
  * 依赖模块：core, state
  *
- * 说明：模块间共用全局作用域，按下面的顺序加载，顺序即依赖顺序。
+ * 说明：模块间共用全局作用域，加载顺序即依赖顺序（见 index.html 与 README）。
  * ===================================================================== */
 const carousel = (() => {
   const wrap = $('#carouselWrap'), track = $('#carousel');

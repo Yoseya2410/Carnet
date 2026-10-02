@@ -12,9 +12,10 @@
   <link rel="stylesheet" href="style/reader.css">
   <link rel="stylesheet" href="style/image-tools.css">
   <link rel="stylesheet" href="style/text.css">
+  <link rel="stylesheet" href="style/page-bg.css">
   <link rel="stylesheet" href="style/scrub.css">
   <link rel="stylesheet" href="style/modal.css">
-  <link rel="stylesheet" href="style/colorpicker.css">
+  <link rel="stylesheet" href="style/color-picker.css">
   <link rel="stylesheet" href="style/search.css">
   <link rel="stylesheet" href="style/confirm.css">
   <link rel="stylesheet" href="style/book-anim.css">
@@ -29,12 +30,17 @@
   <!--pnid:HoPSHlsLUYxKLkJgJNrMkz--><!-- ============ 主页 ============ -->
   <section data-page-node-id="stgr5ViTEVqnHfw0fXCMgD" id="home">
     <div data-page-node-id="gyQOrG09vQz6wBpbWpPbqx" class="topbar">
-      <div data-page-node-id="DDkftmqMqHIFpjzVMMaGt2" class="view-toggle" id="viewToggle">
-        <button data-page-node-id="VTCar" id="vtCarousel" data-vt="carousel" title="左右滑动模式">
-          <svg data-page-node-id="VTCarIco" fill="none" height="17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="17"><path data-page-node-id="VTCarP1" d="M9.5 7.5L5 12l4.5 4.5"/><path data-page-node-id="VTCarP2" d="M14.5 7.5L19 12l-4.5 4.5"/></svg>
+      <!--pnid:VToggle--><!-- 两态切换：白色圆钮滑到当前那格（data-vt 由 syncViewToggle 同步）。
+                              左格=书架（多本并排），右格=左右滑动（一次一本） -->
+      <div data-page-node-id="DDkftmqMqHIFpjzVMMaGt2" class="view-toggle" data-vt="carousel" id="viewToggle">
+        <span data-page-node-id="VTThumb" class="vt-thumb"></span>
+        <button data-page-node-id="VTShf" data-vt="shelf" id="vtShelf" title="书架模式">
+          <!--pnid:VTShfIco--><!-- 一摞书（两本并排 + 一本斜靠）：书架上一排排摊开看 -->
+          <svg data-page-node-id="VTShfIco" fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="20"><path data-page-node-id="VTShfP1" d="M5 5a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1l0 -14"/><path data-page-node-id="VTShfP2" d="M9 5a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1l0 -14"/><path data-page-node-id="VTShfP3" d="M5 8h4"/><path data-page-node-id="VTShfP4" d="M9 16h4"/><path data-page-node-id="VTShfP5" d="M13.803 4.56l2.184 -.53c.562 -.135 1.133 .19 1.282 .732l3.695 13.418a1.02 1.02 0 0 1 -.634 1.219l-.133 .041l-2.184 .53c-.562 .135 -1.133 -.19 -1.282 -.732l-3.695 -13.418a1.02 1.02 0 0 1 .634 -1.219l.133 -.041"/><path data-page-node-id="VTShfP6" d="M14 9l4 -1"/><path data-page-node-id="VTShfP7" d="M16 16l3.923 -.98"/></svg>
         </button>
-        <button data-page-node-id="VTShf" id="vtShelf" data-vt="shelf" title="书架模式">
-          <svg data-page-node-id="VTShfIco" fill="none" height="17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="17"><path data-page-node-id="VTShfP1" d="M4 9h16"/><path data-page-node-id="VTShfP2" d="M4 15h16"/><path data-page-node-id="VTShfP3" d="M7.5 9v6"/><path data-page-node-id="VTShfP4" d="M12 9v6"/><path data-page-node-id="VTShfP5" d="M16.5 9v6"/></svg>
+        <button data-page-node-id="VTCar" data-vt="carousel" id="vtCarousel" title="左右滑动模式">
+          <!--pnid:VTCarIco--><!-- 一本合着的书（带书签）：一次一本，左右翻着看 -->
+          <svg data-page-node-id="VTCarIco" fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="20"><path data-page-node-id="VTCarP1" d="M19 4v16h-12a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12"/><path data-page-node-id="VTCarP2" d="M19 16h-12a2 2 0 0 0 -2 2"/><path data-page-node-id="VTCarP3" d="M9 8h6"/></svg>
         </button>
       </div>
       <div data-page-node-id="NHrMC4YA1fIeBIbTyBIHCK" class="topright">
@@ -114,6 +120,7 @@
         <button data-page-node-id="AMpage" data-addact="page"><svg data-page-node-id="AMpageIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><path data-page-node-id="AMpageP1" d="M7 4.5h7l4 4V19a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 7 19V5a.5.5 0 0 1 0-.5z"/><path data-page-node-id="AMpageP2" d="M14 4.5V8.5h4"/></svg><!--pnid:J6Mm35le86Y66zkaOEgbtd-->添加页<span data-page-node-id="AMpageP" class="am-p"></span></button>
         <button data-page-node-id="AMimg" data-addact="img"><svg data-page-node-id="AMimgIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><rect data-page-node-id="AMimgR" height="14" rx="2" width="16" x="4" y="5"/><path data-page-node-id="AMimgP1" d="M4 15l4-4 4 4 3-3 5 5"/><circle data-page-node-id="AMimgC" cx="9" cy="9" r="1.2"/></svg><!--pnid:1jWXATsjyDjflrECmEcdnl-->添加图片<span data-page-node-id="AMimgP" class="am-p"></span></button>
         <button data-page-node-id="AMtext" data-addact="text"><span data-page-node-id="AMtextIco" class="am-t"><!--pnid:daEy0hddPu4xJt9odUGyku-->T</span><!--pnid:wmvfMHu0bJp1J0W4jKw40h-->添加文字<span data-page-node-id="AMtextP" class="am-p"></span></button>
+        <button data-page-node-id="AMbg" data-addact="bg"><svg data-page-node-id="AMbgIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><path data-page-node-id="AMbgP1" d="M12 21a9 9 0 110-18c4.97 0 9 3.58 9 8 0 1.5-1.23 2.5-2.5 2.5H17a2 2 0 00-1.42 3.42A1.94 1.94 0 0114 18.5c0-1.1-.9-2-2-2h-.5"/><circle data-page-node-id="AMbgC1" cx="7.6" cy="11.2" fill="currentColor" r=".85" stroke="none"/><circle data-page-node-id="AMbgC2" cx="10.6" cy="6.8" fill="currentColor" r=".85" stroke="none"/><circle data-page-node-id="AMbgC3" cx="15.6" cy="7.6" fill="currentColor" r=".85" stroke="none"/></svg><!--pnid:AMbgTx-->本页底色<span data-page-node-id="AMbgP" class="am-p"></span></button>
         <button data-page-node-id="AMdel" class="am-del" data-addact="del"><svg data-page-node-id="AMdelIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><path data-page-node-id="AMdelP1" d="M4.5 6.6h15"/><path data-page-node-id="AMdelP2" d="M9.6 6.6V4.9h4.8v1.7"/><path data-page-node-id="AMdelP3" d="M6.4 6.6l.9 11.9a1 1 0 001 .9h7.4a1 1 0 001-.9l.9-11.9"/><path data-page-node-id="AMdelP4" d="M10.4 10.4v5.6"/><path data-page-node-id="AMdelP5" d="M13.6 10.4v5.6"/></svg><!--pnid:AMdelTx-->删除本页<span data-page-node-id="AMdelP" class="am-p"></span></button>
       </div>
     </div>
@@ -139,20 +146,77 @@
           </div>
         </div>
       </div>
-      <div data-page-node-id="TSbar" class="tstyle" id="tstyle">
-        <div data-page-node-id="TSsize" class="ts-group">
-          <button data-page-node-id="TSminus" class="ts-size" id="tsMinus" title="缩小字号"><!--pnid:m3A4FsvEsW5noSK2CdLklv-->A−</button>
-          <button data-page-node-id="TSplus" class="ts-size" id="tsPlus" title="放大字号"><!--pnid:ZnJmPLkvlyv1YM9DaBJbpl-->A+</button>
-        </div>
-        <div data-page-node-id="TSstyle" class="ts-group">
-          <button data-page-node-id="TSbold" class="ts-bold" id="tsBold" title="加粗"><!--pnid:8HeCpJ6bgHB0Pntj4EYHkj-->B</button>
-          <button data-page-node-id="TSalign" class="ts-align" id="tsAlign" title="对齐方式"><!--pnid:vchb2J0vZONzMLmrBZZMeQ-->左</button>
-        </div>
-        <div data-page-node-id="TScolors" class="ts-group" id="tsColors"></div>
-      </div>
       <button data-page-node-id="6Aq7NMSpkSKLNq0nGTgk7m" class="pill-btn" id="prevBtn"><!--pnid:eHKfnZV9qDIk6ux6VukUuk-->‹ 上一页</button>
       <div data-page-node-id="Lv4MJHUrhpXD5UG502s6pC" class="pager" id="pager"><!--pnid:C14jh2QZn46Q2liwKFzZhd-->1 / 1</div>
       <button data-page-node-id="5b5z4h0zr5f2zbmLA58nig" class="pill-btn" id="nextBtn"><!--pnid:jBOBirwaKyvppnjIZdLPgA-->下一页 ›</button>
+    </div>
+
+    <!--pnid:EFlowTop--><!-- 编辑态顶部：完成（✓）+ 撤销 / 重做。打开编辑面板或正在输入文字时浮在左上角 -->
+    <div data-page-node-id="EFlowTop" class="eflow-top" id="eflowTop" hidden>
+      <button data-page-node-id="EFOk" class="ef-ok" id="efOk" title="完成">
+        <svg data-page-node-id="EFOkIco" fill="none" height="19" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" viewBox="0 0 24 24" width="19"><path data-page-node-id="EFOkP" d="M5 12.6l4.6 4.6L19 7.4"/></svg>
+      </button>
+      <div data-page-node-id="EFHist" class="ef-hist" id="efHist">
+        <button data-page-node-id="EFUndo" id="efUndo" title="撤销">
+          <svg data-page-node-id="EFUndoIco" fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="18"><path data-page-node-id="EFUndoP1" d="M4.2 10.2h9.4a5 5 0 010 10H8.4"/><path data-page-node-id="EFUndoP2" d="M7.6 6.4l-3.8 3.8 3.8 3.8"/></svg>
+        </button>
+        <button data-page-node-id="EFRedo" id="efRedo" title="重做">
+          <svg data-page-node-id="EFRedoIco" fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="18"><path data-page-node-id="EFRedoP1" d="M19.8 10.2h-9.4a5 5 0 000 10h5.2"/><path data-page-node-id="EFRedoP2" d="M16.4 6.4l3.8 3.8-3.8 3.8"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!--pnid:TSheet--><!-- 编辑文字面板：正文输入 → 字体 / 颜色 / 字号 / 格式 四个标签页 -->
+    <div data-page-node-id="TSheet" class="tsheet" id="tsheet" hidden>
+      <div data-page-node-id="TSGrab" class="ts-grab"></div>
+      <div data-page-node-id="TSTitle" class="ts-title">编辑文字</div>
+      <textarea data-page-node-id="TSInput" class="ts-input" id="tsInput" placeholder="写点什么…" rows="1" spellcheck="false"></textarea>
+      <div data-page-node-id="TSTabs" class="ts-tabs" id="tsTabs">
+        <button data-page-node-id="TStabFont" class="on" data-tab="font">字体</button>
+        <button data-page-node-id="TStabColor" data-tab="color">颜色</button>
+        <button data-page-node-id="TStabSize" data-tab="size">字号</button>
+        <button data-page-node-id="TStabFmt" data-tab="fmt">格式</button>
+      </div>
+      <div data-page-node-id="TSPanes" class="ts-panes" id="tsPanes">
+        <div data-page-node-id="TSpaneFont" class="ts-pane on" data-pane="font">
+          <div data-page-node-id="TSlabCn" class="ts-lab">中文字体</div>
+          <div data-page-node-id="TSFonts" class="ts-chips" id="tsFonts"></div>
+          <div data-page-node-id="TSlabEn" class="ts-lab">英文字体</div>
+          <div data-page-node-id="TSEFonts" class="ts-chips" id="tsEnFonts"></div>
+        </div>
+        <div data-page-node-id="TSpaneColor" class="ts-pane" data-pane="color">
+          <div data-page-node-id="TSlabColor" class="ts-lab">文字颜色</div>
+          <div data-page-node-id="TSColors" class="ts-dots" id="tsColors"></div>
+          <div data-page-node-id="TSlabBg" class="ts-lab">文字高亮</div>
+          <div data-page-node-id="TSBgs" class="ts-dots" id="tsBgs"></div>
+        </div>
+        <div data-page-node-id="TSpaneSize" class="ts-pane" data-pane="size">
+          <div data-page-node-id="TSlabSize" class="ts-lab">字号<b data-page-node-id="TSSizeVal" id="tsSizeVal">5.5</b></div>
+          <input data-page-node-id="TSSize" class="ts-range" id="tsSize" max="22" min="2.2" step="0.1" type="range" value="5.5">
+          <div data-page-node-id="TSSizes" class="ts-chips" id="tsSizes"></div>
+        </div>
+        <div data-page-node-id="TSpaneFmt" class="ts-pane" data-pane="fmt">
+          <div data-page-node-id="TSlabFmt" class="ts-lab">样式</div>
+          <div data-page-node-id="TSFmt" class="ts-fmt" id="tsFmt"></div>
+          <div data-page-node-id="TSlabAlign" class="ts-lab">对齐</div>
+          <div data-page-node-id="TSAlignRow" class="ts-alignrow" id="tsAlignRow"></div>
+        </div>
+      </div>
+    </div>
+
+    <!--pnid:BSheet--><!-- 本页底色面板：跟编辑文字同一套底部弹窗，里面是九组「由浅到深」的色阶 -->
+    <div data-page-node-id="BSheet" class="tsheet bsheet" id="bgsheet" hidden>
+      <div data-page-node-id="BSGrab" class="ts-grab"></div>
+      <div data-page-node-id="BSTitle" class="ts-title">第 <b data-page-node-id="BSPage" id="bsPage">1</b> 页底色</div>
+      <div data-page-node-id="BSNow" class="bs-now">
+        <span data-page-node-id="BSNowSw" class="bs-now-sw" id="bsNowSw"></span>
+        <span data-page-node-id="BSNowTx" class="bs-now-tx" id="bsNowTx">模板纸色</span>
+      </div>
+      <div data-page-node-id="BSRamps" class="bs-ramps" id="bsRamps"></div>
+      <div data-page-node-id="BSFoot" class="bs-foot">
+        <button data-page-node-id="BSAuto" class="bs-btn done" id="bsDone">完成</button>
+        <button data-page-node-id="BSCus" class="bs-btn" id="bsCus">自定义…</button>
+      </div>
     </div>
   </section>
 
@@ -162,36 +226,72 @@
       <h2 data-page-node-id="qmjFdEl6XczWKBmYsyTTgJ" id="edTitle"><!--pnid:v3j6MhSxsVTJy29K5mzXca-->新建手帐本</h2>
       <div data-page-node-id="W4RPhMOhVGikiEytiitJEZ" class="editor-preview"><div data-page-node-id="O6e5G2cEKDXWB25eVrlEdu" id="edPreview"></div></div>
 
-      <label data-page-node-id="8gG8ZbkMuCuK3v6OTqCep7"><!--pnid:kMVVvE3tWgEy5VsfTQyMrz-->名称</label>
-      <input data-page-node-id="1BcUIzjBZ6lvxCeUhV1zKO" class="text-input" id="edName" maxlength="20" placeholder="给手帐本起个名字">
-
-      <label data-page-node-id="SOTpMrWJcZu0JHkBYyGLxJ"><!--pnid:gHgm0IqjX8pEmqIVwc62PB-->封面底色</label>
-      <div data-page-node-id="CEiCV0dDu2DXChjm5i1KS6" class="swatches" id="edColors"></div>
-      <div data-page-node-id="A9DIrItQosSG0arpOoiafR" class="swatches" id="edGrads" style="margin-top:9px"></div>
-
-      <label data-page-node-id="5uxvYDynqdymG6oMEZBqbC"><!--pnid:ghVPgfsY7jGxecJ7dsDibO-->封面图案</label>
-      <div data-page-node-id="Kf65IY873wb6bIs70mllw2" class="pat-grid" id="edPatterns"></div>
-
-      <div data-page-node-id="PCwrap" id="edPatColorWrap">
-        <label data-page-node-id="PClabel"><!--pnid:PClabelTxt-->图案颜色<span data-page-node-id="PChint" class="pc-hint">选了封面图案后生效</span></label>
-        <div data-page-node-id="PCrow" class="swatches" id="edPatColors"></div>
+      <!--pnid:NameSec--><!-- 每一项设置都是一块可折叠的小节：点标题收起 / 展开，收起时标题后跟一句当前取值 -->
+      <div class="fold-sec" data-sec="name" id="edSecName">
+        <label class="fold-head" id="edNameHead">名称<span class="fold-hint" id="edNameHint"></span><i class="fold-caret"></i></label>
+        <div class="fold-body">
+          <input data-page-node-id="1BcUIzjBZ6lvxCeUhV1zKO" class="text-input" id="edName" maxlength="20" placeholder="给手帐本起个名字">
+        </div>
       </div>
 
-      <label data-page-node-id="q6Yusci63vEezdgBmd1Crw"><!--pnid:deIrBWdy3uRmwbQKt7CaJ6-->上传封面图片</label>
-      <div data-page-node-id="OSrFZLrskcLq0iYZFztY5R" class="upload-row">
-        <button data-page-node-id="G4OlAQUi0eAM4OXVWKfKn6" class="btn ghost" id="edUpload"><!--pnid:ttzTQzUcUqw3XjztMyPN8w-->选择图片</button>
-        <div data-page-node-id="PSkLyfZ512Gw3Tq4q16iVY" class="upload-thumb" id="edThumb" style="display:none"></div>
-        <button data-page-node-id="JxmoNblCKZMwyT52mRmu78" class="btn ghost" id="edClearImg" style="display:none; flex:0 0 auto; padding:10px 14px; font-size:13px"><!--pnid:ViFaVBzbwwcUU5Ywcz6fNh-->移除</button>
+      <!--pnid:CoverSec-->
+      <div class="fold-sec" data-sec="cover" id="edSecCover">
+        <label class="fold-head" id="edCoverHead">封面底色<span class="fold-hint" id="edCoverHint"></span><i class="fold-caret"></i></label>
+        <div class="fold-body">
+          <div data-page-node-id="CEiCV0dDu2DXChjm5i1KS6" class="swatches" id="edColors"></div>
+          <div data-page-node-id="A9DIrItQosSG0arpOoiafR" class="swatches" id="edGrads" style="margin-top:9px"></div>
+        </div>
       </div>
 
-      <label data-page-node-id="C1mD5uPla00GaLjDGKW2zT"><!--pnid:eqZNJXVcy1ECsssWFy1Npo-->封面彩带颜色</label>
-      <div data-page-node-id="gfmWXJ2h8ollpVn43Vq92m" class="swatches" id="edRibbons"></div>
+      <!--pnid:PatSec--><!-- 封面图案：上传了封面图片时自动收起并锁死（图案在图片上不起作用） -->
+      <div data-page-node-id="PatSec" class="fold-sec" data-sec="pattern" id="edPatSec">
+        <label data-page-node-id="5uxvYDynqdymG6oMEZBqbC" class="fold-head" id="edPatHead">封面图案<span data-page-node-id="PatFoldHint" class="fold-hint" id="edPatFoldHint"></span><i data-page-node-id="PatCaret" class="fold-caret" id="edPatCaret"></i></label>
+        <div data-page-node-id="PatBody" class="fold-body" id="edPatBody">
+          <div data-page-node-id="Kf65IY873wb6bIs70mllw2" class="pat-grid" id="edPatterns"></div>
 
-      <label data-page-node-id="0x6mymMFDlGsEurSwYdsuC"><!--pnid:4QOQXgi2LGnZW7RQfbDIoS-->内页模板</label>
-      <div data-page-node-id="Vfrw9LkHhzLxQ9OlWR8TSY" class="tpl-grid" id="edTemplates"></div>
+          <div data-page-node-id="PCwrap" id="edPatColorWrap">
+            <label data-page-node-id="PClabel">图案颜色</label>
+            <div data-page-node-id="PCrow" class="swatches" id="edPatColors"></div>
+          </div>
+        </div>
+      </div>
 
-      <label data-page-node-id="RvXT9OB6FU1DPX9IGkqYf7"><!--pnid:iJZvfLicAYnqclGdxeVKm7-->页数</label>
-      <input data-page-node-id="zbd58LbrguYMwpEriYE1fn" class="text-input" id="edPages" max="200" min="1" type="number" value="1">
+      <!--pnid:ImgSec-->
+      <div class="fold-sec" data-sec="image" id="edSecImg">
+        <label class="fold-head" id="edImgHead">上传封面图片<span class="fold-hint" id="edImgHint"></span><i class="fold-caret"></i></label>
+        <div class="fold-body">
+          <div data-page-node-id="OSrFZLrskcLq0iYZFztY5R" class="upload-row">
+            <button data-page-node-id="G4OlAQUi0eAM4OXVWKfKn6" class="btn ghost" id="edUpload">选择图片</button>
+            <div data-page-node-id="PSkLyfZ512Gw3Tq4q16iVY" class="upload-thumb" id="edThumb" style="display:none"></div>
+            <button data-page-node-id="JxmoNblCKZMwyT52mRmu78" class="btn ghost" id="edClearImg" style="display:none; flex:0 0 auto; padding:10px 14px; font-size:13px">移除</button>
+          </div>
+        </div>
+      </div>
+
+      <!--pnid:RibbonSec-->
+      <div class="fold-sec" data-sec="ribbon" id="edSecRibbon">
+        <label class="fold-head" id="edRibbonHead">封面彩带颜色<span class="fold-hint" id="edRibbonHint"></span><i class="fold-caret"></i></label>
+        <div class="fold-body">
+          <div data-page-node-id="gfmWXJ2h8ollpVn43Vq92m" class="swatches" id="edRibbons"></div>
+        </div>
+      </div>
+
+      <!--pnid:TplSec-->
+      <div class="fold-sec" data-sec="template" id="edSecTpl">
+        <label class="fold-head" id="edTplHead">内页模板<span class="fold-hint" id="edTplHint"></span><i class="fold-caret"></i></label>
+        <div class="fold-body">
+          <div data-page-node-id="Vfrw9LkHhzLxQ9OlWR8TSY" class="tpl-grid" id="edTemplates"></div>
+        </div>
+      </div>
+
+      <!--pnid:PagesSec-->
+      <!-- （「整本内页底色」设置已撤掉：底色一律在阅读器里按页挑，见 #bgsheet） -->
+      <div class="fold-sec" data-sec="pages" id="edSecPages">
+        <label class="fold-head" id="edPagesHead">页数<span class="fold-hint" id="edPagesHint"></span><i class="fold-caret"></i></label>
+        <div class="fold-body">
+          <input data-page-node-id="zbd58LbrguYMwpEriYE1fn" class="text-input" id="edPages" max="200" min="1" type="number" value="1">
+        </div>
+      </div>
 
       <div data-page-node-id="qQCJ6sD2GrilGy1UizcTZf" class="modal-actions">
         <button data-page-node-id="HWmRiddccVrxoJcx6hThXe" class="btn ghost" id="edCancel"><!--pnid:dDvX3WsY26FUZplJqAUpBz-->取消</button>
@@ -263,7 +363,9 @@
   <input data-page-node-id="PfKLvwIHF0oGvl7g7C4CMc" accept="image/*" hidden id="coverFile" type="file">
 </div>
 
-  <!-- 脚本：按依赖顺序加载（defer 保证 DOM 就绪且顺序执行），各文件职责见 README.md -->
+  <!-- 脚本：按依赖顺序加载（defer 保证 DOM 就绪且顺序执行），各文件职责见 README.md。
+       ⚠️ 顺序就是依赖顺序，不要随意调换：靠后的模块会用到靠前模块在顶层定义的 const，
+       调错了会在启动时抛 TDZ 错误。新增 / 插入模块后，记得把各文件头的「脚本 N / 24」编号同步。 -->
   <script src="src/core.js" defer></script>
   <script src="src/visuals.js" defer></script>
   <script src="src/storage.js" defer></script>
@@ -279,6 +381,7 @@
   <script src="src/page-flip.js" defer></script>
   <script src="src/page-edit.js" defer></script>
   <script src="src/text-sticker.js" defer></script>
+  <script src="src/page-bg.js" defer></script>
   <script src="src/media.js" defer></script>
   <script src="src/widgets.js" defer></script>
   <script src="src/editor.js" defer></script>

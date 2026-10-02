@@ -1,13 +1,16 @@
 /* =====================================================================
- * Carnet · 阅读器交互 · 开合书动画   （脚本 20 / 23）
+ * Carnet · 阅读器交互 · 开合书动画与增删页   （脚本 21 / 24）
  * ---------------------------------------------------------------------
  * ① 打开：封面飞入放大成书 flyCover / openReader
- * ② 关闭：合书、连翻回封面、书缩回主页封面
- * ③ 阅读器内的手势与添加菜单联动
+ * ② 关闭：合书、连翻回封面、书缩回主页封面 closeReader
+ * ③ 阅读器内的手势与「添加」菜单联动
+ * ④ 加页 addPageAfter / 删页 deleteCurrentPage
  *
- * 依赖模块：core, state, reader-view, page-flip
+ * 对外接口：openReader, closeReader, addPageAfter, deleteCurrentPage
  *
- * 说明：模块间共用全局作用域，按下面的顺序加载，顺序即依赖顺序。
+ * 依赖模块：core, state, reader-view, page-flip（page-edit / text-sticker / page-bg / scrub 后置）
+ *
+ * 说明：模块间共用全局作用域，加载顺序即依赖顺序（见 index.html 与 README）。
  * ===================================================================== */
 /* ==================== 阅读器交互 ==================== */
 /* 开合动画：把主页封面「飞」成书，关闭时再飞回去 */
@@ -90,9 +93,7 @@ function openReader() {
     book.classList.remove('book-in');
   }, FLY_MS + 40);
 }
-function atCoverView() {
-  return state.mode === 'spread' ? state.spread <= -1 : state.page <= -1;
-}
+/* 是否停在封面：统一用 reader-view.js 的 isCoverView()，这里不再留第二份判定 */
 /* ① 无论停在第几页，先连续快翻回封面 */
 function flipBackToCover() {
   return new Promise(done => {
@@ -100,7 +101,7 @@ function flipBackToCover() {
     const tick = () => {
       if (!$('#reader').classList.contains('show') || !cur()) { done(); return; }
       if (flipA) endFlip();                     // 先让上一页落定，否则 flip 的边界守卫会用到滞后的页码，翻过头
-      if (atCoverView()) {
+      if (isCoverView()) {
         if (state.spread <= -1) state.page = -1;
         done(); return;
       }
@@ -161,7 +162,7 @@ async function runCloseSequence(to) {
   await flipBackToCover();
   if (!alive()) { endClose(); return; }
   /* 单页模式本来就「合着」，停在封面时也只有一张封面，都不用再合一次 */
-  if (state.mode === 'spread' && !atCoverView()) {
+  if (state.mode === 'spread' && !isCoverView()) {
     await foldBook();
     if (!alive()) { endClose(); return; }
   }
@@ -222,6 +223,8 @@ $$('#addMenu [data-addact]').forEach(btn => {
   btn.addEventListener('click', e => {
     e.stopPropagation();
     const act = btn.dataset.addact;
+    /* 「本页底色」走底部弹窗（和编辑文字同一套），菜单先收，弹窗自己会关 */
+    if (act === 'bg') { openBgSheet(currentAddPage()); return; }
     closeAddMenu();
     if (act === 'img') { addImageTo(currentAddPage()); return; }
     if (act === 'text') { addTextTo(currentAddPage()); return; }
@@ -239,14 +242,13 @@ $$('#amTarget .am-side').forEach(btn => {
     setAddTarget(pid); markAddTarget(); updateAddMenuHint();
   });
 });
-let menuClosedAt = 0;                  // 点空白处刚关掉菜单：这一下不该翻页
 document.addEventListener('pointerdown', e => {
   const m = $('#addMenu');
   if (!m || !m.classList.contains('show')) return;
   if (e.target.closest('#addMenu') || e.target.closest('#rAdd')) return;
   if (e.target.closest('#book')) return;      // 菜单展开时点页面 = 挑加到哪一页，不关菜单
   closeAddMenu();
-  menuClosedAt = performance.now();
+  markFlipSuppressed();             // 点空白处刚关掉菜单：这一下不该翻页
 }, true);
 
 /* 加页：插在「目标页」的后面（双页模式下可以在左页后，也可以在右页后） */

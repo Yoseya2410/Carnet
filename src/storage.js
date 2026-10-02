@@ -1,13 +1,15 @@
 /* =====================================================================
- * Carnet · 本地存储 · 显示偏好 · 背景   （脚本 3 / 23）
+ * Carnet · 本地存储 · 书架数据 / 显示偏好 / 背景   （脚本 3 / 24）
  * ---------------------------------------------------------------------
  * ① IndexedDB 键值封装 DB（不可用时降级 localStorage）与防抖保存 save()
- * ② 显示偏好 prefs：展示模式、主页与阅读器共用的背景；setBg / applyBg
+ * ② 显示偏好 prefs：展示模式、主页与阅读器共用的背景 setBg / applyBg
  * ③ 项目改名后把旧键数据搬到新键的一次性迁移 migrateLegacyStorage()
+ *
+ * 对外接口：DB, save, prefs, savePrefs, setBg, applyBg, bgIsLight, migrateLegacyStorage
  *
  * 依赖模块：core
  *
- * 说明：模块间共用全局作用域，按下面的顺序加载，顺序即依赖顺序。
+ * 说明：模块间共用全局作用域，加载顺序即依赖顺序（见 index.html 与 README）。
  * ===================================================================== */
 /* ==================== 存储 ==================== */
 const KEY = 'carnet_v2';
@@ -27,7 +29,20 @@ const DB = (() => {
   }
   return {
     get lowered() { return lowered; },
-    async get(k) { try { const db = await open(); return await new Promise((res, rej) => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); } catch (e) { const s = localStorage.getItem(k); return s ? JSON.parse(s) : undefined; } },
+    /* 读：IndexedDB 拿不到就退回 localStorage，两边都没有才返回 undefined */
+    async get(k) {
+      try {
+        const db = await open();
+        return await new Promise((res, rej) => {
+          const q = db.transaction('kv').objectStore('kv').get(k);
+          q.onsuccess = () => res(q.result);
+          q.onerror = () => rej(q.error);
+        });
+      } catch (e) {
+        const s = localStorage.getItem(k);
+        return s ? JSON.parse(s) : undefined;
+      }
+    },
     /* 写入成功返回 true，两边都失败返回 false（不再静默吞掉：调用方要据此提醒用户） */
     async set(k, v) {
       try {
@@ -125,11 +140,16 @@ function applyBgTo(el, b) {
   el.style.background = b.value;
   if (bgIsLight(b.value)) el.classList.add('bg-light');
 }
-/* 主页和阅读器永远同一张背景：改一次，两处同时生效 */
+/* 主页和阅读器永远同一张背景：改一次，两处同时生效。
+   body 也要铺同一份：#app 的高度被 JS 锁成 --app-h，而 #home 只盖住 #app——
+   底栏是透明的，视口比 #app 高的那一条（地址栏伸缩、iOS 回弹、键盘收起瞬间）
+   露出来的是 body 画布，不铺就会露出默认渐变，看起来"底栏处颜色和主页不一致"。
+   body 有背景时会自动传播到整个画布；default 档清掉内联、回落到 CSS 里的默认渐变，两边依旧一致。 */
 function applyBg() {
   const b = state.prefs.bg || { mode: 'default', value: '', img: null };
   applyBgTo($('#home'), b);
   applyBgTo($('#reader'), b);
+  applyBgTo(document.body, b);
 }
 function setBg(patch) {
   state.prefs.bg = { ...(state.prefs.bg || {}), ...patch };
