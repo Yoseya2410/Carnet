@@ -35,7 +35,7 @@ npx serve .
 ```
 Carnet/
 ├─ index.html          # 唯一的页面：结构骨架 + 按顺序引入所有模块
-├─ src/                #  JavaScript 模块（24 个，见下一节）
+├─ src/                #  JavaScript 模块（25 个，见下一节）
 ├─ style/              #  CSS 模块（17 个，见下文）
 ├─ example/            #  示例手帐本文件，首次使用时自动导入
 │   ├─ manifest.json   #   文件清单（服务器没开目录列表时的兜底）
@@ -73,26 +73,30 @@ index.html
 | 2 | `visuals.js` | 359 | 封面与纸面的视觉素材：三角（等边三角网格镶嵌，角对角共用顶点；只画尖朝上的一半，尖朝下那块留空全透明、直接透出封面底色）/圆/星/心/小花（三角网格密排，贴片 64×110.85，四角+中心各一朵）/叶 SVG 图案、封面明暗 `coverLum`、图案层 `patternLayers / faceLayers`（有封面图片时不叠图案）；色板 `COLORS / GRADS / RIBBONS / PAT_COLORS`（彩带含「透明」档 `RIBBON_NONE`，书脊背景走 `ribbonSpine`）与内页模板 `TEMPLATES`；文字贴用的 4 档中文字体 `TEXT_FONTS`（手写/楷/宋/默认；**黑体 2026-10-02 撤掉**，老数据里的 `'hei'` 靠 `FONT_ALIAS` 落到「默认字体」）、4 档英文字体 `EN_FONTS`（**一律不带通用族、字体名用单引号且必须成对**——栈末多一个引号会让整条 `font-family` 作废，宋体/黑体就是这么废掉的；英文栈排在中文字体**前面**）、7 档文字色 `TEXT_COLORS`、6 档高亮色 `TEXT_BGS`；对象工具条图标 `OB_*_SVG`、旋转手柄上的转圈箭头 `ROT_SVG`；**内页底色**：九组「由浅到深」的色阶 `PAPER_RAMPS`、`normPaperBg`；**全项目共用的尺寸与阈值** `PAGE_RATIO / PAGE_W_DEFAULT / LUM_DARK`（只认 `#rgb / #rrggbb`）、三级取值 `pageBgOf`（单页 > 整本 > 模板）、`pageBgStyle / pageBgDark`、**预览版 `pageBgShown / pageBgDarkShown`**（读到 `window.__bgPv` 就先按面板上正在挑的那一档画，`pg.bg` 不动）、任意色值的亮度 `hexLum` | core |
 | 3 | `storage.js` | 159 | IndexedDB 封装 `DB`（降级 localStorage）、防抖保存 `save()`；显示偏好 `prefs` 与背景读写 `setBg / applyBg`（同一份背景铺 `#home / #reader / body`，body 兜住画布露底）；**改名后旧键 → 新键的一次性迁移** `migrateLegacyStorage()` | core |
 | 4 | `io-export.js` | 187 | 导出地基：稳定序列化 `stableStringify`、摘要 `checksum`、资产计数 `countAssets`；单本导出、「另存为 / 系统分享 / 下载」`deliverBlob`、`downloadBlob` | core, storage |
-| 5 | `io-doc.js` | 255 | PDF / SVG 导出：每页渲染成 XHTML（`pageExportXHTML`，文字串带上英文字族、斜体、下划线 / 删除线、高亮；**图片与文字按 `z` 混排**，跟应用里的上下层一致；**底色走 `pageBgOf`，单页 > 整本 > 模板**，跟屏幕上同一套取舍）、JPEG 转字节流、手写 PDF 对象表 `buildPdf`、竖向拼 `foreignObject` 生成矢量长图；导出前 `probeExportFont` 实测手写杂书体画不画得出来，画不出整段按楷体导 | core, visuals |
+| 5 | `io-doc.js` | 255 | PDF / SVG 导出：每页渲染成 XHTML（`pageExportXHTML`，文字串带上英文字族、斜体、下划线 / 删除线、高亮；**图片与文字按 `z` 混排**，跟应用里的上下层一致；**底色走 `pageBgOf`，单页 > 整本 > 模板**，跟屏幕上同一套取舍）、JPEG 转字节流、手写 PDF 对象表 `buildPdf`、竖向拼 `foreignObject` 生成矢量长图；导出前 `probeExportFont` 实测手写体画不画得出来，画不出整段按楷体导 | core, visuals |
 | 6 | `io-share.js` | 112 | 书架多选后**一本一个文件**批量导出；支持时只问一次目标文件夹（`showDirectoryPicker`），否则逐个下载 | core, io-export, io-doc |
 | 7 | `io-import.js` | 169 | 导入：`normalizeJournal` 补全并保留未知字段、`readJournals` 兼容三种写法且带 checksum 校验、`importJournals` 按内容摘要查重后入库并出核对报告 | core, storage, io-export |
 | 8 | `io-example.js` | 107 | 首次使用的自动导入：列出 `example/` 下的手帐本文件（目录列表优先，`manifest.json` 兜底），逐个导入并写标记保证只导一次；帮助与反馈邮件入口 | core, storage, io-import |
-| 9 | `state.js` | 102 | 运行时状态 `state`、当前游标 `cur / pageCount`；页面与手帐本的构造 `mkPage / newText / newJournal`（新建带 `pageBg: ''`）；老预置本的识别 `isLegacyDefault`（**改过内页底色也算用户的**，不再被摘掉）；**上下层 `ensureZ / nextZ`**（一页里的图片与文字共用一个 `z`，越大越靠上；老数据按「先图后字」补一套） | core, visuals |
-| 10 | `home-view.js` | 181 | 主页渲染：封面 `coverHTML`、单本书 `bookItemHTML`、书架 `renderShelf`、多选模式 `enterPickMode / togglePick`、总渲染 `renderHome`、展示模式切换 `syncViewToggle`（在容器上写 `data-vt` 驱动白钮滑块位移） | core, visuals, state, storage, carousel |
-| 11 | `carousel.js` | 220 | 主页「左右滑动」轮播：按屏幕比例算书的大小与间距、跟手滑动、松手后落到最近的一本并居中吸附；对外暴露 `layoutCarousel / selectJournal` | core, state |
-| 12 | `reader-view.js` | 205 | 阅读器渲染：单页 / 双页判定、书与中缝布局 `layoutBook`（`availH` 扣掉 `window.__sheetCov` 让编辑面板不压住纸面）、封面页与内页 `pageHTML`（`pageObjs` 把图片与文字按 `z` 混排 → `imgWrapHTML / textWrapHTML`，都挂上对象工具条 `objBarHTML`；**自定义内页底色写在模板底色之后**好盖住它，纸色深时给纸加 `.dark` 让页码转浅） | core, visuals, state, carousel |
-| 13 | `page-flip.js` | 138 | 翻页动画：贝塞尔缓动、沿书脊翻转的叶片与深度压暗、`flip(dir)` | core, state, reader-view |
-| 14 | `page-edit.js` | 507 | 页面内容编辑：拖拽移动、双指缩放（**不再拖到最上层**，上下层只由加入顺序决定）；图片**点一下即选中**并浮出工具条（`objAction`：完成 ✓ / 复制 / 编辑 / 删除，第三颗是铺满 ⇄ 还原，删除后必定整页重绘；**行内打字时点工具条会先把字落盘**）；**旋转**（右侧那颗 `.hdl.rot` 绕中心转，Shift 每 15° 吸附，双击摆正；四角拉伸的位移会先换算回对象自己的方向）；**文字贴单击完全不响应**，双击才进编辑态（解锁 → 选中 → 落光标），编辑态里拖动 / 改大小 / 旋转 / 打字 / 工具条都能用 —— 双击判定要等松手：第二下按下时还分不清是双击还是翻页的一划，挪开就放行给翻页（`armTap` 同理，划过的那一按不给双击留记号）；右上角「添加」菜单（加页 / 图片 / 文字 / **本页底色** / 删本页）与目标页判定 —— **「本页底色」在这里只负责把目标页交给底部弹窗**（`openBgSheet`，见 `page-bg.js`） | core, state, media, text-sticker |
-| 15 | `page-bg.js` | 147 | 「本页底色」底部弹窗：和「编辑文字」共用一套 `.tsheet` 视觉与 `eflow` 编辑态。标题「第 N 页底色」+ 当前色预览 + **九种颜色横排成列、每种竖着六档由浅到深**（上浅下深，组名挂列底；点一下即上色、面板不关可以连着试）+ **完成** / 自定义取色；**没有「跟随整本」这一档**（底色一律按页挑，本页没设就沿用整本 / 模板的纸色）；**点色块只是预览** —— `pickPageBg` 只改 `bgs.pick` 和 `window.__bgPv`，`pg.bg` 一个字节都不动（纸面借 `pageBgShown` 按预览色画）；只有 `commitBgSheet`（底部「完成」或左上角 ✓，挂在 `window.__bgOk` 上）才 `writePageBg` 落盘；关面板走 `closeBgSheet` = 取消，顺手清 `__bgPv` 并按原数据重绘，挑了色没按完成就自动回原样。`syncBgSheet` 刷选中态 / 预览文案（没按完成时显示 `· 待完成`）/ 完成键的点亮 | core, state, visuals, text-sticker, widgets |
-| 16 | `text-sticker.js` | 547 | 文字贴：① 底部（宽屏是右下角浮块）「编辑文字」面板 `.tsheet` —— 正文输入 + 字体 / 颜色 / 字号 / 格式四个标签页，改动即时画回纸面并记进面板会话内的撤销栈（连续打字 800ms 内合并一步）；② 面板打开即 `eflow` 编辑态（顶栏底栏让位、书整体上移避让；**底色弹窗借用同一套：`updateEflow` 认 `window.__bgSheetOpen`，`sheetLayout` 按「哪块面板开着」量避让高度，撤销 / 重做只在文字面板开时才露出来**）；③ 行内编辑（双击直接打字）保留，输入法收起自动结束；④ **框高自动贴合内容** `fitTextHeight`（见下面「两个量高度的坑」） | core, state, visuals |
-| 17 | `media.js` | 141 | 图片：选图入口、压缩 `shrinkImageFile`（统一缩到长边像素上限）、按真实比例落位 `ensureImageHeights`、封面图片上传；对象外框 `applyBox / applyRot`（`--rot` + `transform` 一起写，旋转与位置尺寸同步落盘） | core |
-| 18 | `widgets.js` | 141 | 通用控件：自定义取色盘（HSV 面板 + 色相条 + 手输色值）、背景设置面板（预设色 / 自定义色 / 背景图 / 恢复默认） | core, storage |
-| 19 | `editor.js` | 192 | 新建 / 编辑手帐本弹窗：**每一项设置都是一块 `.fold-sec` 折叠小节**（名称 / 封面底色 / 封面图案（含图案色）/ 封面图片 / 彩带色（含透明档）/ 内页模板 / 页数），点标题收起或展开、收起时标题后跟当前取值 `ED_SEC_HINT`；**没有「整本内页底色」**（底色一律按页挑）；**图案颜色那一栏默认收起，选了封面图案才展开**（`#edPatColorWrap.fold`，用 `max-height` 收，展开不生硬）；**页数只在新建时给填**（编辑已有本子时整块 `.gone` 不显示，保存时也不读它，免得把本子截断）；图案区在上传封面图片时锁死收起 | core, visuals, state, widgets |
-| 20 | `home-events.js` | 478 | 主页交互：轮播点击、书架长按 / 单击、书架**拖动排序**（FLIP 位移 + 布局坐标命中判定）、书架滚动时浮层按钮让开 `floatBarsAway`、菜单与分享菜单、多选选择条、删除二次确认、搜索面板 | core, state, home-view, editor, io-* |
-| 21 | `reader-flow.js` | 306 | 阅读器交互与**开合书动画**：封面飞入放大成书、合书、连翻回封面、缩回主页封面 | core, state, reader-view, page-flip |
-| 22 | `scrub.js` | 213 | 页数轴：长按页码唤出、拖动 / 点选快速跳页；键盘左右键翻页；点纸面收起对象选中（工具条 / 面板上的点击不算，刚关面板 450ms 内也不翻页） | core, state, reader-view |
-| 23 | `system.js` | 44 | 视口自适应（输入法弹起不重排，避免把正在输入的输入法收走）；`toast()` —— **所有提示一律输出到控制台** | core |
-| 24 | `main.js` | 83 | 启动：迁移旧数据 → 读数据 → 一次性数据清理与迁移 → 应用偏好 → 首次使用自动导入 `example/` → 首次渲染 | 全部 |
+| 9 | `io-photobook.js` | 132 | 一键成书：一次选多张图片 → 按文件名自然序排好 → **一张图一页**做成一本
+（图片默认 `fill` 铺满整页并 `locked` 固定，封面用第一张图）；小图直接用原图、大图压到长边 1600 再存；
+成书过程显示进度胶囊 `#mkBusy`（toast 只进控制台，几秒的活儿得有看得见的进度） | core, media |
+
+| 10 | `state.js` | 102 | 运行时状态 `state`、当前游标 `cur / pageCount`；页面与手帐本的构造 `mkPage / newText / newJournal`（新建带 `pageBg: ''`）；老预置本的识别 `isLegacyDefault`（**改过内页底色也算用户的**，不再被摘掉）；**上下层 `ensureZ / nextZ`**（一页里的图片与文字共用一个 `z`，越大越靠上；老数据按「先图后字」补一套） | core, visuals |
+| 11 | `home-view.js` | 181 | 主页渲染：封面 `coverHTML`、单本书 `bookItemHTML`、书架 `renderShelf`、多选模式 `enterPickMode / togglePick`、总渲染 `renderHome`、展示模式切换 `syncViewToggle`（在容器上写 `data-vt` 驱动白钮滑块位移） | core, visuals, state, storage, carousel |
+| 12 | `carousel.js` | 229 | 主页「左右滑动」轮播：按屏幕比例算书的大小与间距、跟手滑动、松手后落到最近的一本并居中吸附；对外暴露 `layoutCarousel / selectJournal`。**性能：每本书的中心 / 宽只在 `measure()` 里量一次存进 `mets`，`styleItems()` 只读不写**（原来边写 transform 边读 offsetWidth，n 本书每帧 n 次强制重排）；跟手那一下走 `schedulePaint()` 按帧合帧，松手落位才直接 `paint()` | core, state |
+| 13 | `reader-view.js` | 205 | 阅读器渲染：单页 / 双页判定、书与中缝布局 `layoutBook`（`availH` 扣掉 `window.__sheetCov` 让编辑面板不压住纸面）、封面页与内页 `pageHTML`（`pageObjs` 把图片与文字按 `z` 混排 → `imgWrapHTML / textWrapHTML`，都挂上对象工具条 `objBarHTML`；**自定义内页底色写在模板底色之后**好盖住它，纸色深时给纸加 `.dark` 让页码转浅） | core, visuals, state, carousel |
+| 14 | `page-flip.js` | 138 | 翻页动画：贝塞尔缓动、沿书脊翻转的叶片与深度压暗、`flip(dir)` | core, state, reader-view |
+| 15 | `page-edit.js` | 520 | 页面内容编辑（**所有拖动 / 拉伸 / 旋转都过 `track()`，它把 pointermove 攒到一帧只跑一次，松手时补跑最后那一下，位置不丢**）：拖拽移动、双指缩放（**不再拖到最上层**，上下层只由加入顺序决定）；图片**点一下即选中**并浮出工具条（`objAction`：完成 ✓ / 复制 / 编辑 / 删除，第三颗是铺满 ⇄ 还原，删除后必定整页重绘；**行内打字时点工具条会先把字落盘**）；**旋转**（右侧那颗 `.hdl.rot` 绕中心转，Shift 每 15° 吸附，双击摆正；四角拉伸的位移会先换算回对象自己的方向）；**文字贴单击完全不响应**，双击才进编辑态（解锁 → 选中 → 落光标），编辑态里拖动 / 改大小 / 旋转 / 打字 / 工具条都能用 —— 双击判定要等松手：第二下按下时还分不清是双击还是翻页的一划，挪开就放行给翻页（`armTap` 同理，划过的那一按不给双击留记号）；右上角「添加」菜单（加页 / 图片 / 文字 / **本页底色** / 删本页）与目标页判定 —— **「本页底色」在这里只负责把目标页交给底部弹窗**（`openBgSheet`，见 `page-bg.js`） | core, state, media, text-sticker |
+| 16 | `page-bg.js` | 147 | 「本页底色」底部弹窗：和「编辑文字」共用一套 `.tsheet` 视觉与 `eflow` 编辑态。标题「第 N 页底色」+ 当前色预览 + **九种颜色横排成列、每种竖着六档由浅到深**（上浅下深，组名挂列底；点一下即上色、面板不关可以连着试）+ **完成** / 自定义取色；**没有「跟随整本」这一档**（底色一律按页挑，本页没设就沿用整本 / 模板的纸色）；**点色块只是预览** —— `pickPageBg` 只改 `bgs.pick` 和 `window.__bgPv`，`pg.bg` 一个字节都不动（纸面借 `pageBgShown` 按预览色画）；只有 `commitBgSheet`（底部「完成」或左上角 ✓，挂在 `window.__bgOk` 上）才 `writePageBg` 落盘；关面板走 `closeBgSheet` = 取消，顺手清 `__bgPv` 并按原数据重绘，挑了色没按完成就自动回原样。`syncBgSheet` 刷选中态 / 预览文案（没按完成时显示 `· 待完成`）/ 完成键的点亮 | core, state, visuals, text-sticker, widgets |
+| 17 | `text-sticker.js` | 547 | 文字贴：① 底部（宽屏是右下角浮块）「编辑文字」面板 `.tsheet` —— 正文输入 + 字体 / 颜色 / 字号 / 格式四个标签页，改动即时画回纸面并记进面板会话内的撤销栈（连续打字 800ms 内合并一步）；② 面板打开即 `eflow` 编辑态（顶栏底栏让位、书整体上移避让；**底色弹窗借用同一套：`updateEflow` 认 `window.__bgSheetOpen`，`sheetLayout` 按「哪块面板开着」量避让高度，撤销 / 重做只在文字面板开时才露出来**）；③ 行内编辑（双击直接打字）保留，输入法收起自动结束；④ **框高自动贴合内容** `fitTextHeight`（见下面「两个量高度的坑」） | core, state, visuals |
+| 18 | `media.js` | 147 | 图片：选图入口、压缩 `shrinkImageFile`（统一缩到长边像素上限；第三个参数 `opt = { q, bg }` 可给 JPEG 质量与打底色，一键成书那一路用）、按真实比例落位 `ensureImageHeights`、封面图片上传；对象外框 `applyBox / applyRot`（`--rot` + `transform` 一起写，旋转与位置尺寸同步落盘） | core |
+| 19 | `widgets.js` | 429 | 通用控件：自定义取色盘（HSV 面板 + 色相条 + 手输色值）、**吸管取色**（现场取色、不弹窗：只取手账本里的内容，从 `elementsFromPoint` 逐层 alpha 合成取色，图片把屏幕坐标逆映射回原始像素采样）、背景设置面板（预设色 / 自定义色 / 背景图 / 恢复默认） | core, storage |
+| 20 | `editor.js` | 192 | 新建 / 编辑手帐本弹窗：**每一项设置都是一块 `.fold-sec` 折叠小节**（名称 / 封面底色 / 封面图案（含图案色）/ 封面图片 / 彩带色（含透明档）/ 内页模板 / 页数），点标题收起或展开、收起时标题后跟当前取值 `ED_SEC_HINT`；**没有「整本内页底色」**（底色一律按页挑）；**图案颜色那一栏默认收起，选了封面图案才展开**（`#edPatColorWrap.fold`，用 `max-height` 收，展开不生硬）；**页数只在新建时给填**（编辑已有本子时整块 `.gone` 不显示，保存时也不读它，免得把本子截断）；图案区在上传封面图片时锁死收起 | core, visuals, state, widgets |
+| 21 | `home-events.js` | 479 | 主页交互：轮播点击、书架长按 / 单击、书架**拖动排序**（FLIP 位移 + 布局坐标命中判定）、书架滚动时浮层按钮让开 `floatBarsAway`、菜单与分享菜单、多选选择条、删除二次确认、搜索面板 | core, state, home-view, editor, io-* |
+| 22 | `reader-flow.js` | 306 | 阅读器交互与**开合书动画**：封面飞入放大成书、合书、连翻回封面、缩回主页封面 | core, state, reader-view, page-flip |
+| 23 | `scrub.js` | 213 | 页数轴：长按页码唤出、拖动 / 点选快速跳页；键盘左右键翻页；点纸面收起对象选中（工具条 / 面板上的点击不算，刚关面板 450ms 内也不翻页） | core, state, reader-view |
+| 24 | `system.js` | 44 | 视口自适应（输入法弹起不重排，避免把正在输入的输入法收走）；`toast()` —— **所有提示一律输出到控制台** | core |
+| 25 | `main.js` | 83 | 启动：迁移旧数据 → 读数据 → 一次性数据清理与迁移 → 应用偏好 → 首次使用自动导入 `example/` → 首次渲染 | 全部 |
 
 ### 关于 TDZ 的一个坑（改 `src/` 时务必注意）
 
@@ -110,15 +114,15 @@ index.html
 
 | # | 文件 | 行数 | 职责 |
 |---|---|---|---|
-| 1 | `base.css` | 46 | CSS 变量（色板、毛玻璃、圆角、阴影、**文字贴字族 `--font-hand` / `--font-kai`**）与全屏骨架；`#app` 高度由 JS 锁定。顶部 `@font-face` 加载项目自带的 `assets/font/851tegakizatsu.ttf`（手写杂书体，免费商用） |
+| 1 | `base.css` | 97 | CSS 变量（色板、毛玻璃、圆角、阴影、**文字贴字族 `--font-hand` / `--font-kai`**、**滚动条 `--sb-*`**）与全屏骨架；`#app` 高度由 JS 锁定。顶部 `@font-face` 加载项目自带的 `assets/font/carnet-hand.woff2`（2.55MB，GB2312 全覆盖子集；另备一份 `.woff` 兜底）。**文件名必须是纯 ASCII**：非 ASCII 名在部分静态托管上会被回落成 index.html，字体请求看着 200、内容是 HTML，字族静默失效（症状：字母仍是手写体——退到了系统自带字体，中文变成楷体 / 雅黑）。排查直接看控制台自检，或手动跑 `window.carnetFontOK()`。字族名 `CarnetHand`，排在 `--font-hand` 回退链最前；旧的 `851tegakizatsu.ttf`（28MB）已弃用、不再被引用。**滚动条全项目只此一份**：用 `*` 兜住所有滚动容器，改浓淡只动 `--sb-size / --sb-track / --sb-thumb(-hi/-act)` 四个变量；别再往各样式文件里单独写 `::-webkit-scrollbar`（那边选择器更具体会盖掉这里），书架 `.shelf-wrap` 是唯一例外——它故意藏起来 |
 | 2 | `controls.css` | 22 | 通用控件：输入框、按钮、标签 |
 | 3 | `home.css` | 122 | 主页容器（**没有顶栏底栏**：两条栏都是 `position:absolute` 浮层，不占布局高度，栏本身 `pointer-events:none` 只有按钮收点击；滑动时 `#home.bars-away` 整块淡出让开）、封面（书脊、图案层、高光、页数徽章；透明彩带走 `.spine.ghost`，只留装订压痕；**尺寸 `clamp(158px,min(44vw,40vh),246px)`：窄屏按宽度走占满屏、矮屏按高度让一让**）、底栏毛玻璃圆钮；浮层高度记在 `--topbar-h / --botbar-h` 供正文避让 |
 | 4 | `reader.css` | 98 | 书籍骨架、左右页、翻页叶片、中缝折痕与纸光、纸张底色与内页模板（网格 / 点阵 / 横线 / 牛皮纸）；编辑态下舞台按 `--stage-shift` 上移避让面板 |
 | 5 | `image-tools.css` | 91 | 四角拉伸手柄（热区只向外扩，避免抢按钮；`locked` 时隐藏、`.tiny` 时缩小）、**旋转手柄 `.hdl.rot`（挂在右边外侧正中，上方是工具条的位置、四角是拉伸手柄，只有这里空着；里面放一个转圈箭头图标 + 一根细线连回对象。图标用绝对定位居中，不能给 `.hdl.rot` 设 `display:flex` —— 会压过「选中才显示」那条规则，手柄就一直露在外面了）**、纸张底色与内页模板纹理、选中 / 固定 / 铺满三态的描边（**按钮本身已收进 `.objbar`，见 `text.css`**）；`lockPulse` 关键帧里必须带 `rotate(var(--rot))`，否则固定那一瞬间会先把角度抹掉 |
 | 6 | `text.css` | 250 | ① 文字贴本体与选中态（**行内打字时只让工具条让位，四角与旋转手柄都留着**，好一边打字一边把框拉到合适大小）；② `.objbar` 对象工具条（毛玻璃胶囊，长在对象内部、`--ob-x` 横向纠偏、`bar-below` 翻到下方、**末尾再 `rotate(calc(-1 * var(--rot)))` 把角度转回来，对象怎么转工具条都是正的**）；③ `.tsheet` 编辑面板（窄屏贴底全宽 / `≥620px` 变右下角浮块）与左上角完成 / 撤销 / 重做 `.eflow-top`（**撤销 / 重做只在文字面板开时才露出来，底色弹窗借用编辑态但没有撤销栈**）；④ 右上角「添加」菜单、双页选页那一行（**「本页底色」那排内联小色块 `.am-bg` 已随弹窗撤掉**）；⑤ 深色纸时页码转浅 `.paper.dark .pnum` |
 | 7 | `scrub.css` | 84 | 页数轴（玻璃滑块 + 粉色焦点线）与浮在轴上方的页码；封面页铺满时各图案贴片按 `--pw` 折算尺寸（小花贴片非正方形，两维都必须折算） |
-| 8 | `modal.css` | 90 | 通用弹窗：毛玻璃滚动条、吸底操作栏、色块网格、模板网格、上传区；编辑器折叠小节 `.fold-sec / .fold-head / .fold-body / .fold-caret / .fold-hint`（收起时正文整块隐藏、标题后跟取值）；「跟随 / 自动」档色块 `.paper-auto .pat-auto`、小节里的补充说明 `.ed-note` |
-| 9 | `color-picker.css` | 98 | 自定义取色盘：饱和度 / 明度面板、色相条；手输色值时键盘弹起把面板顶上去 |
+| 8 | `modal.css` | 107 | 通用弹窗：毛玻璃滚动条、吸底操作栏、色块网格、模板网格、上传区；编辑器折叠小节 `.fold-sec / .fold-head / .fold-body / .fold-caret / .fold-hint`（收起时正文整块隐藏、标题后跟取值）；「跟随 / 自动」档色块 `.paper-auto .pat-auto`、小节里的补充说明 `.ed-note`；「一键成书」的进度胶囊 `.mkbusy`（居中玻璃胶囊 + 转圈，压在确认框之上） |
+| 9 | `color-picker.css` | 146 | 自定义取色盘：饱和度 / 明度面板、色相条、吸管入口；**吸管现场取色**：整层不吃指针事件的放大镜 + 底部细操作条、浮层让位用的 `.ep-duck`；手输色值时键盘弹起把面板顶上去 |
 | 10 | `search.css` | 59 | 搜索条与结果列表（含 `scrollbar-gutter` 防抖动）以及结果里的封面缩略图 |
 | 11 | `confirm.css` | 29 | 破坏性操作前的二次确认框 |
 | 12 | `book-anim.css` | 64 | 开合书动画：封面飞入放大成书、ghost 相位、合书退场、封面单独成页态 |
@@ -203,19 +207,46 @@ index.html
 - **示例文件**：`example/` 里的 `.json` 会在首次使用时自动导入；往里丢新文件即可（若服务器没开目录列表，
   需要把文件名补进 `example/manifest.json`）。
 
-## 八、交互速查
+## 八、一键成书（图片 → 手帐本）
+
+底栏「⋯ 更多」→「一键成书」→ 一次选多张图片（多选文件框），选完直接生成一本新手帐本：
+
+- **一图一页**：第 1 张是第 1 页，第 2 张是第 2 页……顺序按**文件名的自然序**排
+  （`IMG_2` 排在 `IMG_10` 前面；文件框给回来的顺序各家浏览器不一致，所以统一排一遍）。
+- **每张图默认铺满整页**：`fill: true` + `x/y = 0` + `w/h = 1`，并 `locked: true` ——
+  和工具条上那颗「铺满整页」完全是同一套设置。固定是必须的：整张纸都是图片时，
+  不固定左右一划就变成拖图、翻不了页（要改就长按纸面解锁，再点工具条中间那颗还原）。
+- **封面用第一张图**，内页模板一律 `blank`（照片自己就是底，不再压网格 / 横线）。
+- 书名默认「图片手帐 M.D」，重名自动往后加序号；一次最多 200 页（超出的不收）。
+- 小图（原文件 ≤ 220KB）直接用原图，不重编码、不丢透明通道；大图压到长边 1600 / JPEG .86 再存，
+  透明 PNG 转 JPEG 会发黑，压之前先铺一层纸白。
+- 成书要读好几张图，期间屏幕中间显示进度胶囊 `#mkBusy`（`toast` 只进控制台，
+  这种几秒的活儿得有个看得见的进度）；成完自动翻开这本。
+
+## 九、交互速查
 
 | 位置 | 操作 | 结果 |
 |---|---|---|
 | 主页（轮播） | 左右滑 / 点封面 | 切换、翻开手帐本 |
 | 主页右下 `＋` | 点击 | 新建手帐本 |
+| 底栏「⋯ 更多」 | 一键成书 | 一次选多张图片 → 按文件名自然序排好 → 一图一页做成一本，每张图默认铺满整页（封面用第一张图），成书后直接翻开 |
+| 底栏「⋯ 更多」 | 背景设置 | 升起背景面板（预设色 / 自定义色 / 背景图 / 恢复默认），主页和阅读器共用同一份 |
 | 封面齿轮 | 点击 | 编辑这本（名称、封面、模板；**页数只有新建时能填**） |
 | 书架 | 单击封面 | 翻开 |
 | 书架 | 长按封面 — 拖动 | 拖动排序；原地松手 = 只唤出编辑按钮 |
 | 底栏「删除 / 分享」 | 书架模式下 | 进入多选，可批量导出或删除 |
 | 阅读器 | 左右滑 | 翻页 |
 | 阅读器 `＋` | 点击 | 加页 / 加图片 / 加文字 / **本页底色** / 删本页 |
-| 本页底色 | `＋` 菜单 →「本页底色」 | 升起底部弹窗：**九种颜色横着排成一列列**，每种竖着六档由浅到深（上浅下深），点一下这一页立刻换色（**只是预览，数据不动**）、面板不关可以连着试；**「完成」= 这才写进这一页**（左上角那颗 ✓ 同效），「自定义…」开取色盘；点纸面收面板 = 取消，纸面回到原来的颜色 |
+| 本页底色 | `＋` 菜单 →「本页底色」 | 升起底部弹窗：**九种颜色横着排成一列列**，每种竖着六档由浅到深（上浅下深），点一下这一页立刻换色（**只是预览，数据不动**）、面板不关可以连着试；**「完成」= 这才写进这一页**（左上角那颗 ✓ 同效），「自定义…」开取色盘；点纸面收面板 = 取消，纸面回到原来的颜色。
+  取色盘里那颗**吸管**是**现场取色**：点下去所有浮层（取色盘 / 通用弹窗 / 底部弹窗 / 添加菜单）
+  一律让位藏起，手账本页面照常看得见、点得到，直接在页面上点一下就取到色，全程不弹窗。
+  只取手账本里的内容 —— 不走系统吸管也不走截屏（那些会吸到手账本以外的东西），
+  也不从素材原图取（贴图在页面上常被裁剪 / 缩放 / 旋转，还叠着纸面纹理，原图 ≠ 看到的）。
+  取样走活的 DOM：`elementsFromPoint` 拿元素栈、从底往上做 alpha 合成；
+  图片插一个隐形探针量出盒子三角的屏幕位置，反解仿射变换把坐标映射回原始像素（旋转 / 缩放都对得上）；
+  文字用 Range 行盒判断是否压在字上，字间空隙不会被误判成字色。
+  放大镜跟着指针显示周围 9×9 屏幕像素；Esc 或「取消」退出。吸完只是把颜色填进面板，
+  还能用 HSV 再微调，不会一下定死 |
 | 阅读器 | 点上任意图片 / 文字贴 | 图片：选中并浮出工具条（完成 ✓ / 复制 / 编辑 / 删除），接着就能拉角旋转；**文字贴要双击**才进编辑态，单击不动它 |
 | 上下层 | 不用管 | 先加的在下、后加的盖在上面（图片与文字混在一起排）；拖动 / 缩放不会改变层次 |
 | 旋转 | 拖对象右边外侧那颗带转圈箭头的手柄 | 绕中心转；按住 Shift 每 15° 吸附；双击手柄摆正 |
@@ -234,13 +265,13 @@ index.html
 > **编辑态（`eflow`）**：面板打开时阅读器的顶栏 / 底栏淡出让位，书整体按 `--stage-shift` 上移，
 > 让面板不压住纸面；面板在窄屏是贴底全宽，`≥620px` 时变成右下角浮块。
 
-## 九、开发约定
+## 十、开发约定
 
 **文件命名**：一律小写 `kebab-case`，按「属于哪一块」加前缀分组 —— `io-*`（导入导出）、`home-*`（主页）、
 `reader-*`（阅读器）、`page-*`（页面内容与底色）。CSS 与它管的那一块同名（`style/page-bg.css` 管「本页底色」
 弹窗，`src/page-bg.js` 是它的逻辑），两边对得上号。
 
-**文件头注释**是每块的说明书，六项固定：编号（`脚本 N / 24`，要与 `index.html` 里的顺序一致 ——
+**文件头注释**是每块的说明书，六项固定：编号（`脚本 N / 25`，要与 `index.html` 里的顺序一致 ——
 插在中间就得把后面所有编号 +1）/ 职责分条 / **对外接口**（别的模块会调的函数与常量，照着它找入口最快）/
 依赖模块（后置依赖会标注「只在运行时回调里用」）/ 共用全局作用域的说明。
 
@@ -280,12 +311,13 @@ index.html
    `_sheet.js` / `_sheet2.js` 编辑面板与对象工具条、`_click2.js` 文字贴双击编辑、
    `_rot.js` / `_hdl.js` 旋转与手柄、`_z.js` 删除与层级、`_hfit.js` 框高自动贴合、
    `_layout.js` 轮播多尺寸布局、`_font2.js` 字体档位、`_bgdone.js` 底色的预览与完成、
-   `_bgsheet2.js` 底色弹窗、`_edit4.js` 编辑器、`_refcheck.js` 整理后的综合核对）。脚本连 `http://127.0.0.1:8777`，
+   `_bgsheet2.js` 底色弹窗、`_edit4.js` 编辑器、`_pb.js` 一键成书（真实菜单 + 排序 / 铺满 / 空选）、
+   `_pb2.js` 成书截图、`_refcheck.js` 整理后的综合核对）。脚本连 `http://127.0.0.1:8777`，
    先在本目录起 `python -m http.server 8777`，再 `node .workbuddy/_tmp_verify/_mod.js`
    （`playwright-core` 就装在同目录的 `node_modules` 里，不用额外设 `NODE_PATH`），
    结果写到同目录的 `_xxx_out.txt`。
 
-## 十、已知事项
+## 十一、已知事项
 
 - `file://` 直接打开时，浏览器禁止 `fetch` 本地文件 → `example/` 的自动导入会跳过（其余功能正常，
   可用菜单里的「导入手帐本」手动选择）。
@@ -293,3 +325,34 @@ index.html
   控制台会有一条 404，与应用本身无关。
 - `example/manifest.json` 只在服务器没开目录列表时才需要。开了列表的情况下，直接往 `example/`
   丢新 `.json` 就能被自动发现。
+
+## 十二、字体
+
+`--font-hand` 链首是项目自带的 `CarnetHand`，定义见 `style/base.css` 顶部的 `@font-face`。
+
+| 文件 | 大小 | 说明 |
+| --- | --- | --- |
+| `assets/font/carnet-hand.woff2` | 2.55 MB | GB2312 全覆盖（6763 汉字 + 全角标点），用 fontTools 从 `851tegakizatsu.ttf` 裁出来的子集 |
+| `assets/font/carnet-hand.woff` | 3.51 MB | 同内容的 woff 版，给不认 woff2 的老浏览器兜底 |
+| `assets/font/851tegakizatsu.ttf` | 27 MB | 母字体，全 URO 20902 字。留着是为了能随时重裁，**运行时不加载**（没有任何地方引用它） |
+
+**文件名必须是纯 ASCII。** 它曾经叫 `手写体.woff2`，部署后中文变楷体 / 雅黑、英文却还是手写体。
+根因不是缺字形，而是部分静态托管**解析不了非 ASCII 路径就回落成 index.html** —— 字体请求拿到的是
+`200 + text/html` 而不是 404，Network 面板看着一切正常，浏览器把一段 HTML 当字体解析失败，
+**整个字族静默作废**；此时拉丁字母退到 Windows 自带的 Lucida Handwriting / Comic Sans（所以看着还像
+手写体，极具迷惑性），中文退到楷体 / 微软雅黑。已用 CDP 对照实验坐实：正常 `200 font/woff2` →
+`FontFace.status === 'loaded'`；404 与「200 但内容是 HTML」两种情况都是 `'error'`。
+
+排查直接看控制台：`main.js` 开机自检 `handFontStatus()` 会报，也可以手动 `await carnetFontOK()`，
+返回 `'ok'` 才算数。**别用「量字形宽度」判断** —— canvas `measureText` 和 DOM `offsetWidth` 都不吃
+未激活的 web 字体，且手写体和 serif 都是全角汉字、宽度会撞车（`手帐本Aa0`@64px 两边都恰好 288.00px）。
+
+要重裁（比如想换更大的字符集 / 更小的体积）：
+
+```bash
+pip install fonttools brotli
+python -c "from fontTools.ttLib import TTFont; from fontTools.subset import Subsetter, Options; ..."
+```
+
+核心就是 `Subsetter().populate(unicodes=...)` 挑目标码位，`f.flavor='woff2'` 再 `f.save()`；
+目标码位除了 GB2312 全集，还要并上基本拉丁、`U+3000-303F` 与全角形式 `U+FF01-FF60`，否则会漏标点。

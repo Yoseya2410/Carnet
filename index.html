@@ -5,6 +5,12 @@
 <meta data-page-node-id="nClwkb7FRKriW8a05CEaEo" charset="UTF-8">
 <meta data-page-node-id="m6rHvTsNY0DZKfK7pHL8WI" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" name="viewport">
 <title data-page-node-id="AMkBo7fYY0fEKp0yOp9qQw" data-pnid-children="GnQwls26CENdzqY1ZP8HrY">Carnet · 手帐本</title>
+  <!-- 手写体：不等 CSS 解析完就先把字体拉下来，文字贴一出现就是手写体，不再闪一下默认字。
+       文件名必须是纯 ASCII——非 ASCII 名在部分静态托管上会被回落成 index.html。
+       那样字体请求看着是 200、拿到手却是一段 HTML，整个字族静默失效：
+       英文会退到系统自带的 Lucida Handwriting（所以看着还像手写体），
+       中文却是楷体 / 雅黑。症状很迷惑，别再踩。 -->
+  <link rel="preload" href="assets/font/carnet-hand.woff2" as="font" type="font/woff2" crossorigin>
   <!-- 样式：按功能拆分，加载顺序即层叠顺序（后面的同权重规则优先） -->
   <link rel="stylesheet" href="style/base.css">
   <link rel="stylesheet" href="style/controls.css">
@@ -82,9 +88,16 @@
       <button data-page-node-id="PickCancel" class="pick-btn" id="pickCancel">取消</button>
     </div>
     <div data-page-node-id="b54lkYScSSWUVIbtcPYhAv" class="actionbar">
-      <button data-page-node-id="RLPa22vt0cVTfo6ydSu6Z1" class="icon-btn" data-act="more" title="背景设置">
-        <svg data-page-node-id="ZYf6OCewQLFZKUzqnJzUhQ" fill="currentColor" height="20" viewBox="0 0 24 24" width="20"><circle data-page-node-id="qjRa8MkHL4xfjbI4zoo4AJ" cx="5.5" cy="12" r="1.7"/><circle data-page-node-id="Wa8Z6PubotUsofffR7MFOL" cx="12" cy="12" r="1.7"/><circle data-page-node-id="lPLkR0IeyuhhSmgR1deIIg" cx="18.5" cy="12" r="1.7"/></svg>
-      </button>
+      <div data-page-node-id="MWrap" class="share-wrap">
+        <button data-page-node-id="RLPa22vt0cVTfo6ydSu6Z1" class="icon-btn" data-act="more" title="更多">
+          <svg data-page-node-id="ZYf6OCewQLFZKUzqnJzUhQ" fill="currentColor" height="20" viewBox="0 0 24 24" width="20"><circle data-page-node-id="qjRa8MkHL4xfjbI4zoo4AJ" cx="5.5" cy="12" r="1.7"/><circle data-page-node-id="Wa8Z6PubotUsofffR7MFOL" cx="12" cy="12" r="1.7"/><circle data-page-node-id="lPLkR0IeyuhhSmgR1deIIg" cx="18.5" cy="12" r="1.7"/></svg>
+        </button>
+        <!--pnid:MOnote--><!-- 更多：一键成书（多张图片 → 一图一页做成一本）、背景设置（主页 / 阅读器共用那一份） -->
+        <div data-page-node-id="MOMenu" class="addmenu share-pop" id="moreMenu">
+          <button data-page-node-id="MObook" data-moreact="book"><svg data-page-node-id="MObookIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><rect data-page-node-id="MObookP1" height="11" rx="1.6" width="14" x="3.5" y="7"/><path data-page-node-id="MObookP2" d="M3.5 15.4l3.4-3.3 2.7 2.7 2.2-2.2 5.7 5.6"/><circle data-page-node-id="MObookP3" cx="8.4" cy="10.4" r="1.1"/><path data-page-node-id="MObookP4" d="M19.4 2.6l.62 1.7 1.7.62-1.7.62-.62 1.7-.62-1.7-1.7-.62 1.7-.62z"/></svg><!--pnid:MObookTx-->一键成书</button>
+          <button data-page-node-id="MObg" data-moreact="bg"><svg data-page-node-id="MObgIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><rect data-page-node-id="MObgR" height="15" rx="2.2" width="17" x="3.5" y="4.5"/><circle data-page-node-id="MObgC" cx="8.6" cy="9.4" r="1.3"/><path data-page-node-id="MObgP1" d="M3.5 16.2l4.3-4.3 3.4 3.4 2.8-2.8 6.5 6.1"/></svg><!--pnid:MObgTx-->背景设置</button>
+        </div>
+      </div>
       <div data-page-node-id="SWrap" class="share-wrap">
         <button data-page-node-id="41E2nJf4eaGoJDNmE6uiok" class="icon-btn" data-act="share" title="分享 / 导出">
           <svg data-page-node-id="A3OXP95tXfyGvyaSQQ6bkf" fill="none" height="21" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="21"><path data-page-node-id="qPgkoypr6WfgNe33jEOblP" d="M12 15.5V4"/><path data-page-node-id="VqFxbyNy0MZFpOq18KTmWj" d="M8 7.6L12 3.5l4 4.1"/><path data-page-node-id="r3qu3JS3sQoRXwLh19SUkm" d="M4.6 13v6.4a1.1 1.1 0 001.1 1.1h12.6a1.1 1.1 0 001.1-1.1V13"/></svg>
@@ -309,12 +322,41 @@
       <div data-page-node-id="D4ekGsY1LkYa2QiTDuvi3L" class="cp-row">
         <span data-page-node-id="oijVhF9yuZpUsHZAyBky3Y" class="cp-prev" id="cpPrev"></span>
         <input data-page-node-id="Epa05afpArlckyzwVJOuIs" class="cp-hex" id="cpHex" maxlength="7" placeholder="#RRGGBB" spellcheck="false">
+        <!-- 吸管：从封面 / 页面图片 / 背景图 / 相册里直接点一个颜色出来，取完还能用上面的面板微调 -->
+        <button data-page-node-id="CPeye" class="cp-eye" id="cpEye" title="吸管取色">
+          <svg data-page-node-id="CPeyeIco" viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
+            <path d="M18.6 2.4a3.3 3.3 0 0 1 4.7 4.7l-2.3 2.3-4.7-4.7z" fill="currentColor" opacity=".5"/>
+            <path d="M16.3 4.7l3 3L9.6 17.4l-4.3 1.1 1.1-4.3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+            <path d="M3 21l3-3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+          </svg>
+        </button>
       </div>
       <div data-page-node-id="tnBtIH7YA2tsV1ND7YvDWf" class="cp-actions">
         <button data-page-node-id="gsK8AcKIqkjYqdN9uP1yrM" class="btn ghost" id="cpCancel"><!--pnid:GXAR11sHKw8WHpK2331XNt-->取消</button>
         <button data-page-node-id="ZeRqoOicNlru2bOCvbphik" class="btn primary" id="cpOk"><!--pnid:fk23826lZLjaIDXbLd2TVr-->确定</button>
       </div>
     </div>
+  </div>
+
+  <!--pnid:EPmask--><!-- ============ 吸管取色 ============ -->
+  <!-- 吸管现场取色：不弹窗，手账本页面照常看得见、点得到。
+       整层 pointer-events:none（连 elementsFromPoint 都不会命中它），只有底部那条细操作条可以点 -->
+  <div data-page-node-id="EPliveWrap" class="ep-live" id="epLive" hidden>
+    <span data-page-node-id="EPloupe" class="ep-loupe" id="epLoupe">
+      <canvas data-page-node-id="EPloupeCv" id="epLoupeCv" width="72" height="72"></canvas>
+    </span>
+    <div data-page-node-id="EPbar" class="ep-bar" id="epBar">
+      <span data-page-node-id="EPprev" class="ep-prev" id="epPrev"></span>
+      <span data-page-node-id="EPhex" class="ep-hex" id="epHex"><!--pnid:EPhexTx-->点手账本上任意位置取色</span>
+      <button data-page-node-id="EPcancel" class="ep-btn" id="epCancel"><!--pnid:EPcancelTx-->取消</button>
+      <button data-page-node-id="EPok" class="ep-btn ok" id="epOk"><!--pnid:EPokTx-->用这个颜色</button>
+    </div>
+  </div>
+
+  <!--pnid:MKbusy--><!-- 一键成书的进度胶囊：toast 只进控制台，几秒的活儿得有个看得见的进度 -->
+  <div data-page-node-id="MKbusyWrap" class="mkbusy" id="mkBusy" hidden>
+    <span data-page-node-id="MKspin" class="mk-spin"></span>
+    <span data-page-node-id="MKtx" class="mk-tx" id="mkTx"><!--pnid:MKtxTx-->正在成书…</span>
   </div>
 
   <div data-page-node-id="SRpanelWrap" class="search-panel" id="searchPanel">
@@ -365,7 +407,7 @@
 
   <!-- 脚本：按依赖顺序加载（defer 保证 DOM 就绪且顺序执行），各文件职责见 README.md。
        ⚠️ 顺序就是依赖顺序，不要随意调换：靠后的模块会用到靠前模块在顶层定义的 const，
-       调错了会在启动时抛 TDZ 错误。新增 / 插入模块后，记得把各文件头的「脚本 N / 24」编号同步。 -->
+       调错了会在启动时抛 TDZ 错误。新增 / 插入模块后，记得把各文件头的「脚本 N / 25」编号同步。 -->
   <script src="src/core.js" defer></script>
   <script src="src/visuals.js" defer></script>
   <script src="src/storage.js" defer></script>
@@ -374,6 +416,7 @@
   <script src="src/io-share.js" defer></script>
   <script src="src/io-import.js" defer></script>
   <script src="src/io-example.js" defer></script>
+  <script src="src/io-photobook.js" defer></script>
   <script src="src/state.js" defer></script>
   <script src="src/home-view.js" defer></script>
   <script src="src/carousel.js" defer></script>

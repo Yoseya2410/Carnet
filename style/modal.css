@@ -3,6 +3,7 @@
  * ---------------------------------------------------------------------
  * ① 通用弹窗（含滚动条美化、吸底操作栏）
  * ② 封面名称、色块网格、模板网格、上传区
+ * ③ 「一键成书」的进度胶囊 .mkbusy（toast 只进控制台，几秒的活儿得有看得见的进度）
  *
  * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
  * ===================================================================== */
@@ -83,4 +84,24 @@
   transition:max-height .24s cubic-bezier(.25,.8,.3,1),opacity .18s ease,margin-top .24s ease
 }
 #edPatColorWrap.fold{max-height:0;opacity:0;margin-top:0;pointer-events:none}
+
+/* ============ 一键成书：进度胶囊 ============ */
+/* 居中浮在页面上（不吃点击，纯告知）。z-index 压过确认框与取色盘，
+   成书期间不会有什么面板需要盖在它上面 */
+.mkbusy{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:190;
+  display:flex;align-items:center;gap:11px;padding:12px 19px;border-radius:999px;
+  font-size:13.5px;letter-spacing:.06em;color:#fff;white-space:nowrap;pointer-events:none;
+  background:rgba(24,26,42,.82);border:1px solid var(--frost-bd);
+  backdrop-filter:var(--frost-fx);-webkit-backdrop-filter:var(--frost-fx);
+  box-shadow:0 18px 40px -16px rgba(0,0,0,.75);animation:pop .2s ease
+}
+.mkbusy[hidden]{display:none}
+.mk-spin{
+  width:15px;height:15px;border-radius:50%;flex:0 0 auto;
+  border:2px solid rgba(255,255,255,.26);border-top-color:#fff;
+  animation:mkspin .72s linear infinite
+}
+@keyframes mkspin{to{transform:rotate(360deg)}}
+.mk-tx{font-variant-numeric:tabular-nums}
 

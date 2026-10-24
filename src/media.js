@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 图片 · 上传压缩与落位   （脚本 17 / 24）
+ * Carnet · 图片 · 上传压缩与落位   （脚本 18 / 25）
  * ---------------------------------------------------------------------
  * ① 选图入口与压缩 shrinkImageFile（统一缩到长边像素上限）
  * ② 图片按真实比例落位、补齐高度 ensureImageHeights
@@ -89,8 +89,12 @@ function ensureImageHeights() {
     });
 }
 /* 背景图没必要存原图：超过 maxSide 就等比缩一下再压成 JPEG，
-   几 MB 的截图压完通常只有几百 KB，存 IndexedDB 不心疼 */
-function shrinkImageFile(file, maxSide) {
+   几 MB 的截图压完通常只有几百 KB，存 IndexedDB 不心疼。
+   opt = { q, bg }：q 是 JPEG 质量（默认 .82）、bg 是打底色（默认不打底）。
+   「一键成书」那一路用更高质量，并先铺一层纸白 —— 透明 PNG 转 JPEG 会发黑 */
+function shrinkImageFile(file, maxSide, opt) {
+  const q = (opt && opt.q) || .82;
+  const bg = (opt && opt.bg) || '';
   return new Promise(res => {
     const fr = new FileReader();
     fr.onerror = () => res(null);
@@ -103,8 +107,10 @@ function shrinkImageFile(file, maxSide) {
         const h = Math.max(1, Math.round(im.height * k));
         const c = document.createElement('canvas');
         c.width = w; c.height = h;
-        c.getContext('2d').drawImage(im, 0, 0, w, h);
-        try { res(c.toDataURL('image/jpeg', 0.82)); }
+        const ctx = c.getContext('2d');
+        if (bg) { ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h); }
+        ctx.drawImage(im, 0, 0, w, h);
+        try { res(c.toDataURL('image/jpeg', q)); }
         catch (_) { res(fr.result); }          // 极端情况拿不到画布，退回原图
       };
       im.src = fr.result;

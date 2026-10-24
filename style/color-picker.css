@@ -2,7 +2,8 @@
  * Carnet · 自定义取色盘   （样式 9 / 16）
  * ---------------------------------------------------------------------
  * ① 饱和度 / 明度面板与色相条
- * ② 手输色值时键盘弹起把面板顶上去
+ * ② 吸管取色：来源缩略图（「屏幕」排第一）、取样舞台、放大镜
+ * ③ 手输色值时键盘弹起把面板顶上去
  *
  * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
  * ===================================================================== */
@@ -50,7 +51,54 @@
   font-variant-numeric:tabular-nums
 }
 .cp-hex:focus{border-color:var(--accent);background:rgba(255,255,255,.13)}
+/* 吸管入口：跟预览色块、色值框同排 */
+.cp-eye{
+  flex:0 0 auto;width:44px;height:44px;border-radius:12px;display:grid;place-items:center;color:#fff;
+  background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);transition:background .2s,border-color .2s
+}
+.cp-eye:hover{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.3)}
+.cp-eye:active{transform:scale(.96)}
 .cp-actions{display:flex;gap:12px;margin-top:14px}
+
+/* ============ 吸管取色（现场取色，不弹窗） ============ */
+/* 整层铺满但完全不吃指针事件：手账本页面照常看得见、点得到，
+   elementsFromPoint 也不会命中这一层，取样拿到的就是页面本身 */
+.ep-live{position:absolute;inset:0;z-index:200;pointer-events:none;cursor:crosshair}
+.ep-live[hidden]{display:none}
+/* 取色期间让位的浮层：藏起来而不是关掉，取完色要原样回来（调用方的状态不能被破坏） */
+.ep-duck{opacity:0 !important;pointer-events:none !important}
+/* 放大镜：72px 装 9 个屏幕像素，每格 8px；中心十字正好框住取色的那一格 */
+.ep-loupe{
+  position:absolute;display:none;width:72px;height:72px;border-radius:50%;overflow:hidden;
+  border:2px solid rgba(255,255,255,.9);box-shadow:0 4px 16px rgba(0,0,0,.55);
+  background:#fff;pointer-events:none
+}
+.ep-loupe canvas{width:72px;height:72px;display:block;border-radius:0;box-shadow:none;image-rendering:pixelated}
+.ep-loupe::after{
+  content:"";position:absolute;left:50%;top:50%;width:8px;height:8px;margin:-4px 0 0 -4px;
+  border:1px solid #fff;border-radius:2px;box-shadow:0 0 0 1px rgba(0,0,0,.6)
+}
+/* 底部细操作条：只有它能点，且尽量窄，少挡一点页面 */
+.ep-bar{
+  position:absolute;left:50%;bottom:14px;transform:translateX(-50%);pointer-events:auto;
+  display:flex;align-items:center;gap:10px;max-width:calc(100% - 24px);
+  padding:8px 10px;border-radius:16px;color:#fff;font-size:13px;
+  background:rgba(20,22,38,.82);border:1px solid rgba(255,255,255,.18);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  box-shadow:0 10px 30px -8px rgba(0,0,0,.6);animation:pop .22s cubic-bezier(.2,.9,.3,1.2)
+}
+.ep-prev{
+  flex:0 0 auto;width:26px;height:26px;border-radius:8px;background:#fff;
+  border:1px solid rgba(255,255,255,.35);box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)
+}
+.ep-hex{flex:1 1 auto;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ep-btn{
+  flex:0 0 auto;padding:7px 12px;border-radius:10px;font-size:12.5px;color:#fff;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);transition:background .18s
+}
+.ep-btn:hover{background:rgba(255,255,255,.2)}
+.ep-btn.ok{background:var(--accent);border-color:transparent}
+.ep-btn.ok:hover{filter:brightness(1.1)}
 .pat-grid,.tpl-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
 .pat,.tpl{
   aspect-ratio:3/4.05;border-radius:12px;border:2px solid rgba(255,255,255,.18);overflow:hidden;

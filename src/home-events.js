@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 主页交互 · 书架排序 / 菜单 / 搜索   （脚本 20 / 24）
+ * Carnet · 主页交互 · 书架排序 / 菜单 / 搜索   （脚本 21 / 25）
  * ---------------------------------------------------------------------
  * ① 轮播点击、书架长按 / 单击、书架拖动排序（FLIP 位移 + 命中判定）
  * ② 右上角菜单、分享菜单、多选选择条、删除二次确认 askConfirm
@@ -384,7 +384,8 @@ document.addEventListener('pointerdown', e => {
 $$('.actionbar .icon-btn').forEach(b => b.onclick = () => {
   const a = b.dataset.act;
   if (a === 'new') { openEditor(null); }
-  else if (a === 'more') { openBgPanel(); }
+  /* 「更多」：原来这颗三点按钮直接开背景设置，现在它是一份菜单 */
+  else if (a === 'more') { toggleMenu($('#moreMenu')); }
   else if (a === 'del') {
     /* 书架模式下一眼能看好几本，删除前先进多选勾要删哪几本；轮播模式本来就只删当前这本 */
     if (state.prefs.view === 'shelf') { enterPickMode('del'); return; }
@@ -455,6 +456,13 @@ $$('#homeMenu button').forEach(b => b.onclick = () => {
   const a = b.dataset.menuact;
   if (a === 'import') pickImportFile();
   else if (a === 'help') openHelpMail();
+});
+/* 底栏「更多」：一键成书（多张图片一图一页做成一本）、背景设置 */
+$$('#moreMenu button').forEach(b => b.onclick = () => {
+  closeMenus();
+  const a = b.dataset.moreact;
+  if (a === 'book') pickBookImages();
+  else if (a === 'bg') openBgPanel();
 });
 /* 分享菜单：备份 / PDF / 长图 */
 $$('#shareMenu button').forEach(b => b.onclick = async () => {
