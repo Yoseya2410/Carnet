@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 手帐本编辑器 · 新建 / 编辑弹窗   （脚本 20 / 25）
+ * Carnet · 手帐本编辑器 · 新建 / 编辑弹窗   （脚本 22 / 27）
  * ---------------------------------------------------------------------
  * ① 名称、封面底色、封面图案与图案色、封面图片、彩带色、内页模板、页数
  * ② 每一项都是一块折叠小节 .fold-sec，收起时标题后跟当前取值 ED_SEC_HINT
@@ -17,6 +17,8 @@ const ed = { temp: null, isNew: true, fold: {} };
    key 就是 .fold-sec 上的 data-sec，见 index.html 里的编辑器 */
 const ED_SEC_HINT = {
   name:  () => ($('#edName').value || '').trim(),
+  /* 装帧样式：笔记本 / 活页手帐 / 方形画册 */
+  style: () => (BOOK_STYLES.find(s => s.k === normBookStyle(ed.temp.style)) || BOOK_STYLES[0]).n,
   cover: () => ed.temp.cover.img ? '已上传图片'
     : /gradient|^url\(/i.test(String(ed.temp.cover.value || '')) ? '渐变'
     : String(ed.temp.cover.value || '').toUpperCase(),
@@ -51,6 +53,21 @@ function appendCustomChip(boxSel, id, tipId, title) {
 }
 $('#mask').addEventListener('click', e => { if (e.target === $('#mask')) closeEditor(); });
 function buildEditor() {
+  /* 装帧样式：三张卡里各放一个真封面（按各自的装订方式渲染），选样式时看到的就是成品 */
+  $('#edStyles').innerHTML = BOOK_STYLES.map(s => `
+    <div class="sty" data-sty="${s.k}" title="${s.d}">
+      <div class="sty-pv">${coverHTML({ ...ed.temp, style: s.k })}</div>
+      <div class="sty-n">${s.n}</div>
+      <div class="sty-d">${s.d}</div>
+    </div>`).join('');
+  $$('#edStyles .sty').forEach(s => s.onclick = () => {
+    if (ed.temp.style === s.dataset.sty) return;
+    ed.temp.style = normBookStyle(s.dataset.sty);
+    syncEditor();
+    if (ed.temp.style === 'square') toast('方形画册：封面和内页都变成 1:1 方开本');
+    /* 离开「笔记本」才提：彩带那一小节会收起来，免得用户以为设置丢了 */
+    if (!bookHasRibbon(ed.temp)) toast('这一档装帧没有封面彩带，颜色设置已暂时收起');
+  });
   $('#edColors').innerHTML = COLORS.map(c =>
     `<div class="swatch" data-color="${c}" style="background:${c}"></div>`).join('');
   $('#edGrads').innerHTML = GRADS.map(g =>
@@ -122,6 +139,12 @@ function syncCustomSwatch(boxSel, tipSel, value, presets) {
 }
 function syncEditor() {
   $('#edPreview').innerHTML = coverHTML(ed.temp);
+  /* 装帧样式：卡片里的封面预览要跟着当前底色 / 图案 / 彩带一起变，所以整块重画 */
+  $$('#edStyles .sty').forEach(s => {
+    s.classList.toggle('on', normBookStyle(ed.temp.style) === s.dataset.sty);
+    const pv = s.querySelector('.sty-pv');
+    if (pv) pv.innerHTML = coverHTML({ ...ed.temp, style: s.dataset.sty });
+  });
   $$('#edColors .swatch:not(.custom)').forEach(s => s.classList.toggle('on', !ed.temp.cover.img && ed.temp.cover.value === s.dataset.color));
   $$('#edGrads .swatch:not(.custom)').forEach(s => s.classList.toggle('on', !ed.temp.cover.img && ed.temp.cover.value === s.dataset.grad));
   $$('#edRibbons .swatch').forEach(s => s.classList.toggle('on', ed.temp.ribbon === s.dataset.ribbon));
@@ -162,6 +185,15 @@ function syncEditor() {
   $('#edClearImg').style.display = hasImg ? 'block' : 'none';
   /* 页数只有新建时才给填：编辑已有本子时页数由「加页 / 删本页」管，这里改会整本截断 */
   const ps = $('#edSecPages'); if (ps) ps.classList.toggle('gone', !ed.isNew);
+  /* 封面彩带只有「笔记本」这一档有（bookHasRibbon）：
+     活页有金属环、画册是方开本，都不画彩带 —— 整小节收起，省得挑了没反应的颜色 */
+  const rs = $('#edSecRibbon');
+  if (rs) {
+    const noRb = !bookHasRibbon(ed.temp);
+    rs.classList.toggle('gone', noRb);
+    const head = $('#edRibbonHead');
+    if (head) head.title = noRb ? '只有「笔记本」装帧才有封面彩带' : '';
+  }
   /* 折叠小节：统一刷新收起 / 展开，收起时把当前取值写在标题后面 */
   $$('#modal .fold-sec').forEach(sec => {
     const key = sec.dataset.sec; if (!key) return;

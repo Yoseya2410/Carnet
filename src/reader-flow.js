@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 阅读器交互 · 开合书动画与增删页   （脚本 22 / 25）
+ * Carnet · 阅读器交互 · 开合书动画与增删页   （脚本 24 / 27）
  * ---------------------------------------------------------------------
  * ① 打开：封面飞入放大成书 flyCover / openReader
  * ② 关闭：合书、连翻回封面、书缩回主页封面 closeReader
@@ -23,7 +23,14 @@ const FLIP_BACK_BUDGET = 720;                    // 回封面总预算，翻太�
 let flyBusy = false;
 function coverRect() {
   /* 书架里一眼能看到好几本，必须认准当前那一本，动画才不会从别的位置飞出去 */
-  const root = state.prefs && state.prefs.view === 'shelf' ? '#shelfWrap' : '#carousel';
+  const view = state.prefs && state.prefs.view;
+  /* 单层书架：从那根书脊本身起飞 —— 点它就是「从架子上抽出来」，
+     动画自然得从书脊开始（此时它已被 .pulling 抬起，量到的就是抽出后的位置） */
+  if (view === 'spine') {
+    const sp = $(`#spineRow .spine-item[data-i="${state.sel}"]`);
+    return sp ? sp.getBoundingClientRect() : null;
+  }
+  const root = view === 'shelf' ? '#shelfWrap' : '#carousel';
   const el = $(`${root} .book-item[data-i="${state.sel}"] .cover`)
     || $('.book-item.active .cover') || $('.book-item .cover');
   return el ? el.getBoundingClientRect() : null;
@@ -34,26 +41,58 @@ function coverPageRect() {
   const el = $('#slotL .paper.coverpage') || $('#slotR .paper.coverpage');
   return (el || $('#book')).getBoundingClientRect();
 }
+/* 飞行的封面。
+   ⚠️ 这里**绝不能用非等比 scale 直接把起点撑成终点**：单层书架的起点是一根书脊
+      （约 42×384），终点是 3:4.05 的封面（约 200×270），scale 的横纵比差 6 倍以上，
+      封面内容会被先压扁再拉回来 —— 全程都是扭曲的。
+   改成「窗口展开 + 内容等比填充」：
+     ① ghost 本身是个**窗口**，用 width/height 从起点矩形过渡到终点矩形（尺寸变化不用 scale，
+        所以窗口内部的东西不会被拉变形）；
+     ② 内容单独包一层 .cover-ghost-fit，按**终点封面**的真实尺寸渲染，只做**等比** scale
+        （cover 式填充：起点放大到能铺满细长窗口、且居中，所以一开始只露出中间一条竖缝，
+        跟「书脊」的形状对得上），随窗口展开回落到 1 —— 内容比例从头到尾都是对的，
+        只是被裁剪的范围在变：看着就是封面从书脊那条缝里展开。 */
+function fitScale(win, to) {
+  return Math.max(win.width / Math.max(to.width, 1), win.height / Math.max(to.height, 1));
+}
 function flyCover(from, to, reverse) {
   const j = cur(); if (!j || !from || !to) return null;
+  const a = reverse ? to : from, b = reverse ? from : to;      // a = 起飞的窗口，b = 落地的窗口
   const ghost = document.createElement('div');
   ghost.className = 'cover-ghost';
-  ghost.innerHTML = coverHTML(j);
-  ghost.style.width = from.width + 'px';
-  ghost.style.height = from.height + 'px';
-  const at = r => `translate(${r.left}px,${r.top}px)`;
-  const sx = to.width / Math.max(from.width, 1), sy = to.height / Math.max(from.height, 1);
-  const fromT = reverse ? `${at(to)} scale(${sx},${sy})` : at(from);
-  const toT = reverse ? at(from) : `${at(to)} scale(${sx},${sy})`;
-  ghost.style.transform = fromT;
+  const fit = document.createElement('div');
+  fit.className = 'cover-ghost-fit';
+  fit.innerHTML = coverHTML(j);
+  fit.style.width = to.width + 'px';
+  fit.style.height = to.height + 'px';
+  ghost.appendChild(fit);
+  /* 起点圆角跟着起飞物走：从书脊出发时它就是一根窄条（书脊的圆角只有 1.5~2.5px），
+     套用封面的 13px 大圆角会在细条上糊成一团 */
+  const spineStart = (state.prefs && state.prefs.view) === 'spine';
+  const rStart = spineStart ? '1.5px 2.5px 2px 1.5px' : '5px 13px 13px 5px';
+  const rEnd = '5px 13px 13px 5px';
+  ghost.style.width = a.width + 'px';
+  ghost.style.height = a.height + 'px';
+  ghost.style.borderRadius = reverse ? rEnd : rStart;
+  ghost.style.transform = `translate(${a.left}px,${a.top}px)`;
+  fit.style.transform = `translate(-50%,-50%) scale(${fitScale(a, to)})`;
   // 关闭时不做渐变：封面一路保持不透明，直接缩回主页封面大小
   if (!reverse) ghost.style.animation = `ghostOut ${FLY_MS}ms ease both`;
   $('#app').appendChild(ghost);
   const ms = reverse ? FLY_OUT_MS : FLY_MS;
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      ghost.style.transition = `transform ${ms}ms ${FLY_EASE}`;
-      ghost.style.transform = toT;
+      /* 窗口的尺寸与位置、内容的等比缩放，三处必须用同一个 easing 同时长 ——
+         否则中途会露出窗口空白（内容填不满）或被挤出可视区 */
+      ghost.style.transition =
+        `width ${ms}ms ${FLY_EASE},height ${ms}ms ${FLY_EASE},` +
+        `transform ${ms}ms ${FLY_EASE},border-radius ${ms}ms ${FLY_EASE}`;
+      ghost.style.width = b.width + 'px';
+      ghost.style.height = b.height + 'px';
+      ghost.style.borderRadius = reverse ? rStart : rEnd;
+      ghost.style.transform = `translate(${b.left}px,${b.top}px)`;
+      fit.style.transition = `transform ${ms}ms ${FLY_EASE}`;
+      fit.style.transform = `translate(-50%,-50%) scale(${fitScale(b, to)})`;
     });
   });
   setTimeout(() => ghost.remove(), ms + 60);
@@ -148,6 +187,9 @@ function foldBook() {
 function endClose() {
   flyBusy = false;
   cancelFlip();                                // 合书没跑完就被跳过时，别让它的收尾再给书加上合拢态
+  /* 单层书架：把那根被「抽走」的书脊放回架上（抽出 + 隐藏的 class 一起摘掉） */
+  $$('#spineRow .spine-item.pulling,#spineRow .spine-item.gone')
+    .forEach(el => el.classList.remove('pulling', 'gone'));
   const leaf = $('#leaf');
   if (leaf) { leaf.classList.remove('show', 'turning'); leaf.style.transition = 'none'; leaf.style.transform = 'none'; }
   $('#reader').classList.remove('show', 'closing');
@@ -188,6 +230,9 @@ function closeReader() {
   if (state.prefs.view === 'shelf') {
     const el = $(`#shelfWrap .book-item[data-i="${state.sel}"]`);
     if (el && el.scrollIntoView) el.scrollIntoView({ block: 'center' });
+  } else if (state.prefs.view === 'spine') {
+    const el = $(`#spineRow .spine-item[data-i="${state.sel}"]`);
+    if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest', inline: 'center' });
   }
   /* 主页先无过渡地回到最终布局，再量封面位置 —— 否则量到的是缩放中的尺寸，落点会偏 */
   home.classList.add('noanim');
@@ -201,6 +246,8 @@ function closeReader() {
     reader.classList.remove('show');
     home.classList.remove('book-returning');
     book.classList.remove('book-in', 'book-out', 'gone', 'folded');
+    $$('#spineRow .spine-item.pulling,#spineRow .spine-item.gone')
+      .forEach(el => el.classList.remove('pulling', 'gone'));
     return;
   }
   if (flyBusy) {                               // 退场动画没播完就再点一次：直接收掉
@@ -227,7 +274,12 @@ $$('#addMenu [data-addact]').forEach(btn => {
     if (act === 'bg') { openBgSheet(currentAddPage()); return; }
     closeAddMenu();
     if (act === 'img') { addImageTo(currentAddPage()); return; }
+    /* 跨页图：选一张横图 → 从中间裁成两半，各自铺满一页（见 io-photobook.js 的 addSpreadImage）。
+       传进去的参考页决定它插在哪一跨页后面 */
+    if (act === 'spread') { pickSpreadImage(currentAddPage()); return; }
     if (act === 'text') { addTextTo(currentAddPage()); return; }
+    /* 贴纸：便利贴 / 装饰胶带 / 手绘图案，面板自己会关掉菜单 */
+    if (act === 'sticker') { openStickerSheet(currentAddPage()); return; }
     if (act === 'del') { deleteCurrentPage(); return; }
     addPageAfter();
   });

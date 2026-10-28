@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 主页   （样式 3 / 16）
+ * Carnet · 主页   （样式 3 / 19）
  * ---------------------------------------------------------------------
  * ① 主页容器与顶栏（模式切换、搜索、菜单）
  * ② 封面：书脊、图案层、高光、页数徽章
@@ -61,9 +61,14 @@
 .cover{
   /* 屏幕一窄就按宽度走（44vw，屏幕上占得满满的），屏幕矮就按高度让一让（40vh），
      宽屏不再一路放大，收在 246px。以前只有 19vw，手机上直接跌到 148px 的下限，看着偏小 */
-  position:relative;width:clamp(158px,min(44vw,40vh),246px);aspect-ratio:3/4.05;
+  --cover-w:clamp(158px,min(44vw,40vh),246px);
+  /* 高度由 aspect-ratio 撑出来（常规 3:4.05）。方形画册会把宽改成「这里的高」，
+     于是所有本子一样高、只是画册更宽 —— 所以尺寸基准必须是这个变量，别写成固定 px */
+  position:relative;width:var(--cover-w);aspect-ratio:3/4.05;
   border-radius:5px 13px 13px 5px;overflow:hidden;
-  box-shadow:0 26px 46px -18px rgba(20,22,40,.62),0 6px 14px rgba(20,22,40,.28),
+  /* 落地影要淡：影子太重书看着像浮在半空、而不是坐在架子上。
+     两层的活儿分开 —— 远处那道大范围软影只留一点点，贴边那道更要淡 */
+  box-shadow:0 22px 40px -20px rgba(20,22,40,.32),0 4px 12px -4px rgba(20,22,40,.14),
              inset 0 0 0 1px rgba(255,255,255,.14);
   background:#ddd;
 }
@@ -84,7 +89,6 @@
   background:linear-gradient(112deg,rgba(255,255,255,.28) 0%,rgba(255,255,255,0) 34%,rgba(255,255,255,0) 68%,rgba(255,255,255,.12) 100%);
   mix-blend-mode:soft-light;
 }
-.cover .edge{position:absolute;right:0;top:2%;bottom:2%;width:2.5%;background:linear-gradient(90deg,rgba(0,0,0,.06),rgba(255,255,255,.5));border-radius:0 12px 12px 0}
 .gear{
   position:absolute;top:9px;right:9px;width:30px;height:30px;border-radius:50%;
   background:rgba(52,46,44,.72);display:grid;place-items:center;font-size:14px;
@@ -112,11 +116,15 @@
 }
 .actionbar .icon-btn:hover{background:rgba(255,255,255,.26)}
 .actionbar .icon-btn.danger{color:#ff92ab}
-/* 浅色背景：玻璃 tint 换深一点、图标换深色，不然白图标贴在浅玻璃上看不清
-   （以前按键是近乎不透明的白色圆钮，什么背景都不用管；改毛玻璃后必须补这套） */
+/* 浅色背景：玻璃换成**白**玻璃、图标换深色，不然白图标贴在浅玻璃上看不清
+   （以前按键是近乎不透明的白色圆钮，什么背景都不用管；改毛玻璃后必须补这套）。
+   ⚠️ tint 必须是白色半透明，不能拿深色压 —— 深色叠在按钮上就是一坨灰黑块，不是玻璃 */
 #home.bg-light .actionbar .icon-btn{
-  color:#2b2f3d;background:rgba(40,44,66,.12);border-color:rgba(40,44,66,.16)
+  color:#2b2f3d;
+  background:rgba(255,255,255,.34);
+  border-color:rgba(255,255,255,.6);
+  backdrop-filter:blur(16px) saturate(150%);-webkit-backdrop-filter:blur(16px) saturate(150%)
 }
-#home.bg-light .actionbar .icon-btn:hover{background:rgba(40,44,66,.2)}
+#home.bg-light .actionbar .icon-btn:hover{background:rgba(255,255,255,.46)}
 #home.bg-light .actionbar .icon-btn.danger{color:#c33b5c}
 

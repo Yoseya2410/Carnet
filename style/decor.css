@@ -1,0 +1,152 @@
+/* =====================================================================
+ * Carnet · 图片边框 · 贴纸 · 便利贴   （样式 18 / 19）
+ * ---------------------------------------------------------------------
+ * ① 图片边框：.pframe（包在 <img> 外面那层，边框就画在它的 padding 上）
+ * ② 底部「图片边框」面板 #frsheet：五档框的小样 + 颜色 + 粗细拖动条
+ * ③ 底部「贴纸」面板 #stsheet：便利贴 / 装饰胶带 / 我的贴纸三档格子
+ * ④ 便利贴：文字贴的便签纸皮肤（.ptext-wrap.note .ptxt）
+ *
+ * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
+ * ===================================================================== */
+/* ============ 图片边框 ============ */
+/* 边框层：跟图片一样铺满整个对象盒子，靠 padding 把图片挤小一圈。
+   ⚠️ box-sizing 必须是 border-box —— padding 才算在盒子里面，图片不会被顶出对象 */
+.pimg-wrap .pframe{position:absolute;inset:0;box-sizing:border-box;pointer-events:none}
+.pimg-wrap .pframe .pimg{width:100%;height:100%}
+
+/* ============ 底部「图片边框」面板 ============ */
+.frsheet{max-height:82%}
+/* 标题后面跟一句当前是哪一档 */
+.fr-hint{font-size:12px;font-weight:400;opacity:.55;margin-left:8px;letter-spacing:.02em}
+/* 缩略预览：拿这张图本人按当前这档画一个小样；底上一层斜纹，看得出哪些地方是留白 */
+.fr-prev{flex:none;display:flex;justify-content:center;padding:2px 0 4px}
+.fr-demo{
+  width:104px;height:104px;border-radius:6px;
+  background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.09) 0 6px,transparent 6px 12px);
+  background-color:rgba(255,255,255,.05)
+}
+.fr-demo img{width:100%;height:100%;object-fit:cover;display:block;border-radius:2px}
+/* 五档框：每档一个方块小样 + 名字 */
+.fr-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:2px 0 4px}
+.fr-opt{
+  display:flex;flex-direction:column;align-items:center;gap:6px;padding:7px 4px 8px;border-radius:12px;
+  background:rgba(255,255,255,.06);border:1.5px solid transparent;transition:background .16s,border-color .16s,transform .12s
+}
+.fr-opt:hover{background:rgba(255,255,255,.12)}
+.fr-opt:active{transform:scale(.97)}
+.fr-opt.on{border-color:#fff;background:rgba(255,255,255,.16)}
+.fr-ico{
+  position:relative;width:100%;max-width:56px;aspect-ratio:1;border-radius:9px;overflow:hidden;
+  background:#c9cede
+}
+.fr-ico i{position:absolute;inset:8%;background:linear-gradient(160deg,#9db1cf,#5f7599);border-radius:2px}
+/* 各档小样（颜色那几档由 JS 按当前边框色写进 style，这里只给个默认样子） */
+.fr-ico[data-fr="none"] i{inset:6%}
+.fr-ico[data-fr="polaroid"]{background:#fff;box-shadow:0 3px 7px -3px rgba(20,22,40,.55)}
+.fr-ico[data-fr="polaroid"] i{inset:11% 11% 32%}
+.fr-ico[data-fr="color"]{background:#fff}
+.fr-ico[data-fr="color"] i{inset:22%}
+.fr-ico[data-fr="line"] i{inset:6%;box-shadow:inset 0 0 0 1.6px #22242f}
+.fr-ico[data-fr="photo"]{
+  background:linear-gradient(145deg,rgba(255,255,255,.45),rgba(255,255,255,0) 42%,rgba(0,0,0,.34)),#c8a675;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.5),0 3px 7px -3px rgba(20,22,40,.6)
+}
+.fr-ico[data-fr="photo"] i{inset:24%}
+.fr-n{font-size:12px;letter-spacing:.03em}
+/* 无边框没有边框色 / 粗细可挑：整行淡下去 */
+.ts-lab.dim{opacity:.34}
+.ts-dots.dim{opacity:.34;pointer-events:none}
+/* ---- 粗细拖动条 ----
+   拖动时实时画到纸上，所以滑块的响应要跟手：轨道细一点、滑块大一点（手指好抓） */
+.fr-slider{padding:2px 2px 6px}
+.fr-slider input[type="range"]{
+  -webkit-appearance:none;appearance:none;width:100%;height:22px;background:none;cursor:pointer
+}
+.fr-slider input[type="range"]::-webkit-slider-runnable-track{
+  height:4px;border-radius:99px;
+  background:linear-gradient(90deg,rgba(255,255,255,.5),rgba(255,255,255,.22))
+}
+.fr-slider input[type="range"]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:20px;height:20px;margin-top:-8px;border-radius:50%;
+  background:#fff;border:none;
+  box-shadow:0 2px 7px -2px rgba(10,12,26,.7),inset 0 0 0 1px rgba(0,0,0,.08)
+}
+.fr-slider input[type="range"]::-moz-range-track{
+  height:4px;border-radius:99px;background:rgba(255,255,255,.32)
+}
+.fr-slider input[type="range"]::-moz-range-thumb{
+  width:20px;height:20px;border:none;border-radius:50%;background:#fff;
+  box-shadow:0 2px 7px -2px rgba(10,12,26,.7)
+}
+/* 标签右侧那个实时数字 */
+.fr-wval{float:right;font-size:12px;opacity:.6;font-variant-numeric:tabular-nums}
+
+/* ============ 底部「贴纸」面板 ============ */
+.stsheet{max-height:74%}
+.st-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(68px,1fr));gap:10px;padding:4px 0 8px}
+/* 胶带是长条：格子放宽、压扁，一条条摆出来才看得出是胶带 */
+.st-tapes{grid-template-columns:repeat(auto-fill,minmax(104px,1fr))}
+.st-tapes .st-opt{aspect-ratio:16/10}
+.st-opt{
+  position:relative;aspect-ratio:1;border-radius:12px;padding:7px;
+  display:grid;place-items:center;
+  background:rgba(255,255,255,.06);border:1.5px solid transparent;
+  transition:background .16s,border-color .16s,transform .12s
+}
+.st-opt:hover{background:rgba(255,255,255,.13)}
+.st-opt:active{transform:scale(.95)}
+.st-opt img{max-width:100%;max-height:100%;display:block;pointer-events:none}
+/* 便利贴那一格：就是一张小便签（纸色 + 落地影 + 右下折角），跟落到纸上的一模一样 */
+.st-note{
+  position:relative;width:100%;height:100%;border-radius:3px;background:var(--nc,#ffe066);
+  box-shadow:2px 4px 10px -3px rgba(0,0,0,.5),inset 0 0 0 1px rgba(255,255,255,.34),inset 0 -1px 0 rgba(0,0,0,.08)
+}
+.st-note::after{
+  content:"";position:absolute;right:0;bottom:0;width:16px;height:16px;
+  background:linear-gradient(135deg,transparent 50%,rgba(0,0,0,.16) 50%)
+}
+/* ---- 「我的贴纸」：用户自己导入的图片 ----
+   导入的图长宽比各异，格子不做 aspect-ratio 死限，让图自己撑、外面留一圈透明棋盘底，
+   一眼看得出哪里是图的边界（透明 PNG 尤其需要，不然会跟面板糊在一起） */
+.st-mine .st-opt{
+  aspect-ratio:auto;min-height:66px;padding:5px;
+  background-color:rgba(255,255,255,.07);
+  background-image:
+    linear-gradient(45deg,rgba(255,255,255,.10) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.10) 75%),
+    linear-gradient(45deg,rgba(255,255,255,.10) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.10) 75%);
+  background-size:12px 12px;background-position:0 0,6px 6px
+}
+.st-mine .st-opt img{max-height:74px;object-fit:contain}
+/* 删除叉：常显会挡住小图，悬停 / 触摸时才出来；点它只删库、不贴纸 */
+.st-del{
+  position:absolute;top:2px;right:3px;width:18px;height:18px;border-radius:50%;
+  display:grid;place-items:center;font-style:normal;font-size:14px;line-height:1;
+  background:rgba(20,22,34,.82);color:#fff;opacity:0;transition:opacity .16s
+}
+.st-opt:hover .st-del,.st-del:active{opacity:1}
+@media (hover:none){.st-del{opacity:.85}}
+.st-empty{margin:2px 0 8px;font-size:12px;line-height:1.6;opacity:.55;letter-spacing:.03em}
+/* 底部那颗「导入图片为贴纸」 */
+.st-foot{padding:2px 0 10px}
+.st-imp{
+  width:100%;display:flex;align-items:center;justify-content:center;gap:7px;
+  padding:10px 12px;border-radius:12px;font-size:13px;letter-spacing:.04em;
+  background:rgba(255,255,255,.10);border:1.5px dashed rgba(255,255,255,.34);
+  transition:background .16s,border-color .16s
+}
+.st-imp:hover{background:rgba(255,255,255,.17);border-color:rgba(255,255,255,.5)}
+.st-imp:active{transform:scale(.99)}
+
+/* ============ 便利贴（落到纸上的文字贴） ============ */
+/* 便签纸皮肤：纸色底 + 一圈内高光 + 落地影，右下角折一个角。
+   它仍然是文字贴 —— 打字、挪位置、旋转、改字号全都照旧 */
+.ptext-wrap.note .ptxt{
+  position:relative;background:var(--nc,#ffe066);padding:.42em .6em;border-radius:2px;
+  box-shadow:2px 4px 10px -3px rgba(24,26,44,.45),
+             inset 0 0 0 1px rgba(255,255,255,.34),
+             inset 0 -1px 0 rgba(0,0,0,.08);
+}
+.ptext-wrap.note .ptxt::after{
+  content:"";position:absolute;right:0;bottom:0;width:15px;height:15px;pointer-events:none;
+  background:linear-gradient(135deg,transparent 50%,rgba(0,0,0,.16) 50%)
+}

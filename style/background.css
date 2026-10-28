@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 背景设置面板与浅色适配   （样式 16 / 16）
+ * Carnet · 背景设置面板与浅色适配   （样式 19 / 19）
  * ---------------------------------------------------------------------
  * ① 背景面板（预设色 / 图片操作区）
  * ② 浅色背景下文字与玻璃控件自动换深色
@@ -12,13 +12,167 @@
 .bg-note{font-size:11px;opacity:.5;margin-top:10px;letter-spacing:.03em}
 #bgClearImg[disabled]{opacity:.4;pointer-events:none}
 
+/* ============ 浅色背景下：所有浮层 / 面板 / 列表统一改成「白玻璃」 ============
+   深色 tint 那套（--frost 默认 rgba(30,34,54,.6)）压在浅底上就是一块灰黑板 ——
+   底下那点背景全被糊住，看着是「面板变黑了」，不是玻璃。所以浅底上一律换成
+   半透明白 + 模糊 + 一道白边，并把面板里的字换成深色。
+   ⚠️ 走**变量**而不是逐个改 background：所有用 var(--frost) 的面板（下拉菜单、
+      确认框、取色盘…）一次性跟着变，以后加新面板自动继承。
+      文字必须逐个换 —— 它们大多写死了 #fff，在白玻璃上会直接消失。 */
+.bg-light{
+  --frost:rgba(255,255,255,.42);
+  --frost-bd:rgba(255,255,255,.68);
+  --frost-fx:blur(26px) saturate(150%);
+  --glass:rgba(255,255,255,.42);
+  --glass-bd:rgba(255,255,255,.7);
+}
+/* 输入框占位符：全局那条是半透明白的，浅底上等于没有 */
+.bg-light ::placeholder{color:rgba(43,47,61,.42);opacity:1}
+
+/* ---- 搜索栏 ---- */
+.bg-light .search-panel{
+  color:#2b2f3d;
+  background:linear-gradient(180deg,rgba(255,255,255,.52),rgba(255,255,255,.30) 72%,rgba(255,255,255,0))
+}
+.bg-light .search-panel .text-input{
+  background:rgba(255,255,255,.55);border-color:rgba(40,44,66,.16);color:#2b2f3d
+}
+.bg-light .search-panel .text-input:focus{background:rgba(255,255,255,.78)}
+.bg-light .search-close{color:#2b2f3d}
+/* 结果列表：每条是一片更亮的白玻璃，压在面板那层上才分得出层次 */
+.bg-light .sr-item{background:rgba(255,255,255,.3);border-color:rgba(255,255,255,.6)}
+.bg-light .sr-item:hover{background:rgba(255,255,255,.5)}
+.bg-light .sr-item .meta{color:rgba(43,47,61,.62)}
+.bg-light .sr-item .nm mark{background:rgba(240,180,120,.62);color:#7a4a12}
+.bg-light .sr-empty{color:rgba(43,47,61,.6)}
+
+/* 遮罩也要跟着变浅：深色遮罩会把后面全压暗，白玻璃叠在上头就没东西可「透」，
+   看着依旧是一块白板。浅底上改成一层很淡的白雾 + 模糊，焦点还在弹窗上 */
+.bg-light .modal-mask{background:rgba(246,246,249,.3);backdrop-filter:blur(10px) saturate(120%);
+  -webkit-backdrop-filter:blur(10px) saturate(120%)}
+.bg-light .confirm-mask{background:rgba(246,246,249,.34);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px)}
+
+/* ---- 弹窗（新建 / 编辑手帐本、背景设置…）---- */
+.bg-light .modal{
+  color:#2b2f3d;
+  background:linear-gradient(180deg,rgba(255,255,255,.58),rgba(255,255,255,.46));
+  border-color:rgba(255,255,255,.72);
+  box-shadow:0 40px 80px -22px rgba(30,32,48,.42)
+}
+.bg-light .modal::-webkit-scrollbar-thumb{background:rgba(40,44,66,.28)}
+.bg-light .text-input{background:rgba(255,255,255,.5);border-color:rgba(40,44,66,.16);color:#2b2f3d}
+.bg-light .text-input:hover{border-color:rgba(40,44,66,.3)}
+.bg-light .text-input:focus{background:rgba(255,255,255,.74);box-shadow:0 0 0 3px rgba(224,102,138,.22)}
+/* 色块：浅底上描边要换成深色才勾得出来（白色描边压在白玻璃上等于没有） */
+.bg-light .swatch{border-color:rgba(40,44,66,.2)}
+.bg-light .swatch.on{border-color:#fff;box-shadow:0 0 0 2px rgba(40,44,66,.3)}
+.bg-light .btn.ghost{color:#2b2f3d;background:rgba(255,255,255,.5);border-color:rgba(40,44,66,.16)}
+/* 吸底操作栏：原本是深蓝渐变，在白玻璃弹窗上会变成一条突兀的深蓝带 */
+.bg-light .modal-actions{background:linear-gradient(180deg,rgba(255,255,255,0),rgba(255,255,255,.86) 30%,rgba(255,255,255,.97) 62%)}
+/* 装帧样式选择卡 */
+.bg-light .sty{background:rgba(40,44,66,.05);border-color:rgba(40,44,66,.12)}
+.bg-light .sty:hover{background:rgba(40,44,66,.1)}
+.bg-light .sty.on{border-color:rgba(40,44,66,.45);background:rgba(40,44,66,.1)}
+.bg-light .sty-d{color:rgba(43,47,61,.8)}
+
+/* ---- 确认框 ---- */
+.bg-light .confirm-box{color:#2b2f3d;border-color:rgba(255,255,255,.7)}
+.bg-light .confirm-actions .btn.danger{color:#c33b5c}
+
+/* ---- 下拉菜单列表（＋ / 更多 / 分享 / 多选）---- */
+.bg-light .addmenu{box-shadow:0 18px 40px -16px rgba(30,32,48,.5)}
+.bg-light .addmenu button{color:#2b2f3d}
+.bg-light .addmenu button:hover,.bg-light .addmenu button:active{background:rgba(40,44,66,.08)}
+.bg-light .addmenu .am-row{background:rgba(40,44,66,.06)}
+.bg-light .addmenu .am-side{color:rgba(43,47,61,.72)}
+.bg-light .addmenu .am-side.on{background:#fff;color:#20222c}
+.bg-light .addmenu .am-del{color:#c33b5c}
+.bg-light .addmenu .am-del:hover,.bg-light .addmenu .am-del:active{background:rgba(224,102,138,.16)}
+
+/* ---- 底部面板（编辑文字 / 本页底色 / 图片边框 / 贴纸）----
+   这一族底色写死在 .tsheet 上（不走 --frost），得单独换：
+   面板本体 + 里面那批「深色底上用半透明白」的控件（chips / dots / 格子 / 滑杆） */
+.bg-light .tsheet{
+  color:#2b2f3d;
+  background:linear-gradient(180deg,rgba(255,255,255,.62),rgba(255,255,255,.5));
+  border-top-color:rgba(255,255,255,.72);
+  box-shadow:0 -18px 44px -22px rgba(30,32,48,.36)
+}
+.bg-light .ts-grab{background:rgba(40,44,66,.32)}
+.bg-light .ts-input{background:rgba(255,255,255,.55);border-color:rgba(40,44,66,.16);color:#2b2f3d}
+.bg-light .ts-input:hover{border-color:rgba(40,44,66,.3)}
+.bg-light .ts-input:focus{background:rgba(255,255,255,.8);box-shadow:0 0 0 3px rgba(40,44,66,.1)}
+.bg-light .ts-tabs{border-bottom-color:rgba(40,44,66,.1)}
+.bg-light .ts-tabs button{color:rgba(43,47,61,.5)}
+.bg-light .ts-tabs button.on{color:#2b2f3d}
+.bg-light .ts-tabs button.on::after{background:#2b2f3d}
+.bg-light .ts-lab{color:rgba(43,47,61,.72)}
+.bg-light .ts-lab b{color:#2b2f3d}
+.bg-light .ts-chips button{color:rgba(43,47,61,.8);background:rgba(40,44,66,.06)}
+.bg-light .ts-chips button:hover{background:rgba(40,44,66,.12)}
+.bg-light .ts-chips button.on{border-color:rgba(40,44,66,.5);background:rgba(40,44,66,.12);color:#2b2f3d}
+.bg-light .ts-dots button{border-color:rgba(40,44,66,.32)}
+.bg-light .ts-dots button.on{border-color:#fff;box-shadow:0 0 0 2.5px rgba(40,44,66,.3)}
+.bg-light .ts-dots button.none{background:rgba(40,44,66,.1)}
+.bg-light .ts-dots button.none::after{border-color:rgba(40,44,66,.42)}
+.bg-light .ts-range::-webkit-slider-runnable-track{background:rgba(40,44,66,.2)}
+.bg-light .ts-range::-moz-range-track{background:rgba(40,44,66,.2)}
+.bg-light .ts-fmt button,.bg-light .ts-alignrow button{color:#2b2f3d;background:rgba(40,44,66,.07)}
+.bg-light .ts-fmt button.on,.bg-light .ts-alignrow button.on{
+  background:#fff;color:#20222c;box-shadow:0 2px 7px -2px rgba(30,32,48,.45)
+}
+/* 标题旁那句「当前是哪一档」和拖动条右侧的数值都是靠 opacity 压淡的 ——
+   深色底上刚好，浅底上会淡到看不见，这里把透明度提回来 */
+.bg-light .fr-hint{opacity:.78}
+.bg-light .fr-wval{opacity:.85}
+/* 边框小样 / 贴纸格子 */
+.bg-light .fr-demo{background-color:rgba(40,44,66,.05);
+  background-image:repeating-linear-gradient(45deg,rgba(40,44,66,.09) 0 6px,transparent 6px 12px)}
+.bg-light .fr-opt{background:rgba(40,44,66,.05)}
+.bg-light .fr-opt:hover{background:rgba(40,44,66,.11)}
+.bg-light .fr-opt.on{border-color:rgba(40,44,66,.5);background:rgba(40,44,66,.12)}
+.bg-light .fr-slider input[type="range"]::-webkit-slider-runnable-track{
+  background:linear-gradient(90deg,rgba(40,44,66,.32),rgba(40,44,66,.14))
+}
+.bg-light .fr-slider input[type="range"]::-moz-range-track{background:rgba(40,44,66,.18)}
+.bg-light .st-opt{background:rgba(40,44,66,.05);border-color:rgba(40,44,66,.1)}
+.bg-light .st-opt:hover{background:rgba(40,44,66,.11)}
+.bg-light .st-imp{color:#2b2f3d;background:rgba(40,44,66,.06);border-color:rgba(40,44,66,.18)}
+.bg-light .st-imp:hover{background:rgba(40,44,66,.12);border-color:rgba(40,44,66,.32)}
+/* 本页底色那套色阶 */
+.bg-light .bs-now-tx{color:rgba(43,47,61,.66)}
+.bg-light .bs-now-sw{border-color:rgba(40,44,66,.18)}
+.bg-light .bs-cn{color:rgba(43,47,61,.62)}
+.bg-light .bs-sw{border-color:rgba(40,44,66,.14)}
+.bg-light .bs-sw.on{border-color:#fff;box-shadow:0 0 0 2.5px rgba(40,44,66,.3)}
+.bg-light .bs-btn{color:rgba(43,47,61,.78);background:rgba(40,44,66,.06);border-color:rgba(40,44,66,.14)}
+.bg-light .bs-btn.on{border-color:rgba(40,44,66,.5);background:rgba(40,44,66,.12);color:#2b2f3d}
+.bg-light .bs-btn.done{color:#2b2f3d;background:rgba(40,44,66,.1)}
+.bg-light .bs-btn.done.on{background:#2b2f3d;color:#fff;border-color:#2b2f3d}
+
 /* ============ 浅色自定义背景：文字与玻璃控件自动换深色 ============ */
 #home.bg-light .home-head h1{color:#2b2f3d;text-shadow:none}
 #home.bg-light .home-head .pages{color:#3a3f52}
-#home.bg-light .topbar .icon-btn,#home.bg-light .topbar .pill{background:rgba(40,44,66,.4);border-color:rgba(40,44,66,.22)}
-#home.bg-light .view-toggle{background:rgba(40,44,66,.4);border-color:rgba(40,44,66,.22)}
+/* ⚠️ 浅底上的玻璃一律是「**白**玻璃」：半透明白 + 模糊 + 一道白边，图标换深色。
+   别用深色 tint（rgba(40,44,66,.4) 那种）压在按钮上 —— 那是一坨灰黑色块，
+   把底下那点背景全糊住，看着就是「按钮变黑了」，不是玻璃。
+   深色 tint 只用在极淡的浓度上（见 .actionbar 那条），这里统一走白玻璃。 */
+#home.bg-light .topbar .icon-btn,#home.bg-light .topbar .pill{
+  color:#2b2f3d;
+  background:rgba(255,255,255,.34);
+  border-color:rgba(255,255,255,.6);
+  backdrop-filter:blur(16px) saturate(150%);
+  -webkit-backdrop-filter:blur(16px) saturate(150%)
+}
+#home.bg-light .view-toggle{
+  background:rgba(255,255,255,.3);border-color:rgba(255,255,255,.58);
+  /* 白边在浅底上勾不出轮廓，补一道极淡的深色内描边把胶囊的形状收出来 */
+  box-shadow:0 8px 18px -10px rgba(6,8,20,.2),inset 0 0 0 .5px rgba(40,44,66,.12),
+             inset 0 1px 0 rgba(255,255,255,.5);
+  backdrop-filter:blur(16px) saturate(150%);-webkit-backdrop-filter:blur(16px) saturate(150%)
+}
 #home.bg-light .view-toggle button{color:#2b2f3d}
-#home.bg-light .view-toggle button:hover{background:rgba(40,44,66,.16)}
+#home.bg-light .view-toggle button:hover{background:rgba(255,255,255,.3)}
 /* 浅色背景下：玻璃偏白一点、图标换深色，不然白玻璃+白图标会糊成一片 */
 #home.bg-light .view-toggle button.on{
   color:#2b2f3d;
@@ -32,5 +186,50 @@
 }
 #reader.bg-light .rtitle h2{color:#2b2f3d}
 #reader.bg-light .rtitle .pages{color:#3a3f52}
-#reader.bg-light .rtop .icon-btn,#reader.bg-light .rbot .pill-btn{background:rgba(40,44,66,.4);border-color:rgba(40,44,66,.22)}
+#reader.bg-light .rtop .icon-btn,#reader.bg-light .rbot .pill-btn{
+  color:#2b2f3d;
+  background:rgba(255,255,255,.34);
+  border-color:rgba(255,255,255,.6);
+  backdrop-filter:blur(16px) saturate(150%);
+  -webkit-backdrop-filter:blur(16px) saturate(150%)
+}
+#home.bg-light .shelf-board .screw{background:radial-gradient(circle at 34% 28%,#fff,#cbcac4 52%,#8e8b84)}
+/* ⚠️ .rbot（底栏）是长在 #reader 里的，挂在 #home 上永远命中不了 ——
+   结果是浅底（含默认）下阅读器底栏的页码「1 / 1」是白字压在浅背景上，等于隐形 */
 #reader.bg-light .rbot .pager{color:#3a3f52}
+#reader.bg-light .pager.jumpable:hover,
+#reader.bg-light .pager.pressing{background:rgba(40,44,66,.1)}
+/* 阅读器跟主页一样是浅底了，书的落地影也得跟着收：深色背景上 .5 的黑影压在浅底上是一坨脏灰 */
+#reader.bg-light .book{filter:drop-shadow(0 26px 34px rgba(40,42,60,.28))}
+/* ---- 页数轴（长按页码冒出来的那条）：原本是白玻璃 + 白刻度，浅底上整条糊进背景 ---- */
+#reader.bg-light .scrub-track{
+  background:linear-gradient(180deg,rgba(255,255,255,.66),rgba(255,255,255,.42));
+  border-color:rgba(255,255,255,.72);
+  box-shadow:0 14px 26px -18px rgba(30,32,48,.5),inset 0 1px 0 rgba(255,255,255,.9)
+}
+#reader.bg-light .scrub-ticks i::before{background:rgba(40,44,66,.38)}
+#reader.bg-light .scrub-ticks i.maj::before{background:rgba(40,44,66,.6)}
+#reader.bg-light .scrub-fill{
+  background:linear-gradient(90deg,rgba(224,102,138,.14),rgba(224,102,138,.42));
+  border-right-color:rgba(224,102,138,.55)
+}
+#reader.bg-light .scrub-bar{
+  background:linear-gradient(180deg,#fff,#f1eff3);border-color:rgba(255,255,255,.9);
+  box-shadow:0 4px 14px -3px rgba(30,32,48,.4),0 0 0 1px rgba(224,102,138,.55),inset 0 1px 0 #fff
+}
+/* ---- 浅色背景：书脚陷进玻璃板里的接触影 ----
+   书是**插进**板里的（书脚下沉 26px），所以紧贴书脚那一线压得最深、往下渐隐 ——
+   这道影是「书嵌在板里」唯一看得见的证据，没有它书看着只是浮在板前。
+   ⚠️ 这层要在螺丝之上（z-index），不然螺丝会被影子糊掉 */
+#home.bg-light .shelf-board::before{
+  content:"";position:absolute;left:0;right:0;top:0;height:26px;z-index:1;
+  border-radius:9px 9px 0 0;pointer-events:none;
+  /* 纵向：紧贴书脚那一线最深，往下渐隐 */
+  background:linear-gradient(180deg,
+    rgba(40,36,30,.24) 0%,rgba(40,36,30,.14) 34%,rgba(40,36,30,.04) 72%,rgba(40,36,30,0) 100%);
+  /* ⚠️ 横向「两端收干净」必须用 mask，不能写成第二层 background ——
+     多层背景是**叠加**不是遮罩，写成背景会把整条板染成近黑色（踩过一次） */
+  -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 9%,#000 91%,transparent 100%);
+  mask-image:linear-gradient(90deg,transparent 0,#000 9%,#000 91%,transparent 100%)
+}
+#home.bg-light .shelf-board .screw{z-index:2}

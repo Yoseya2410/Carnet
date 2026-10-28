@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 图片操作控件   （样式 5 / 16）
+ * Carnet · 图片操作控件   （样式 6 / 19）
  * ---------------------------------------------------------------------
  * ① 四角拉伸手柄（热区向外扩，不抢按钮）
  * ② 纸张底色与内页模板纹理
@@ -27,6 +27,13 @@
   background-image:repeating-linear-gradient(transparent 0,transparent 27px,rgba(120,96,64,.22) 27px,rgba(120,96,64,.22) 28px);
   background-position:0 34px;opacity:.9
 }
+/* —— 跨页拖迁：对象落到这一页时给纸描一道内描边 ——
+   双页摊开时把图片 / 文字拖过中缝，它会搬进另一页；落点要有看得见的回应，
+   否则「到底过去了没有」全凭猜（手势一结束这道边就没了，所以不必做动画）。
+   只写 box-shadow 不动伪元素：.t-lined 的红色边距线就长在 ::before 上，抢不得 */
+.paper.drop-in{
+  box-shadow:inset 0 0 0 2px rgba(43,53,80,.42),inset 0 0 44px rgba(43,53,80,.12)
+}
 .paper.endpaper{background:linear-gradient(160deg,#3b425e,#2b3048)}
 .paper.endpaper::after{display:none}
 
@@ -49,10 +56,12 @@
 :is(.pimg-wrap,.ptext-wrap) .hdl.tr::after{right:-12px;top:-12px;left:9px;bottom:9px}
 :is(.pimg-wrap,.ptext-wrap) .hdl.bl::after{left:-12px;bottom:-12px;right:9px;top:9px}
 :is(.pimg-wrap,.ptext-wrap) .hdl.br::after{right:-12px;bottom:-12px;left:9px;top:9px}
-:is(.pimg-wrap,.ptext-wrap) .hdl.tl{left:-9px;top:-9px;cursor:nwse-resize}
-:is(.pimg-wrap,.ptext-wrap) .hdl.tr{right:-9px;top:-9px;cursor:nesw-resize}
-:is(.pimg-wrap,.ptext-wrap) .hdl.bl{left:-9px;bottom:-9px;cursor:nesw-resize}
-:is(.pimg-wrap,.ptext-wrap) .hdl.br{right:-9px;bottom:-9px;cursor:nwse-resize}
+/* 拉伸手柄用什么指针：对象转了多少度，箭头就跟着转多少度（media.js 的 applyCur 下发）。
+   没设置过这两个变量（例如刚渲染出来、或压根没旋转）时就退回各自的默认方向 */
+:is(.pimg-wrap,.ptext-wrap) .hdl.tl{left:-9px;top:-9px;cursor:var(--cur-a,nwse-resize)}
+:is(.pimg-wrap,.ptext-wrap) .hdl.tr{right:-9px;top:-9px;cursor:var(--cur-b,nesw-resize)}
+:is(.pimg-wrap,.ptext-wrap) .hdl.bl{left:-9px;bottom:-9px;cursor:var(--cur-b,nesw-resize)}
+:is(.pimg-wrap,.ptext-wrap) .hdl.br{right:-9px;bottom:-9px;cursor:var(--cur-a,nwse-resize)}
 :is(.pimg-wrap,.ptext-wrap).sel .hdl{display:block}
 /* 旋转手柄：挂在右边外侧的正中 —— 上方那条是工具条的位置，四角是拉伸手柄，只有这里是空的。
    里面放一个转圈箭头图标，看一眼就知道这颗是管转的（比空白圆点好认） */
@@ -75,8 +84,11 @@
 :is(.pimg-wrap,.ptext-wrap).tiny .hdl.rot svg{width:10px;height:10px}
 /* 贴边时手柄也收进纸内 */
 :is(.pimg-wrap,.ptext-wrap).tiny .hdl{width:15px;height:15px}
-/* 铺满整页：按封面式裁切填满，不拉伸变形 */
-.pimg-wrap.fill .pimg{object-fit:cover;border-radius:0}
+/* 铺满整页：整张图完整落在纸里，一张都不裁
+   · 带 .fit（几何已按 fillGeom 算过）→ fill：按算好的盒子有限度地拉一拉，尽量贴满整页
+   · 不带 .fit（老数据：整页 1×1）→ contain：先按原比例完整显示，等 ensureFillGeom 校准 */
+.pimg-wrap.fill .pimg{object-fit:contain;border-radius:0}
+.pimg-wrap.fill.fit .pimg{object-fit:fill;border-radius:0}
 .pimg-wrap.locked{outline:none;cursor:default}
 .pimg-wrap.locked .pimg{cursor:default}
 .pimg-wrap.locked .hdl{display:none !important}

@@ -1,0 +1,181 @@
+/* =====================================================================
+ * Carnet · 单层书架模式   （样式 20 / 20）
+ * ---------------------------------------------------------------------
+ * ① 高低错落的单排书脊：底边对齐、紧挨着排，窄屏横向滑动
+ * ② 书脊文字与几何装饰：颜色、图案来自每本书的封面
+ * ③ 书脊宽度按页数走：--spine-min-w 保底，越厚越宽但差距克制
+ * ④ 下方预览图：悬停书脊即显示，移开淡出
+ * ===================================================================== */
+.spine-wrap{
+  --spine-min-w:clamp(24px,2.4vw,32px);   /* 最窄：再薄的手帐本也有这么宽 */
+  --spine-max-w:clamp(31px,3.4vw,46px);   /* 最宽：页数堆到 64 页才到头 */
+  --spine-max-h:clamp(250px,56vh,460px);   /* 最高那本的长度基准，各本再乘 --spine-h 错落 */
+  flex:1;min-height:0;display:flex;flex-direction:column;
+  padding:calc(var(--topbar-h,76px) + 1vh) 0 calc(var(--botbar-h,90px) + 2px);
+  animation:fadeIn .28s ease
+}
+.spine-scroll{
+  flex:1;min-height:190px;overflow-x:auto;overflow-y:hidden;
+  overscroll-behavior-x:contain;touch-action:pan-x pan-y;
+  scrollbar-width:none
+}
+.spine-scroll::-webkit-scrollbar{display:none}
+.spine-row{
+  /* 书脊挨得紧才像一整排书：只留一条很细的缝，让相邻两本看出分界 */
+  display:flex;align-items:flex-end;justify-content:center;gap:clamp(1px,.16vw,3px);
+  width:max-content;min-width:100%;height:100%;padding:18px 24px 2px
+}
+.spine-item{
+  position:relative;flex:0 0 auto;isolation:isolate;overflow:hidden;
+  -webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;
+  /* 宽度 = 最窄 + (最宽-最窄) × 页数比例（--spine-p 由 spineWidthRatio 算，0~1） */
+  width:calc(var(--spine-min-w) + (var(--spine-max-w) - var(--spine-min-w)) * var(--spine-p,.3));
+  height:calc(var(--spine-max-h) * var(--spine-h,.8));
+  padding:0;border-radius:1.5px 2.5px 2px 1.5px;color:var(--spine-ink,#fff);
+  cursor:pointer;transform-origin:50% 100%;filter:saturate(.88) brightness(.96);
+  box-shadow:2px 5px 8px -5px rgba(10,12,20,.62),inset 0 0 0 1px rgba(255,255,255,.12);
+  transition:transform .24s cubic-bezier(.22,.8,.3,1),filter .24s ease,box-shadow .24s ease
+}
+.spine-item::before{
+  content:"";position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:linear-gradient(90deg,rgba(0,0,0,.25),rgba(0,0,0,.04) 20%,rgba(255,255,255,.15) 48%,rgba(255,255,255,0) 72%,rgba(0,0,0,.18));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22),inset 0 -1px 0 rgba(0,0,0,.25)
+}
+.spine-item::after{
+  content:"";position:absolute;inset:0;z-index:5;pointer-events:none;border-radius:inherit;
+  border:1px solid transparent;transition:border-color .2s,box-shadow .2s
+}
+.spine-item:hover{transform:translateY(-4px);filter:none}
+.spine-item.active{
+  transform:translateY(-7px);filter:none;
+  box-shadow:3px 10px 15px -7px rgba(10,12,20,.68),inset 0 0 0 1px rgba(255,255,255,.2)
+}
+.spine-item.active::after{border-color:rgba(255,255,255,.82);box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
+.spine-item:focus-visible{outline:2px solid currentColor;outline-offset:3px}
+.spine-pattern{position:absolute;inset:0;z-index:0;opacity:.28;pointer-events:none}
+.spine-title{
+  position:absolute;z-index:3;left:50%;top:28%;bottom:11%;transform:translateX(-50%);
+  max-width:100%;overflow:hidden;white-space:nowrap;writing-mode:vertical-rl;text-orientation:mixed;
+  font-size:clamp(11px,1.05vw,15px);font-weight:600;line-height:1;letter-spacing:.12em;
+  text-shadow:0 1px 5px rgba(0,0,0,.16);pointer-events:none
+}
+.spine-art{position:absolute;inset:0;z-index:2;opacity:.38;pointer-events:none;color:var(--spine-ink,#fff)}
+.spine-art i{position:absolute;display:block}
+.spine-art.deco-0 i{left:18%;right:18%;height:1px;background:currentColor}
+.spine-art.deco-0 i:nth-child(1){top:9%}.spine-art.deco-0 i:nth-child(2){top:12%}.spine-art.deco-0 i:nth-child(3){top:15%}
+.spine-art.deco-1 i{left:0;right:0;background:currentColor}
+.spine-art.deco-1 i:nth-child(1){top:0;height:12%;opacity:.55}.spine-art.deco-1 i:nth-child(2){top:12%;height:7%;opacity:.28}.spine-art.deco-1 i:nth-child(3){top:21%;height:2px;opacity:.65}
+.spine-art.deco-2 i{top:8%;height:7%;background:currentColor}
+.spine-art.deco-2 i:nth-child(1){left:14%;width:72%}.spine-art.deco-2 i:nth-child(2){top:16%;left:46%;width:40%;opacity:.65}.spine-art.deco-2 i:nth-child(3){top:23%;left:14%;width:28%;opacity:.4}
+.spine-art.deco-3 i{left:30%;width:140%;height:18%;border:1px solid currentColor;border-radius:50%}
+.spine-art.deco-3 i:nth-child(1){top:4%}.spine-art.deco-3 i:nth-child(2){top:9%}.spine-art.deco-3 i:nth-child(3){top:14%}
+.spine-art.deco-4 i{left:-40%;width:180%;height:7%;background:currentColor;transform:rotate(-32deg)}
+.spine-art.deco-4 i:nth-child(1){top:11%}.spine-art.deco-4 i:nth-child(2){top:20%;opacity:.55}.spine-art.deco-4 i:nth-child(3){display:none}
+.spine-art.deco-5 i:nth-child(1){left:32%;top:8%;width:36%;aspect-ratio:1;border:1px solid currentColor;border-radius:50%}
+.spine-art.deco-5 i:nth-child(2){left:44%;top:14%;width:12%;aspect-ratio:1;background:currentColor;border-radius:50%}
+.spine-art.deco-5 i:nth-child(3){left:20%;right:20%;top:23%;height:1px;background:currentColor}
+.spine-foot{
+  position:absolute;z-index:3;left:25%;right:25%;bottom:6%;height:1px;background:currentColor;opacity:.28;
+  box-shadow:0 4px 0 currentColor,0 8px 0 currentColor;pointer-events:none
+}
+/* 预览框只放一张封面（不再挂编辑按钮、也不重复书名页数），所以只需要装下封面那一块。
+   封面尺寸同时受宽度和高度约束（min(vw,vh)），矮屏上自动让一让 */
+.spine-detail{
+  flex:0 0 clamp(138px,18vh,166px);display:flex;flex-direction:column;align-items:center;
+  padding-top:clamp(12px,2vh,20px);min-height:0;transition:opacity .16s ease
+}
+/* 预览淡入淡出：整块内容换掉时给一点过渡，不至于一闪一闪 */
+.spine-detail-cover{animation:fadeIn .17s ease}
+/* 手机 / 平板：没有悬停就没有预览，整块收掉 —— 省下的高度全给书脊。
+   底部多留一档：手机上底栏那排圆钮几乎贴着屏幕底，书脊底边再压下去就会被盖住 */
+#spineWrap.no-preview .spine-detail{display:none}
+#spineWrap.no-preview{padding-bottom:calc(var(--botbar-h,90px) + 10px)}
+.spine-detail.empty{pointer-events:none}
+.spine-detail-cover.book-item{position:relative;flex:0 0 auto;transform:none;filter:none;cursor:pointer}
+.spine-detail-cover .cover{--cover-w:clamp(58px,min(6.4vw,11vh),88px)}
+/* ==================== 点书脊：从架子上抽出来 ====================
+   ① 先自己往上抽出一截（像手指捏住书脊往上提）+ 稍微放大，影子和光泽跟着变；
+      抽的幅度要够大（-15% 左右）才看得出「从一排书里被拎出来」，太小就等于原地抖一下；
+   ② 抽到位后由封面 ghost 接手飞成书（起飞点量的是这时的实时位置，所以是从上面飞出去的）；
+   ③ 真身随即隐去（.gone），等关书回来再放回架上 */
+.spine-item.pulling{
+  z-index:6;filter:none;opacity:1;
+  transform:translateY(-15%) scale(1.05);
+  transition:transform .23s cubic-bezier(.2,.86,.24,1),box-shadow .23s ease;
+  box-shadow:0 22px 30px -12px rgba(8,10,18,.72),inset 0 0 0 1px rgba(255,255,255,.28)
+}
+.spine-item.pulling::before{background:linear-gradient(90deg,rgba(0,0,0,.18),rgba(0,0,0,.02) 18%,rgba(255,255,255,.26) 50%,rgba(255,255,255,0) 74%,rgba(0,0,0,.14))}
+.spine-item.gone{opacity:0;transition:opacity .14s ease}
+.spine-empty{align-self:center;width:100%;padding:30px 20px;text-align:center;font-size:13.5px;opacity:.7;letter-spacing:.05em}
+/* ==================== 长按书脊拖动排序 ==================== */
+/* 被拖起来的那一本：原地留一个淡淡的坑，真身跟着手指走（副本 .spine-ghost） */
+.spine-item.lifted{opacity:.18;filter:none;transform:none}
+#spineWrap.sorting{touch-action:none;user-select:none;-webkit-user-select:none}
+#spineWrap.sorting .spine-item{cursor:grabbing;will-change:transform}
+#spineWrap.sorting .spine-item:hover{transform:none;filter:none}
+/* 跟着手指走的悬浮副本。transition:none 必须留着 —— 它是 .spine-item 的克隆，
+   会继承那套 hover 过渡，否则刚长按出来时会从屏幕左上角慢慢飘到手指下 */
+.spine-ghost{
+  position:fixed;left:0;top:0;z-index:60;pointer-events:none;overflow:hidden;transition:none;
+  border-radius:1.5px 2.5px 2px 1.5px;transform-origin:50% 100%;will-change:transform;
+  box-shadow:0 20px 34px -14px rgba(8,10,18,.62),inset 0 0 0 1px rgba(255,255,255,.18)
+}
+/* 手机竖屏：屏幕又窄又高，书脊按 vh 给足长度会拉成一根又细又长的条（实测曾到 24px × 630px，
+   约 1:26，完全不像书）。这里把宽度提上来、长度收一档，比例落在 ~1:8（接近真实书脊），
+   并让整排在可用区里**垂直居中**、横向用 safe center —— 书少时居中，书多到要横滑时又不会
+   把左边那几本推出滚动区（普通 center 在溢出时会让左侧滚不到，safe 会自动退回 flex-start） */
+@media (max-width:520px) and (orientation:portrait){
+  .spine-wrap,#spineWrap.no-preview{
+    --spine-min-w:clamp(36px,9.5vw,46px);
+    --spine-max-w:clamp(48px,14vw,64px);
+    --spine-max-h:clamp(240px,50vh,400px)
+  }
+  /* ① 整排书作为**一块**垂直居中在屏幕中间：.spine-scroll 变成 flex 容器、row 高度收到内容高
+        （原来 row 是 height:100% + align-items:flex-end，书永远贴着可用区的底边，
+        上方空一大截；改成居中后上下留白对称）
+     ② row 内部仍然 align-items:flex-end —— 书是**站在同一条线**上的，
+        只是高低错落；每本各自居中会让底边参差不齐，反而不像一排书 */
+  /* justify-content 也要给：flex 容器默认靠左，书少时整排会贴着左边。
+     同样用 safe center —— 书多到要横滑时自动退回 flex-start，左边那几本才滚得到 */
+  .spine-scroll{display:flex;align-items:center;justify-content:center;justify-content:safe center}
+  .spine-row{
+    height:auto;align-items:flex-end;justify-content:center;justify-content:safe center;
+    padding:10px 14px
+  }
+  .spine-title{font-size:13px}
+}
+@media (max-width:520px){
+  .spine-row{padding-left:20px;padding-right:20px}
+}
+/* 矮屏（手机横屏 / 小窗）：书脊最容易缩成一小截，这里把高度和粗细都放大一档，
+   并把上下避让区收紧一点，尽量把屏幕高度让给书脊本身 */
+/* ⚠️ 这两档都写成 `.spine-wrap,#spineWrap.no-preview`：手机同时带 no-preview，
+   而 `#spineWrap.no-preview` 是 id 级选择器，只写 `.spine-wrap` 会被它压过 ——
+   底部避让就变宽、书脊被挤上去顶出书排 */
+@media (max-height:620px){
+  .spine-wrap,#spineWrap.no-preview{
+    --spine-max-h:clamp(180px,52vh,300px);
+    --spine-min-w:clamp(26px,3vw,34px);
+    --spine-max-w:clamp(34px,4vw,48px);
+    padding-top:calc(var(--topbar-h,76px) - 14px);padding-bottom:calc(var(--botbar-h,90px) - 24px)
+  }
+  .spine-scroll{min-height:150px}
+  .spine-detail{flex-basis:128px;padding-top:10px}
+  .spine-detail-cover .cover{--cover-w:clamp(52px,9.5vh,66px)}
+}
+/* 横屏：宽而矮，书脊按 vh 算会被压得很短 —— 直接把长度（高度）和粗细都提上来 */
+@media (orientation:landscape) and (max-height:560px){
+  .spine-wrap,#spineWrap.no-preview{
+    --spine-max-h:clamp(200px,60vh,300px);
+    --spine-min-w:clamp(28px,3.4vw,38px);
+    --spine-max-w:clamp(37px,4.6vw,54px);
+    /* 上下避让都比常规档多留一点：横屏时顶栏 / 底栏几乎贴着屏幕边
+       （实测：屏高 390 时顶栏到 78、底栏圆钮从 314 起），书脊伸过去会被压住 */
+    padding-top:calc(var(--topbar-h,76px) - 10px);padding-bottom:calc(var(--botbar-h,90px) - 14px)
+  }
+  .spine-scroll{min-height:130px}
+  .spine-title{font-size:clamp(11px,1.4vw,15px)}
+}
+@media (prefers-reduced-motion:reduce){
+  .spine-item{transition:none}
+}

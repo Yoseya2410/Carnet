@@ -1,8 +1,8 @@
 /* =====================================================================
- * Carnet · 页面内容编辑 · 图片与文字对象   （脚本 15 / 25）
+ * Carnet · 页面内容编辑 · 图片与文字对象   （脚本 15 / 27）
  * ---------------------------------------------------------------------
  * ① bindPage：页面手势（拖动 / 四角拉伸 / 旋转 / 长按解锁）
- * ② 选中对象后的工具条 objAction：完成 ✓ / 复制 / 编辑 / 删除
+ * ② 选中对象后的工具条 objAction：完成 ✓ / 复制 / 换图（仅图片）/ 编辑 / 删除
  * ③ 右上角「添加」菜单：加页 / 加图片 / 加文字 / 本页底色 / 删本页，目标页判定 currentAddPage
  * ④ 文字贴单击零反应、双击才进编辑态（编辑逻辑在 text-sticker.js）
  *
@@ -48,6 +48,22 @@ function objAction(act, w, pid, iid, isText) {
     toast(isText ? '已复制这段文字' : '已复制这张图片');
     return;
   }
+  /* 换图：弹出选图框，选完只换掉这张图的图源 —— 位置 / 大小 / 旋转 / 上下层原样保留。
+     真正的换图动作在 media.js（#swapFile 的 change），这里只负责记住要换哪一张 */
+  if (act === 'swap') {
+    if (isText) return;
+    state.swapTarget = { pid, iid };
+    const sp = $('#swapFile'); if (sp) sp.click();
+    return;
+  }
+  /* 图片边框：开底部那张面板（拍立得 / 纯色 / 细线 / 拟物相框 + 自定义颜色 + 粗细）。
+     面板已经开着且就是这一张 → 再点一次收起来 */
+  if (act === 'frame') {
+    if (isText) return;
+    if (typeof frs !== 'undefined' && frs.open && frs.iid === iid) { closeFrameSheet(); return; }
+    openFrameSheet(pid, iid);
+    return;
+  }
   if (act === 'del') {
     const k = arr.indexOf(im); if (k >= 0) arr.splice(k, 1);
     disarmOut();
@@ -75,11 +91,15 @@ function objAction(act, w, pid, iid, isText) {
       toast('已还原原比例');
     });
   } else {
-    /* 铺满整页要顺手固定：不然整张纸都是图片，左右一划就成了拖图，翻不了页 */
-    im.fill = true; im.x = 0; im.y = 0; im.w = 1; im.h = 1;
-    im.locked = true;
-    save(); renderReader();
-    toast('已铺满整页 · 已固定，长按可解锁');
+    /* 铺满整页 = 整张图完整落进纸里（不裁切、不拉伸，等比撑到最大再居中，见 fillGeom）；
+       顺手固定：不然整张纸都是图片，左右一划就成了拖图，翻不了页 */
+    im.fill = true; im.locked = true;
+    /* 要先解码图片才量得到比例，所以是异步的：先按原盒子 + contain 画一帧（已经不裁了），
+       量完再按新几何重绘一次 */
+    applyFillGeom(im).then(() => {
+      save(); renderReader();
+      toast('已铺满整页 · 完整显示不裁切 · 已固定，长按可解锁');
+    });
   }
 }
 
@@ -106,10 +126,12 @@ function bindPage() {
   };
 
   $$('#slotL .pimg-wrap, #slotR .pimg-wrap, #slotL .ptext-wrap, #slotR .ptext-wrap').forEach(w => {
-    const pid = +w.dataset.page, iid = w.dataset.id;
-    const pageEl = w.closest('.paper');
+    let pid = +w.dataset.page;         // 可能被跨页拖到另一页，所以不能是 const
+    const iid = w.dataset.id;
     const isText = w.classList.contains('ptext-wrap');
-    /* 图片和文字共用一套拖拽 / 缩放 / 删除逻辑 */
+    /* 图片和文字共用一套拖拽 / 缩放 / 删除逻辑；
+       纸（.paper）也可能换（跨页拖迁会连节点一起搬），所以一律现取 */
+    const elPaper = () => w.closest('.paper');
     const getIm = () => {
       const pg = cur().pages[pid]; if (!pg) return null;
       return isText ? pageTexts(pg).find(x => x.id === iid) : (pg.images || []).find(x => x.id === iid);
@@ -118,6 +140,64 @@ function bindPage() {
       if (w.__outDown) { document.removeEventListener('pointerdown', w.__outDown, true); w.__outDown = null; }
     };
     const realign = () => { const im = getIm(); syncBar(w, im); fitObjBar(w); };
+
+    /* ==================== 跨页拖迁：把对象从左页拖到右页（或反过来） ====================
+       只在双页摊开、两页都是真内页时可用。做过三件事：
+         ① 数据：对象从本页的数组里摘下来，挂进另一页的数组，顺手重排 z（压在那页最上面）
+         ② DOM：Wrapper 节点跟着搬进另一页的 .pcontent，data-page 改成新页号
+         ③ 坐标：按「屏幕位置不动」反算新页里的百分比 —— 手势不断，手上那点位移也不断掉
+       给目标纸描一道高光（.drop-in），拖过去看得见落点；松手时（各个 drag 的 done 里）撤掉。
+       ⚠️ 不能用 getBoundingClientRect 来算新坐标：那是「转过之后」的外接框，
+          转了角度的文字 / 图片会歪掉；一律按 left + x × width 自己算（跟 fitObjBar 一个规矩） */
+    let crossLit = null;                                  // 正在高亮的那一张纸
+    const unCross = () => { if (crossLit) { crossLit.classList.remove('drop-in'); crossLit = null; } };
+    /* 过去了返回 true（调用方据此就地重设拖动的基准）；没过去返回 false */
+    const tryCrossPage = ev => {
+      /* 只有双页摊开才是「左右两页」；停在封面（整页视图）时不算 */
+      if (state.mode !== 'spread' || isCoverView()) { unCross(); return false; }
+      const j = cur(); if (!j) { unCross(); return false; }
+      const [a, b] = currentIndices();
+      const to = pid === a ? b : (pid === b ? a : -1);
+      if (to < 0 || !j.pages[to]) { unCross(); return false; }
+      const target = $(to === a ? '#slotL .paper' : '#slotR .paper');
+      const dst = target && target.querySelector('.pcontent');
+      if (!dst || target.classList.contains('endpaper') || target.classList.contains('coverpage')) { unCross(); return false; }
+      const im = getIm(); if (!im) { unCross(); return false; }
+      const tr = target.getBoundingClientRect();
+      if (tr.width < 8 || tr.height < 8) return false;
+      /* 再往里 12px 才算真的过去：不然停在中缝上会来回跳 */
+      const IN = 12;
+      const over = to < pid ? ev.clientX < tr.right - IN : ev.clientX > tr.left + IN;
+      if (!over) return false;                              // 没过去就原样：高光由「落在哪一页」决定，不清
+      const srcArr = isText ? pageTexts(j.pages[pid]) : (j.pages[pid].images || []);
+      const k = srcArr.findIndex(x => x.id === iid);
+      if (k < 0) return false;
+      const from = w.closest('.paper');
+      const fr = from ? from.getBoundingClientRect() : tr;
+      const obj = srcArr.splice(k, 1)[0];                 // ① 数据搬家（同一个对象实例，引用不变）
+      const dstArr = isText ? pageTexts(j.pages[to]) : (j.pages[to].images || (j.pages[to].images = []));
+      obj.z = nextZ(j.pages[to]);
+      dstArr.push(obj);
+      /* ③ 屏幕位置不动 → 换算成新页里的百分比。
+         落点可能探到新页外面（原本贴在左页右边的图，换算到右页就是左边界外），
+         这里按 OBJ_MIN / OBJ_MAX 收一把：越过这个小范围的对象会被拉回来一点，
+         总好过整个挂在页外看不见（纸是有 overflow:hidden 的） */
+      const sx0 = fr.left + im.x * fr.width, sy0 = fr.top + im.y * fr.height;
+      im.x = clamp((sx0 - tr.left) / tr.width, OBJ_MIN, OBJ_MAX);
+      im.y = clamp((sy0 - tr.top) / tr.height, OBJ_MIN, OBJ_MAX);
+      dst.appendChild(w);                                 // ② 节点搬家
+      pid = to; w.dataset.page = to;
+      w.style.left = (im.x * 100).toFixed(2) + '%';
+      w.style.top = (im.y * 100).toFixed(2) + '%';
+      /* 选中态跟着挪：数据换了页，那些「记住是第几页」的地方要指向新页 */
+      try {
+        if (typeof selText !== 'undefined' && selText && selText.iid === iid) selText.pid = to;
+        if (typeof sh !== 'undefined' && sh && sh.open && sh.iid === iid) sh.pid = to;
+      } catch (_) {}
+      unCross();
+      crossLit = target; target.classList.add('drop-in');
+      return true;
+    };
 
     /* 文字贴：解锁 → 选中（四角手柄 + 工具条）；点框外自动重新固定 */
     const lockText = () => {
@@ -150,18 +230,26 @@ function bindPage() {
     const startTextDrag = e => {
       state.imgDragging = true;
       const im = getIm(); if (!im) { state.imgDragging = false; return; }
-      const rect = pageEl.getBoundingClientRect();
-      const ox = im.x, oy = im.y;
+      let rect = elPaper().getBoundingClientRect();
+      let sx = e.clientX, sy = e.clientY, ox = im.x, oy = im.y;   // 跨页时这几个基准就地重设
       let moved = false;
-      track(e.clientX, e.clientY, (ev, sx, sy) => {
+      let fit = {};                                    // 手势期间纸和界面都不动，量一次就够
+      track(e.clientX, e.clientY, ev => {
         const dx = (ev.clientX - sx) / rect.width, dy = (ev.clientY - sy) / rect.height;
         if (Math.abs(dx) > .002 || Math.abs(dy) > .002) moved = true;
         im.x = clamp(ox + dx, OBJ_MIN, OBJ_MAX);
         im.y = clamp(oy + dy, OBJ_MIN, OBJ_MAX);
+        /* 先按这一帧的位移落好，再问「是不是过了中缝」——
+           反过来的话换算到新页时会用上一帧的位置，落点整整差一帧的手指位移 */
+        if (tryCrossPage(ev)) {
+          rect = elPaper().getBoundingClientRect();
+          sx = ev.clientX; sy = ev.clientY; ox = im.x; oy = im.y; fit = {}; moved = true;
+        }
         w.style.left = (im.x * 100).toFixed(2) + '%';
         w.style.top = (im.y * 100).toFixed(2) + '%';
-        if (moved) syncBar(w, im);
+        if (moved) { syncBar(w, im); fitObjBar(w, fit); }   // 工具条一路跟着躲
       }, () => {
+        unCross();
         state.imgDragging = false;
         if (moved) { save(); realign(); }
       });
@@ -187,9 +275,10 @@ function bindPage() {
        两个动作抢同一个 pointerdown，只能靠「有没有真的移动」来分 */
     const watchTextMove = e => {
       const im = getIm(); if (!im) return;
-      const rect = pageEl.getBoundingClientRect();
-      const sx = e.clientX, sy = e.clientY, ox = im.x, oy = im.y;
+      let rect = elPaper().getBoundingClientRect();
+      let sx = e.clientX, sy = e.clientY, ox = im.x, oy = im.y;   // 跨页时这几个基准就地重设
       let dragging = false;
+      let fit = {};
       const mv = ev => {
         if (!dragging) {
           if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 9) return;
@@ -199,14 +288,20 @@ function bindPage() {
         }
         im.x = clamp(ox + (ev.clientX - sx) / rect.width, OBJ_MIN, OBJ_MAX);
         im.y = clamp(oy + (ev.clientY - sy) / rect.height, OBJ_MIN, OBJ_MAX);
+        if (tryCrossPage(ev)) {                             // 同上：先更新再判「是不是过了中缝」
+          rect = elPaper().getBoundingClientRect();
+          sx = ev.clientX; sy = ev.clientY; ox = im.x; oy = im.y; fit = {};
+        }
         w.style.left = (im.x * 100).toFixed(2) + '%';
         w.style.top = (im.y * 100).toFixed(2) + '%';
+        syncBar(w, im); fitObjBar(w, fit);          // 一边打字一边挪：工具条也跟着躲
       };
       const up = () => {
         window.removeEventListener('pointermove', mv);
         window.removeEventListener('pointerup', up);
         window.removeEventListener('pointercancel', up);
         w.__dragging = false;
+        unCross();
         state.imgDragging = false;
         if (dragging) { save(); realign(); }
       };
@@ -220,19 +315,28 @@ function bindPage() {
       $$('.pimg-wrap,.ptext-wrap').forEach(x => x.classList.remove('sel', 'adjust'));
       w.classList.add('sel');
       const im = getIm(); if (!im) { state.imgDragging = false; return; }
-      syncBar(w, im); fitObjBar(w);
-      const rect = pageEl.getBoundingClientRect();
-      const ox = im.x, oy = im.y;
+      let fit = {};                                    // 手势期间纸和界面都不动，量一次就够
+      syncBar(w, im); fitObjBar(w, fit);
+      let rect = elPaper().getBoundingClientRect();
+      let sx = e.clientX, sy = e.clientY, ox = im.x, oy = im.y;   // 跨页时这几个基准就地重设
       let moved = false;
-      track(e.clientX, e.clientY, (ev, sx, sy) => {
+      track(e.clientX, e.clientY, ev => {
         const dx = (ev.clientX - sx) / rect.width, dy = (ev.clientY - sy) / rect.height;
         if (Math.abs(dx) > .002 || Math.abs(dy) > .002) moved = true;
         im.x = clamp(ox + dx, OBJ_MIN, OBJ_MAX);
         im.y = clamp(oy + dy, OBJ_MIN, OBJ_MAX);
+        /* 同样先落位移再判跨页，顺序不能倒（理由见 startTextDrag 里那句） */
+        if (tryCrossPage(ev)) {
+          rect = elPaper().getBoundingClientRect();
+          sx = ev.clientX; sy = ev.clientY; ox = im.x; oy = im.y;
+          fit = {}; fitObjBar(w, fit); moved = true;
+        }
         w.style.left = (im.x * 100).toFixed(2) + '%';
         w.style.top = (im.y * 100).toFixed(2) + '%';
+        fitObjBar(w, fit);                             // 工具条一路跟着躲
         /* 不再拖动时挪到最上层：上下层只由加入顺序决定（选中态本来就自带 z-index） */
       }, () => {
+        unCross();
         state.imgDragging = false;
         if (moved) { save(); realign(); }
       });
@@ -328,7 +432,9 @@ function bindPage() {
       h.addEventListener('pointerdown', e => {
         e.preventDefault(); e.stopPropagation();
         const im = getIm(); if (!im || im.locked) return;
-        const rect = pageEl.getBoundingClientRect();
+        const p = elPaper();
+        if (!p) return;
+        const rect = p.getBoundingClientRect();
         const c = h.dataset.h;
         /* ---- 旋转手柄：绕对象中心转；按住 Shift 每 15° 吸附，双击摆正 ---- */
         if (c === 'rot') {
@@ -387,6 +493,10 @@ function bindPage() {
            不然横竖会串：转了 90° 再拖右边界，会去改上边界 */
         const rad = (im.rot || 0) * Math.PI / 180;
         const cs = Math.cos(rad), sn = Math.sin(rad);
+        /* 旋转是绕中心转的：改了尺寸中心就要挪，整块（连同对角那个角）会被甩走一段。
+           下面每帧用 rotShift 把这段补回去，手感就跟没旋转时一样：拖哪个角，
+           对角那个钉死不动，手上的角严丝合缝跟着指针 */
+        const c0x = (oL + oR) / 2 * rect.width, c0y = (oT + oB) / 2 * rect.height;
         track(e.clientX, e.clientY, (ev, sx, sy) => {
           const px = ev.clientX - sx, py = ev.clientY - sy;
           const dx = (px * cs + py * sn) / rect.width;
@@ -406,8 +516,12 @@ function bindPage() {
           if (R - L < IMG_MIN_W) { if (moveLeft) L = Math.max(IMG_M, R - IMG_MIN_W); else R = Math.min(1 - IMG_M, L + IMG_MIN_W); }
           if (B - T < IMG_MIN_H) { if (moveTop) T = Math.max(IMG_M, B - IMG_MIN_H); else B = Math.min(1 - IMG_M, T + IMG_MIN_H); }
           const nw = Math.max(R - L, IMG_MIN_W), nh = Math.max(B - T, IMG_MIN_H);
-          if (Math.abs(nw - ow) > .002 || Math.abs(nh - oh) > .002 || Math.abs(L - ox) > .002 || Math.abs(T - oy) > .002) moved = true;
-          im.x = L; im.y = T; im.w = nw; im.h = nh;
+          /* 中心挪了多少 → 补多少（见 rotShift）；补完再夹一层，别一甩就出纸找不回来 */
+          const sf = rotShift(rect, im.rot, (L + R) / 2 * rect.width - c0x, (T + B) / 2 * rect.height - c0y);
+          const nx = clamp(L + sf.x, OBJ_MIN, OBJ_MAX), ny = clamp(T + sf.y, OBJ_MIN, OBJ_MAX);
+          if (Math.abs(nw - ow) > .002 || Math.abs(nh - oh) > .002 ||
+              Math.abs(nx - ox) > .002 || Math.abs(ny - oy) > .002) moved = true;
+          im.x = nx; im.y = ny; im.w = nw; im.h = nh;
           applyBox(w, im);
           syncTiny(w, im);
         }, () => {
@@ -461,8 +575,14 @@ function updateAddMenuHint() {
   const ok = !!j.pages[p];
   $$('#addMenu .am-p').forEach(s => {
     const btn = s.closest('button');
+    const act = btn && btn.dataset.addact;
+    if (act === 'spread') {                                  // 跨页图占两页：标出它将落在哪一跨页
+      const at = ok ? spreadInsertIndex(p) : -1;
+      s.textContent = at >= 0 ? `· 插到第 ${at + 1}–${at + 2} 页` : '';
+      return;
+    }
     // 「加一页」说的是插在哪一页后面，其余两项说的是加到哪一页
-    s.textContent = ok ? (btn && btn.dataset.addact === 'page'
+    s.textContent = ok ? (act === 'page'
       ? '· 在第 ' + (p + 1) + ' 页后' : '· 第 ' + (p + 1) + ' 页') : '';
   });
   const row = $('#amTarget'); if (!row) return;

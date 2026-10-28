@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 视觉素材 · SVG 图案 / 色板 / 字体 / 纸色   （脚本 2 / 25）
+ * Carnet · 视觉素材 · SVG 图案 / 色板 / 字体 / 纸色   （脚本 2 / 27）
  * ---------------------------------------------------------------------
  * ① 封面与纸面的 SVG 图案：三角、圆、星、心、小花、叶
  * ② 封面明暗 coverLum、图案层 patternLayers / faceLayers、模板纸面 tplStyle
@@ -7,8 +7,10 @@
  * ④ 文字贴字体 TEXT_FONTS / EN_FONTS 与字族解析 textFontStack（字族名一律单引号，多一个引号整条作废）
  * ⑤ 内页底色色阶 PAPER_RAMPS、三级取值 pageBgOf，以及面板预览用的 pageBgShown
  * ⑥ 全项目共用的尺寸与阈值：PAGE_RATIO / PAGE_W_DEFAULT / LUM_DARK
+ * ⑦ 装帧样式 BOOK_STYLES（精装 / 活页 / Personal 活页 / 方形画册）与内页比例 pageRatioOf
+ * ⑧ 图片边框 FRAMES：边框盒样式 frameBoxStyle / 图片样式 frameImgStyle（屏幕与导出共用）
  *
- * 对外接口：patternLayers, patternStyle, faceLayers, coverLum, TEMPLATES, TEXT_FONTS, normFont, textFontStack, PAPER_RAMPS, pageBgOf, pageBgShown, OB_*_SVG, ROT_SVG
+ * 对外接口：patternLayers, patternStyle, faceLayers, coverLum, TEMPLATES, TEXT_FONTS, normFont, textFontStack, PAPER_RAMPS, pageBgOf, pageBgShown, OB_*_SVG, ROT_SVG, BOOK_STYLES, bookStyleOf, pageRatioOf, FRAMES, frameBoxStyle, frameImgStyle
  *
  * 依赖模块：core
  *
@@ -115,6 +117,16 @@ const OB_DEL_SVG =
   + '<path d="M6.5 6.7l.85 11.7a1 1 0 001 .93h7.3a1 1 0 001-.93l.85-11.7"/>'
   + '<path d="M10.4 10.4v5.5"/>'
   + '<path d="M13.6 10.4v5.5"/></svg>';
+/* 图片工具条上的「换图」：两个反向的箭头，意思是把现在这张换成另一张 */
+const OB_SWAP_SVG =
+  '<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16">'
+  + '<path d="M4 8h14"/><path d="M15 5l3 3-3 3"/>'
+  + '<path d="M20 16H6"/><path d="M9 13l-3 3 3 3"/></svg>';
+/* 图片工具条上的「边框」：外面一个方框、里面再套一个 —— 一眼就是「给照片加个框」 */
+const OB_FRAME_SVG =
+  '<svg fill="none" height="16" stroke="currentColor" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24" width="16">'
+  + '<rect height="16" rx="2.4" width="16" x="4" y="4"/>'
+  + '<rect height="8" rx="1.2" width="8" x="8" y="8"/></svg>';
 /* 旋转手柄上的图标：一个转圈的箭头，让人一眼看出这颗管的是转 */
 const ROT_SVG =
   '<svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.3" viewBox="0 0 24 24" width="13">'
@@ -266,6 +278,150 @@ function faceLayers(cover, patKey) {
     rep: face ? L.rep + ', no-repeat' : L.rep
   };
 }
+
+/* ==================== 装帧样式 ====================
+   一本手帐本长什么样由 j.style 决定（缺字段 / 非法值一律按 'classic' 笔记本处理）。
+   asp    = 封面「宽 ÷ 高」
+   rings  = 左侧活页环的颗数（0 表示没有环，走硬壳书脊）
+   ribbon = 这一档**有没有封面彩带**：只有笔记本有，活页 / 画册都不画，
+            编辑器里对应那排颜色也跟着藏起来（见 editor.js 的 syncEditor）
+   ⚠️ 方形画册 square 的 asp 是 1，内页也跟着变成方的（见 pageRatioOf）——
+      封面比例、阅读器排版、导出三处都按它，缺一处就会歪。 */
+const BOOK_STYLES = [
+  { k: 'classic',  n: '笔记本',   d: '硬壳 · 书脊彩带',  asp: 3 / 4.05, rings: 0, ribbon: true },
+  { k: 'personal', n: '活页手帐', d: '六孔金属环 · 可换页', asp: 3 / 4.05, rings: 6, ribbon: false },
+  { k: 'square',   n: '方形画册', d: '方开本 · 硬壳',    asp: 1,        rings: 0, ribbon: false }
+];
+const BOOK_STYLE_DEFAULT = 'classic';
+/* 已下线的档位：老数据里存的这个值要转成现在的某一档，不能直接落回 classic
+   （11 环线圈本 ring → 六孔活页 personal，都是活页，外观最接近） */
+const BOOK_STYLE_LEGACY = { ring: 'personal' };
+function normBookStyle(s) {
+  const k = BOOK_STYLE_LEGACY[s] || s;
+  return BOOK_STYLES.some(x => x.k === k) ? k : BOOK_STYLE_DEFAULT;
+}
+function bookStyleOf(j) { return BOOK_STYLES.find(x => x.k === normBookStyle(j && j.style)) || BOOK_STYLES[0]; }
+/* 这一本的装订方式是不是「活页」（有环）：有环就不画硬壳书脊，改画金属环 */
+function isRingStyle(k) { return !!bookStyleOf({ style: k }).rings; }
+/* 这一档有没有封面彩带（只有笔记本有） */
+function bookHasRibbon(j) { return !!bookStyleOf(j).ribbon; }
+/* 内页比例（高 ÷ 宽）：方形画册是 1（方页），其余统一 3:4.05 */
+function pageRatioOf(j) { return bookStyleOf(j).k === 'square' ? 1 : PAGE_RATIO; }
+/* 封面比例（高 ÷ 宽），给导出 / 预览用：封面与内页同比例，铺满整页的封面图才对得上 */
+function coverRatioOf(j) { return 1 / (bookStyleOf(j).asp || (3 / 4.05)); }
+
+/* ==================== 图片边框 ====================
+   边框挂在图片盒子上（.pframe），不动画源：换框 / 换色 / 拖粗细都是改一个字段的事。
+   im.fr  = 边框样式（见 FRAMES，缺省 / 非法值 = 无边框）
+   im.frc = 边框颜色（六位 hex；空串时各档用自己的默认色）
+   im.frw = 粗细，1~100 的连续值（面板上是一根拖动条），缺省 FRAME_W_DEFAULT
+   屏幕与导出共用 frameBoxStyle / frameImgStyle 这两个函数，免得两边画得不一样。
+   边框尺寸一律用百分比（相对盒子宽）+ 少量 px（阴影 / 细线），导出时按 sc 缩放那部分 px。
+
+   ⚠️ 细线那一档必须用 border，不能用 inset 阴影：
+      inset box-shadow 画在「背景之上、内容之下」，而 .pframe 里整块内容就是那张 <img>，
+      线会被图片整个盖住 —— 症状就是「选了细线但一条都看不见」。
+      border 会占一点点位置（图片缩一线），但 .pframe 是 border-box、图片 100%×100%，
+      缩的是等比的内容区，不会变形。 */
+const FRAMES = [
+  { k: 'none',     n: '无边框' },
+  { k: 'polaroid', n: '拍立得' },
+  { k: 'color',    n: '纯色' },
+  { k: 'line',     n: '细线' },
+  { k: 'photo',    n: '相框' }
+];
+/* 边框预设色：白 / 米 / 墨 三档打头（最常用的边框色），后面几档是彩色纸框 */
+const FRAME_COLORS = ['#ffffff', '#f6efe2', '#1f2330', '#e0668a', '#84abdd', '#78c1a4', '#d6a236', '#8a5fbf'];
+const FRAME_DEFAULT_COLOR = {
+  polaroid: '#ffffff', color: '#ffffff', line: '#22242f', photo: '#c8a675'
+};
+/* 粗细拖动条的默认值与取值域（1~100）。老数据里的 1/2/3 三档由 frameWidth 折算过来 */
+const FRAME_W_DEFAULT = 50;
+function normFrame(f) { return FRAMES.some(x => x.k === f) ? f : 'none'; }
+/* 只认 #rgb / #rrggbb，其它一律当「没设」——各档回落到自己的默认色 */
+function normHex6(v) {
+  let s = String(v || '').trim();
+  if (/^#[0-9a-fA-F]{3}$/.test(s)) s = '#' + s.slice(1).split('').map(x => x + x).join('');
+  return /^#[0-9a-fA-F]{6}$/.test(s) ? s.toLowerCase() : '';
+}
+/* 木框 / 纸框表面那层极细的颗粒（封面曾也用这张，现已去掉，只剩边框在用）。
+   写在 JS 里是因为边框样式是内联下发的，导出也用同一串 —— 省得 CSS 与导出各存一份。
+   ⚠️ 这串要塞进 style="…" 属性，所以整段只能走 encodeURIComponent：
+      括号（url(#n) 里的）和引号都得转成 %xx，否则
+      ① 引号会把 HTML 属性提前截断（背景图整个失效，只留个底色）
+      ② 未加引号的 url() 里出现括号会被 CSS 判为非法
+      用的时候写 url('${GRAIN_URL}') —— 单引号：整串值还要塞进 style="…" 属性，双引号会把属性截断 */
+const GRAIN_URL = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+  `<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'>`
+  + `<feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/>`
+  + `<feColorMatrix type='saturate' values='0'/></filter>`
+  + `<rect width='120' height='120' filter='url(#n)' opacity='.5'/></svg>`)
+  /* encodeURIComponent 不管单引号，而 CSS 的未加引号 url() 里单引号同样非法
+     （不许出现的字符是：空白、" ' ( ) 反斜杠）—— 单独补一道转义 */
+  .replace(/'/g, '%27');
+/* 粗细：1~100 的连续值（面板上是拖动条）。
+   老数据存的是 1/2/3 三档（<=5 一定是旧的），折算成 20/50/80，看上去跟原来差不多 */
+function frameWidth(im) {
+  const v = Math.round(+((im && im.frw) || 0));
+  if (!v) return FRAME_W_DEFAULT;
+  if (v <= 5) return [20, 50, 80][v - 1] || FRAME_W_DEFAULT;
+  return clamp(v, 1, 100);
+}
+function frameColor(im, k) {
+  const c = normHex6(im && im.frc);
+  return c || FRAME_DEFAULT_COLOR[k] || '#ffffff';
+}
+/* 边框盒子的样式（写在包住 <img> 的那层 .pframe 上）。
+   拍立得下边故意留厚一条（底下能写字，是拍立得的招牌），相纸是**光滑**的、不要颗粒。
+   sc = 导出缩放（导出画布比屏幕宽，阴影 / 细线那几处 px 要跟着放大，比例才对） */
+function frameBoxStyle(im, sc) {
+  const k = normFrame(im && im.fr);
+  if (k === 'none') return '';
+  const s = sc || 1, w = frameWidth(im) / 100, c = frameColor(im, k);
+  const px = v => (v * s).toFixed(2) + 'px';
+  const base = +(1.4 + w * 4).toFixed(2);              // 边框占盒子宽的百分比
+  if (k === 'polaroid') {
+    const p = base, b = +(p * 3.1).toFixed(2);
+    /* 相纸是光滑的（带一层极淡的顶光就够了），加噪点反而像蒙了层脏东西 */
+    return `padding:${p}% ${p}% ${b}%;background:#fff;`
+      + `box-shadow:0 ${px(3 + w * 4)} ${px(9 + w * 16)} -${px(4)} rgba(24,26,44,.55),0 1px 2px rgba(0,0,0,.2);`;
+  }
+  if (k === 'color') {
+    return `padding:${base}%;background-color:${c};background-image:url('${GRAIN_URL}');background-size:120px 120px;`
+      + `box-shadow:0 ${px(2)} ${px(7)} -${px(3)} rgba(24,26,44,.42);`;
+  }
+  /* 细线：用 border 描（inset 阴影会被 <img> 盖住，一条都看不见）。
+     .pframe 是 border-box，图片 100%×100% 跟着缩一点点，不会变形 */
+  if (k === 'line') {
+    return `padding:0;border:${px(0.7 + w * 2.6)} solid ${c};`
+      + `box-shadow:0 ${px(1)} ${px(3)} -${px(2)} rgba(24,26,44,.3);`;
+  }
+  /* 拟物相框：木色底 + 顺纹的深浅条 + 一层颗粒 + 「左上亮、右下暗」的斜面光 —— 四层叠出木框的质感。
+     少了纹理那两层，再好的斜面看着也只是一圈平涂的棕色 */
+  if (k === 'photo') {
+    const p = +(base * 1.35).toFixed(2);
+    return `padding:${p}%;background-color:${c};`
+      + `background-image:url('${GRAIN_URL}'),`
+      + `repeating-linear-gradient(93deg,rgba(0,0,0,.24) 0 3px,rgba(255,255,255,.13) 3px 7px),`
+      + `linear-gradient(145deg,rgba(255,255,255,.6),rgba(255,255,255,0) 38%,rgba(0,0,0,.46));`
+      + `background-size:120px 120px,auto,auto;`
+      /* 斜面：外圈一道受光的亮边、内圈一道背光的暗边，再补上下两道内外阴影 —— 框条是凸出来的 */
+      + `box-shadow:inset 0 0 0 ${px(1)} rgba(255,255,255,.62),inset 0 0 0 ${px(2)} rgba(0,0,0,.3),`
+      + `inset 0 ${px(2)} ${px(3)} rgba(0,0,0,.42),inset 0 -${px(2)} ${px(3)} rgba(255,255,255,.24),`
+      + `0 ${px(4 + w * 6)} ${px(11 + w * 20)} -${px(5)} rgba(20,22,40,.6);`;
+  }
+  return '';
+}
+/* 图片本体要不要跟着改一点：拍立得 / 相框的照片是硬边直角，再压一道极淡的内框线更像实物。
+   注意 <img> 的 inset 阴影是画在内容底下的（会被图盖住），所以一律用外描边 */
+function frameImgStyle(im) {
+  const k = normFrame(im && im.fr);
+  if (k === 'polaroid') return 'border-radius:0;box-shadow:0 0 0 1px rgba(0,0,0,.1);';
+  if (k === 'photo') return 'border-radius:0;box-shadow:0 0 0 1px rgba(0,0,0,.26);';
+  return '';
+}
+/* 有没有边框（渲染与导出都要问一句） */
+function hasFrame(im) { return normFrame(im && im.fr) !== 'none'; }
 
 /* ==================== 调色板 ==================== */
 const COLORS = ['#f6d6c8','#f4a9b8','#e97ea0','#f3c98b','#f0e2b0','#cfe3c9','#9fc9b6','#bcd4f0','#8fb0e0','#c9b8ec','#a596d4','#b8bdd0','#6d748f','#3a4358','#222838','#f4f1ea'];

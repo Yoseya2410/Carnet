@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 基础变量与页面骨架   （样式 1 / 16）
+ * Carnet · 基础变量与页面骨架   （样式 1 / 19）
  * ---------------------------------------------------------------------
  * ① CSS 变量（色板、毛玻璃、圆角、阴影）
  * ② 全屏布局：#app 高度由 JS 锁定，键盘弹起不顶底栏
@@ -24,6 +24,11 @@
   font-style:normal;
 }
 :root{
+  /* 默认界面背景：主页 / 阅读器 / body 三处共用**这一份**（见 storage.js 的 applyBg）。
+     以前 #reader 自己写了一条深色径向渐变，默认档下主页是这片暖白、阅读器却是深蓝，
+     两边完全不是同一个画面 —— 而且阅读器那批文字已经按浅底换成深色了，压在深蓝上根本看不清。
+     改背景只动这一处，三处一起变。 */
+  --app-bg:linear-gradient(168deg,#fbfbfa 0%,#f2f1ef 46%,#eceae7 100%);
   --bg1:#9aa0bb; --bg2:#767c99; --bg3:#565c7a;
   --ink:#2b2f3d; --paper:#fffdf8; --line:#dfe3ee;
   --accent:#e0668a; --glass:rgba(255,255,255,.14);
@@ -51,7 +56,11 @@ html,body{height:100%;margin:0;overflow:hidden}
 body{
   font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Segoe UI",Roboto,sans-serif;
   color:#fff; user-select:none;
-  background:radial-gradient(130% 110% at 50% 0%,#a2a8c4 0%,#7e849f 42%,#5b6182 100%);
+  /* 默认界面背景：一片很浅的暖白（不是纯 #fff —— 纯白背景下书的投影会糊掉、边界不清）。
+     ⚠️ 浅底 = 直接露在这上面的白字（标题 / 页数 / 提示）全部看不清，
+        所以默认的 default 档也要加 bg-light，把那批文字换成深色（见 storage.js 的 applyBgTo）。
+     毛玻璃控件（--frost 那套）本身是深色的，白字在上头照样清楚，不用跟着改。 */
+  background:var(--app-bg);
 }
 input,textarea{user-select:text}
 /* touch-action:manipulation —— 去掉移动端「点一下先等 300ms 看是不是双击缩放」的那段延迟，

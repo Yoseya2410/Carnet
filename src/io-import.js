@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 导入 · 校验与查重   （脚本 7 / 25）
+ * Carnet · 导入 · 校验与查重   （脚本 7 / 27）
  * ---------------------------------------------------------------------
  * ① normalizeJournal：补全缺省字段，保留未知字段，导出→导入不丢东西
  * ② readJournals：兼容单本 / 裸对象 / 多本数组三种写法，带 checksum 校验
@@ -34,6 +34,8 @@ function normalizeJournal(raw) {
     /* 彩带：'none' 是「透明」那一档，要原样留住；不是合法色值才回落到默认色 */
     ribbon: String(j.ribbon || '') === RIBBON_NONE ? RIBBON_NONE
       : (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(String(j.ribbon || '')) ? j.ribbon : '#c98a8a'),
+    /* 装帧样式（精装 / 活页 / Personal 活页 / 方形画册）：乱填的一律按精装 */
+    style: normBookStyle(j.style),
     /* 已下线的「日历」模板映射到现在的空白牛皮纸，导入老文件时页面不丢 */
     template: j.template === 'calendar' ? 'kraftplain'
       : (TEMPLATES.some(t => t.k === j.template) ? j.template : 'blank'),

@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 书架模式   （样式 14 / 16）
+ * Carnet · 书架模式   （样式 16 / 19）
  * ---------------------------------------------------------------------
  * ① 每排书 + 亚克力搁板（配金属螺丝）
  * ② 拖动排序：被拎起的淡坑、跟随手指的悬浮副本
@@ -21,10 +21,25 @@
 /* 一排 = 一列书 + 它脚下的搁板；排与排之间留出明显间距，上下两排不打架 */
 .shelf-row{margin-bottom:clamp(24px,3.6vh,42px)}
 .shelf-row:last-child{margin-bottom:2px}
+/* ⚠️ margin-bottom 是负的：书脚要**沉进搁板里**，不是摞在板子上面（书是站在玻璃槽里的）。
+   沉多深要跟搁板高度配套 —— 板 30px 时沉 22px（留 8px 在书脚之下，别把板底穿透）；
+   板 13px（深色背景那条）只沉 7px。改板高时这两个数要一起动，不然书要么浮着要么穿出去。 */
 .shelf-books{display:flex;justify-content:center;align-items:flex-end;gap:var(--sgap,20px);position:relative;z-index:1;margin-bottom:-7px}
+#home.bg-light .shelf-books{margin-bottom:-26px}
 /* 书架上不做轮播的缩放/明暗处理，全部原色 */
 .shelf-books .book-item,.shelf-books .book-item.active{filter:none;transform:none;cursor:pointer}
-.shelf-books .cover{width:var(--sbw,120px)}
+/* 悬浮 / 选中 = 从架子上抬起来一点：鼠标停在哪本上，哪本就是当前这一本（见 home-events 的 mouseover）。
+   ⚠️ 这两条必须写在上面那条之后：同为 .shelf-books .book-item… 的权重，靠后来居上才能压过 transform:none。
+   过渡单独调快（全局 .book-item 是 .5s，悬停抬起用 .5s 会慢半拍，像卡了一下才浮起来） */
+.shelf-books .book-item{
+  transition:transform .24s cubic-bezier(.22,.8,.3,1),filter .24s ease,box-shadow .24s ease
+}
+.shelf-books .book-item.active{transform:translateY(-8px) scale(1.035)}
+.shelf-books .book-item.active .cover{
+  box-shadow:0 16px 26px -14px rgba(18,20,34,.62),0 5px 12px -6px rgba(18,20,34,.34)
+}
+/* ⚠️ 只设 --cover-w，别直接写 width —— 方形画册要按这个基准把宽放大 1.35 倍才能跟别的本子一样高 */
+.shelf-books .cover{--cover-w:var(--sbw,120px)}
 /* 没碰到的手帐本：页数与编辑按钮都藏着，只留干净的封面。
    选择器要写满三层 —— 否则会被前面 .book-item.active .gear 的同权重规则压过去，
    当前选中的那本会一直挂着编辑按钮 */
@@ -40,6 +55,11 @@
 .shelf-books .book-item.touched .cover-badge{opacity:.92}
 .shelf-books .book-item.touched .gear{pointer-events:auto}
 @media (hover:hover){
+  /* 悬停即选中，所以抬起的手感跟 .active 完全一致（同一组数值） */
+  .shelf-books .book-item:hover{transform:translateY(-8px) scale(1.035)}
+  .shelf-books .book-item:hover .cover{
+    box-shadow:0 16px 26px -14px rgba(18,20,34,.62),0 5px 12px -6px rgba(18,20,34,.34)
+  }
   .shelf-books .book-item:hover .gear,
   .shelf-books .book-item:hover .cover-badge{opacity:.92}
   .shelf-books .book-item:hover .gear{pointer-events:auto}
@@ -51,6 +71,30 @@
   background:linear-gradient(180deg,rgba(255,255,255,.62),rgba(255,255,255,.30) 52%,rgba(255,255,255,.46));
   box-shadow:0 12px 24px -10px rgba(20,22,40,.45),inset 0 1px 0 rgba(255,255,255,.65),inset 0 -1px 0 rgba(255,255,255,.28)
 }
+/* 浅色背景（含默认的白底）：搁板还是**亚克力玻璃**那条（跟深色背景同一套语言），
+   只是—— ① 更高：把书脚整段包进去，看着是「书立在一道玻璃槽里」而不是压在一根细条上；
+   ② 保留顶 / 底两道内高光（玻璃板的厚度感靠这两条，不是靠实色）
+   ⚠️ 上面还要压一层横向暗影（见 background.css 的 .shelf-board::before），
+      那是「这一排书落在板上的接触影」，没有它书看着像悬空拼贴上去的 */
+#home.bg-light .shelf-board{
+  height:34px;border-radius:9px;
+  /* ⚠️ 板身不能太透：全透就只剩上下两条亮边，看不出「板」这块东西在哪，
+     书也就无所谓「包进去」了。留 .5 上下、中间 .42，是「透但看得见是一块板」的度 */
+  background:linear-gradient(180deg,
+    rgba(255,255,255,.86) 0%,      /* 顶面：迎光的一条亮边 */
+    rgba(255,255,255,.52) 14%,
+    rgba(255,255,255,.42) 50%,     /* 板身 */
+    rgba(255,255,255,.50) 84%,
+    rgba(255,255,255,.72) 100%);   /* 底沿：玻璃收边 */
+  backdrop-filter:blur(1.5px) saturate(140%);
+  -webkit-backdrop-filter:blur(1.5px) saturate(140%);
+  box-shadow:
+    0 12px 22px -12px rgba(30,28,24,.34),      /* 整块往地上投的软影 */
+    inset 0 1.5px 0 rgba(255,255,255,.95),     /* 顶面亮边 = 玻璃上沿 */
+    inset 0 -1.5px 0 rgba(255,255,255,.8),     /* 底沿亮边 = 玻璃下沿 */
+    inset 0 0 0 .5px rgba(255,255,255,.5);     /* 一圈轮廓，把板从背景里勾出来 */
+}
+/* 深色自定义背景时还是原来那块半透明亚克力板 —— 实色板在深色背景上会很突兀 */
 .shelf-board .screw{
   position:absolute;top:50%;width:11px;height:11px;margin-top:-5.5px;border-radius:50%;
   background:radial-gradient(circle at 35% 30%,#ffffff,#c9ccd8 55%,#9498a8);
@@ -68,6 +112,11 @@
 .shelf-wrap.sorting{cursor:grabbing;touch-action:none;user-select:none;-webkit-user-select:none}
 /* 排序过程中每本书都可能被 FLIP 位移，提前提示合成层，滑动更跟手 */
 .shelf-wrap.sorting .book-item{cursor:grabbing;will-change:transform}
+/* 拖动排序时别再抬起：手上的副本已经代表这一本了，原位的「坑」跟着浮起来会打架 */
+.shelf-wrap.sorting .book-item:hover,
+.shelf-wrap.sorting .book-item.active{transform:none;box-shadow:none}
+.shelf-wrap.sorting .book-item:hover .cover,
+.shelf-wrap.sorting .book-item.active .cover{box-shadow:none}
 .shelf-wrap.sorting .book-item .gear,
 .shelf-wrap.sorting .book-item .cover-badge{opacity:0!important;pointer-events:none}
 /* 被拎起来的那本留在原位当一个淡淡的「坑」，提示松手会落在哪 */

@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 分享菜单与多选选择条   （样式 15 / 16）
+ * Carnet · 分享菜单与多选选择条   （样式 17 / 19）
  * ---------------------------------------------------------------------
  * ① 向上弹出的分享 / 导出菜单
  * ② 书架多选时的底部选择条
@@ -49,7 +49,7 @@
   border-color:rgba(255,255,255,.18);box-shadow:none
 }
 #home.bg-light .pickbar.purpose-del .pick-btn#pickExport{
-  color:#2b2f3d;background:rgba(40,44,66,.12);border-color:rgba(40,44,66,.16)
+  color:#2b2f3d;background:rgba(255,255,255,.34);border-color:rgba(255,255,255,.6)
 }
 /* 窄屏：选择条五个按钮收紧，避免挤出屏幕 */
 @media (max-width:430px){
@@ -57,7 +57,7 @@
   .pick-btn{padding:8px 11px;font-size:12.5px;letter-spacing:.03em}
   .pick-count{min-width:52px;padding:6px 2px;font-size:12.5px}
 }
-#home.bg-light .pick-btn{color:#2b2f3d;background:rgba(40,44,66,.12);border-color:rgba(40,44,66,.16)}
+#home.bg-light .pick-btn{color:#2b2f3d;background:rgba(255,255,255,.34);border-color:rgba(255,255,255,.6)}
 #home.bg-light .pick-btn.primary{color:#fff}
 /* 封面上那个勾选圈：只有多选时才出现 */
 .pick{

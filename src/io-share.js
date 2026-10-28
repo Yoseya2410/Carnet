@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 导出 · 多选批量导出   （脚本 6 / 25）
+ * Carnet · 导出 · 多选批量导出   （脚本 6 / 27）
  * ---------------------------------------------------------------------
  * ① buildExportFile：造出一本要导出的文件（格式与单本导出一致，但不碰文件系统）
  * ② exportMany / exportPicked：书架多选后一本一个文件
@@ -28,7 +28,7 @@ async function buildExportFile(j, kind) {
   }
   if (kind === 'svg') {
     const pages = exportPages(j);
-    const W = EX_W, H = Math.round(W * PAGE_RATIO);
+    const W = EX_W, H = Math.round(W * pageRatioOf(j));
     const body = pages.map((idx, i) =>
       `<foreignObject x="0" y="${i * H}" width="${W}" height="${H}">`
       + pageExportXHTML(j, idx, W, H) + `</foreignObject>`).join('');
@@ -43,14 +43,14 @@ async function buildExportFile(j, kind) {
   }
   /* pdf */
   const pages = exportPages(j);
-  const CW = EX_W, CH = Math.round(EX_W * PAGE_RATIO);
+  const CW = EX_W, CH = Math.round(EX_W * pageRatioOf(j));
   const jpegs = [];
   for (let i = 0; i < pages.length; i++) {
     const c = await renderExportCanvas(j, pages[i], CW);
     const b = await canvasBytes(c, 0.9);
     jpegs.push({ w: CW, h: CH, data: new Uint8Array(await b.arrayBuffer()) });
   }
-  const bytes = buildPdf(jpegs, 595, +(595 * PAGE_RATIO).toFixed(2));
+  const bytes = buildPdf(jpegs, 595, +(595 * pageRatioOf(j)).toFixed(2));
   return {
     name: exportBaseName(j) + '.pdf', mime: 'application/pdf',
     blob: new Blob([bytes], { type: 'application/pdf' })

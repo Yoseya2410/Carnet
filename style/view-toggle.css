@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 展示模式切换按钮   （样式 13 / 16）
+ * Carnet · 展示模式切换按钮   （样式 15 / 19）
  * ---------------------------------------------------------------------
  * ① 左右滑动 / 书架 两态切换
  * ② 白色圆钮滑块：跟着当前模式滑到对应那一格，图标换成深色
@@ -16,16 +16,19 @@
   position:relative;display:flex;gap:3px;padding:4px;border-radius:999px;flex:0 0 auto;
   background:rgba(255,255,255,.17);border:1px solid rgba(255,255,255,.24);
   backdrop-filter:blur(16px) saturate(1.6);-webkit-backdrop-filter:blur(16px) saturate(1.6);
-  box-shadow:0 8px 20px -12px rgba(6,8,20,.6), inset 0 1px 0 rgba(255,255,255,.24)
+  /* 底部投影要浅：它是贴在界面上的一枚小胶囊，影子重了会看着像浮起来的按钮。
+     做法是「铺得开、浓度低」—— 面积大一点才看得出离地，浓度低才不显重 */
+  box-shadow:0 8px 18px -10px rgba(6,8,20,.24), inset 0 1px 0 rgba(255,255,255,.24)
 }
 /* 白钮：.view-toggle[data-vt] 由 syncViewToggle() 同步（shelf = 第一格，carousel = 第二格） */
 .vt-thumb{
   position:absolute;left:4px;top:4px;width:36px;height:36px;border-radius:50%;z-index:0;
-  background:#fff;box-shadow:0 3px 9px -2px rgba(6,8,20,.45),0 1px 2px rgba(6,8,20,.22);
+  background:#fff;box-shadow:0 2px 6px -2px rgba(6,8,20,.26),0 1px 2px rgba(6,8,20,.14);
   transition:transform .32s cubic-bezier(.34,1.24,.44,1)
 }
 .view-toggle[data-vt="shelf"] .vt-thumb{transform:translateX(0)}
-.view-toggle[data-vt="carousel"] .vt-thumb{transform:translateX(39px)}
+.view-toggle[data-vt="spine"] .vt-thumb{transform:translateX(39px)}
+.view-toggle[data-vt="carousel"] .vt-thumb{transform:translateX(78px)}
 .view-toggle button{
   position:relative;z-index:1;
   width:36px;height:36px;border-radius:50%;display:grid;place-items:center;

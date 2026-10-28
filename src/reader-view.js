@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 阅读器渲染 · 书页与排版   （脚本 13 / 25）
+ * Carnet · 阅读器渲染 · 书页与排版   （脚本 13 / 27）
  * ---------------------------------------------------------------------
  * ① 单页 / 双页摊开判定 isSpread、书的尺寸与中缝布局 layoutBook
  * ② 封面页与内页渲染 coverPageHTML / pageHTML（图片与文字按 z 合排 pageObjs）
@@ -22,9 +22,10 @@ function layoutBook() {
   /* 文字编辑面板占住下半截时，书只在上面那一段里排版（__sheetCov 由 sheetLayout() 量出来） */
   const availH = Math.max(140, stage.clientHeight - (window.__sheetCov || 0));
   const spread = state.mode === 'spread';
-  /* 纸张统一用 3:4.05 —— 与封面（.cover）同比例，
+  /* 纸张比例：方形画册是方开本、内页跟着变方（见 visuals.js 的 pageRatioOf），
+     其余一律 3:4.05 —— 与封面（.cover）同比例，
      这样阅读器里铺满整页的封面和主页显示的封面完全一样 */
-  const RATIO = 1 / PAGE_RATIO;                 // 页宽 ÷ 页高（PAGE_RATIO 是页高 ÷ 页宽）
+  const RATIO = 1 / pageRatioOf(cur());         // 页宽 ÷ 页高（pageRatioOf 给的是页高 ÷ 页宽）
   let pageH, pageW;
   if (spread) {
     pageH = Math.min(availH * 0.9, (availW * 0.94) / (2 * RATIO));
@@ -43,33 +44,59 @@ function coverPageHTML() {
   const j = cur();
   return `<div class="paper coverpage">${coverHTML(j)}</div>`;
 }
+/* 活页手帐的中缝金属环：一双摊开的两页是穿在同一组环上的，
+   所以双页摊开时中缝必须从封面那排环延伸过来 —— 少了它，翻开的内页跟封面不像同一本。
+   环数直接读 BOOK_STYLES.rings（跟封面同源）；不是活页装帧返回空串，中缝只剩折痕 */
+function gutterRingsHTML() {
+  const st = bookStyleOf(cur());
+  if (!st.rings) return '';
+  const n = st.rings, gap = 92 / n;
+  return Array.from({ length: n },
+    (_, i) => `<i style="top:${(4 + i * gap).toFixed(2)}%"></i>`).join('');
+}
 /* 选中对象时浮在它上方的那条工具条（形状在 style/text.css 的 .objbar 里）。
    直接挂进对象内部：拖动 / 拉伸 / 重绘都自动跟着走，不用另算坐标。
-   kind='text' 第三颗是「编辑文字」，kind='image' 换成「铺满整页 / 还原原比例」 */
-function objBarHTML(kind, on) {
+   kind='text' 第三颗是「编辑文字」，kind='image' 换成「铺满整页 / 还原原比例」，
+   并且多一颗「换图」（只有图片有：文字贴换不了图） */
+function objBarHTML(kind, o) {
   const mid = kind === 'image'
-    ? { t: on ? '还原原比例' : '铺满整页', svg: on ? RESTORE_SVG : FILL_SVG, cls: on ? ' on' : '' }
+    ? { t: o && o.fill ? '还原原比例' : '铺满整页', svg: o && o.fill ? RESTORE_SVG : FILL_SVG, cls: o && o.fill ? ' on' : '' }
     : { t: '编辑文字', svg: OB_EDIT_SVG, cls: '' };
+  const swap = kind === 'image'
+    ? `<button class="ob" data-ob="swap" title="换一张图">${OB_SWAP_SVG}</button>` : '';
+  /* 边框只有图片有：开底部那张「图片边框」面板（拍立得 / 纯色 / 细线 / 拟物相框，颜色可自定义）。
+     已经加了边框就把这颗点亮，一眼看得出这张图是带框的 */
+  const frame = kind === 'image'
+    ? `<button class="ob${hasFrame(o) ? ' on' : ''}" data-ob="frame" title="图片边框">${OB_FRAME_SVG}</button>` : '';
   return `<div class="objbar">
       <button class="ob" data-ob="close" title="完成">${OB_OK_SVG}</button>
       <button class="ob" data-ob="copy" title="复制一份">${OB_COPY_SVG}</button>
+      ${swap}
+      ${frame}
       <button class="ob${mid.cls}" data-ob="edit" title="${mid.t}">${mid.svg}</button>
       <button class="ob ob-del" data-ob="del" title="删除">${OB_DEL_SVG}</button>
     </div>`;
 }
-/* 旋转写进 style：transform 转整块，--rot 留给工具条反着转回来（见 text.css 的 .objbar） */
+/* 旋转写进 style：transform 转整块，--rot 留给工具条反着转回来（见 text.css 的 .objbar）。
+   --cur-a / --cur-b 是拉伸手柄的指针 —— 渲染完就该是对的，不能等到动手转一圈才纠正 */
 function rotStyle(o) {
   const r = +(o.rot || 0);
-  return r ? `--rot:${r.toFixed(1)}deg;transform:rotate(${r.toFixed(1)}deg);` : '';
+  if (!r) return '';
+  return `--rot:${r.toFixed(1)}deg;transform:rotate(${r.toFixed(1)}deg);`
+    + `--cur-a:${cursorValue(r + 45)};--cur-b:${cursorValue(r - 45)};`;
 }
 function imgWrapHTML(im, i) {
   const hw = im.h || clamp(im.w / 0.68, .04, IMG_MAX);   // 老数据补兜底高度，加载后自动校准
+  /* 边框：把 <img> 塞进一层 .pframe，边框画在这一层上（padding 撑出来），图片一个字节都不改。
+     样式由 frameBoxStyle 算出来 —— 导出用的是同一个函数，屏幕和 PDF / SVG 长得一模一样 */
+  const pic = `<img class="pimg" draggable="false" decoding="async" src="${im.src}" alt="" style="${frameImgStyle(im)}">`;
+  const photo = hasFrame(im) ? `<div class="pframe" style="${frameBoxStyle(im)}">${pic}</div>` : pic;
   return `
-    <div class="pimg-wrap${String(im.src).startsWith('data:image/svg') ? ' sticker' : ''}${im.locked ? ' locked' : ''}${im.fill ? ' fill' : ''}${tinyCls(im, hw)}" data-page="${i}" data-id="${im.id}"
+    <div class="pimg-wrap${String(im.src).startsWith('data:image/svg') ? ' sticker' : ''}${im.locked ? ' locked' : ''}${im.fill ? ' fill' : ''}${im.fit ? ' fit' : ''}${tinyCls(im, hw)}" data-page="${i}" data-id="${im.id}"
          style="left:${(im.x * 100).toFixed(2)}%;top:${(im.y * 100).toFixed(2)}%;width:${(im.w * 100).toFixed(2)}%;height:${(hw * 100).toFixed(2)}%;${rotStyle(im)}">
       <!-- decoding="async"：图片交给后台线程解码，翻页 / 重绘时主线程不等它，不会卡一下 -->
-      <img class="pimg" draggable="false" decoding="async" src="${im.src}" alt="">
-      ${objBarHTML('image', !!im.fill)}
+      ${photo}
+      ${objBarHTML('image', im)}
       ${rotHandleHTML()}
       <div class="hdl tl" data-h="tl"></div>
       <div class="hdl tr" data-h="tr"></div>
@@ -80,11 +107,13 @@ function imgWrapHTML(im, i) {
 function textWrapHTML(t, i) {
   const st = textStyle(t);
   const cls = (t.text || '').trim() ? '' : ' placeholder';
+  /* 便利贴：就是一张带了便签纸皮肤的文字贴（t.note 存纸色）—— 照样能打字、挪位置、旋转 */
+  const nc = normHex6(t.note);
   return `
-    <div class="ptext-wrap${t.locked === false ? '' : ' locked'}" data-page="${i}" data-id="${t.id}"
-         style="left:${(t.x * 100).toFixed(2)}%;top:${(t.y * 100).toFixed(2)}%;width:${(t.w * 100).toFixed(2)}%;height:${(t.h * 100).toFixed(2)}%;${rotStyle(t)}">
-      <div class="ptxt${cls}" style="${st}">${t.text ? esc(t.text) : '双击编辑文字'}</div>
-      ${objBarHTML('text')}
+    <div class="ptext-wrap${nc ? ' note' : ''}${t.locked === false ? '' : ' locked'}" data-page="${i}" data-id="${t.id}"
+         style="left:${(t.x * 100).toFixed(2)}%;top:${(t.y * 100).toFixed(2)}%;width:${(t.w * 100).toFixed(2)}%;height:${(t.h * 100).toFixed(2)}%;${nc ? `--nc:${nc};` : ''}${rotStyle(t)}">
+      <div class="ptxt${cls}${nc ? ' note' : ''}" style="${st}">${t.text ? esc(t.text) : '双击编辑文字'}</div>
+      ${objBarHTML('text', t)}
       ${rotHandleHTML()}
       <div class="hdl tl" data-h="tl"></div>
       <div class="hdl tr" data-h="tr"></div>
@@ -142,6 +171,11 @@ function renderReader() {
   book.classList.toggle('single', state.mode === 'single');
   book.classList.toggle('spread', state.mode === 'spread' && !cov);
   book.classList.toggle('cover-only', cov && state.mode === 'spread');
+  /* 活页手帐：双页摊开时中缝那一列要画出金属环（环数跟封面一致，见 BOOK_STYLES.rings）——
+     没环的两档（笔记本 / 方形画册）清空，中缝只剩原来的折痕 */
+  book.classList.toggle('ringed', !!bookStyleOf(cur()).rings);
+  const grings = $('#gutterRings');
+  if (grings) grings.innerHTML = gutterRingsHTML();
   const n = pageCount();
   const [a, b] = currentIndices();
   // 重建前先摘掉文字贴挂在 document 上的监听，避免节点被换掉后残留
@@ -189,12 +223,14 @@ function renderReader() {
   layoutBook();
   bindPage();
   ensureImageHeights();
+  ensureFillGeom();        // 老数据里「铺满 = 整页裁切」的那些，翻到时按新规矩校准一次
   // 重绘后恢复选中态（字号/颜色调整会触发重绘）
   try {
     if (selText) {
       const w = $(`#slotL .ptext-wrap[data-id="${selText.iid}"], #slotR .ptext-wrap[data-id="${selText.iid}"]`);
       const t = textById(selText.pid, selText.iid);
-      if (w && t && t.locked === false) w.classList.add('adjust');   // 只有解锁状态才保留调整框
+      /* 只有解锁状态才保留调整框（纸可能刚被面板压小过，工具条跟着重摆一次） */
+      if (w && t && t.locked === false) { w.classList.add('adjust'); fitObjBar(w); }
     }
   } catch (_) {}
   syncTextBar();                       // 底栏跟着当前是否选中文字切换

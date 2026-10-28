@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 通用控件 · 取色盘与背景面板   （脚本 19 / 25）
+ * Carnet · 通用控件 · 取色盘与背景面板   （脚本 19 / 27）
  * ---------------------------------------------------------------------
  * ① 自定义取色盘 openColorPicker：HSV 面板 + 色相条 + 手输色值
  *    （App 内置浏览器常唤不起原生 input[type=color]，所以自己实现一套）
@@ -199,7 +199,9 @@ function epUV(el, x, y) {
   /* 解 [ax bx; ay by] · [u v] = [dx dy] */
   return { u: (dx * t.by - t.bx * dy) / t.det, v: (t.ax * dy - dx * t.ay) / t.det };
 }
-/* 图片上一点的颜色。.pimg 是 object-fit:fill（拉伸铺满），所以比例坐标直接乘原始宽高 */
+/* 图片上一点的颜色。.pimg 默认 object-fit:fill（拉伸铺满盒子），所以比例坐标直接乘原始宽高。
+   唯一例外是「铺满」里还没校准的老数据（object-fit:contain，图居中留白）—— 那种翻到就会被
+   ensureFillGeom 重算成 fill，取色偏一点也是一瞬间的事，不值得为它单独算一遍留白 */
 function epImgColor(wrap, x, y) {
   const img = wrap.querySelector('.pimg');
   if (!img) return null;

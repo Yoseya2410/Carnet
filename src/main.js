@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 启动入口 · 初始化流程   （脚本 25 / 25）
+ * Carnet · 启动入口 · 初始化流程   （脚本 27 / 27）
  * ---------------------------------------------------------------------
  * ① 读数据 → 一次性迁移 → 清理老预置本 → 应用偏好
  * ② 首次使用自动导入 example 目录
@@ -58,7 +58,7 @@
   if (cleaned) await DB.set(KEY, data);
   /* 显示偏好（展示模式 / 背景）单独存，不混进导出文件里 */
   state.prefs = Object.assign(defaultPrefs(), (await DB.get(PREF_KEY)) || {});
-  if (state.prefs.view !== 'shelf') state.prefs.view = 'carousel';
+  if (!['carousel', 'shelf', 'spine'].includes(state.prefs.view)) state.prefs.view = 'carousel';
   /* 一次性合并：主页背景和阅读器背景合成一份。
      用过效果的那一面为准（主页优先），旧键 homeBg / readerBg / home / reader 全部删掉 */
   let fixedBg = false;
@@ -78,8 +78,8 @@
   /* 首次使用：example 目录里有手帐本文件就自动导进来（有标记就只跑一次） */
   try { await importExampleJournals(); }
   catch (e) { console.error('[example] 自动导入出错：', e); }
-  window.addEventListener('load', () => layoutCarousel(false));
-  setTimeout(() => layoutCarousel(true), 60);
+  window.addEventListener('load', () => { if (state.prefs.view === 'carousel') layoutCarousel(false); });
+  setTimeout(() => { if (state.prefs.view === 'carousel') layoutCarousel(true); }, 60);
 })();
 
 /* ==================== 字体自检 ==================== */

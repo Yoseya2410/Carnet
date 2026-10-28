@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="style/base.css">
   <link rel="stylesheet" href="style/controls.css">
   <link rel="stylesheet" href="style/home.css">
+  <link rel="stylesheet" href="style/book-style.css">
   <link rel="stylesheet" href="style/reader.css">
   <link rel="stylesheet" href="style/image-tools.css">
   <link rel="stylesheet" href="style/text.css">
@@ -27,7 +28,9 @@
   <link rel="stylesheet" href="style/book-anim.css">
   <link rel="stylesheet" href="style/view-toggle.css">
   <link rel="stylesheet" href="style/shelf.css">
+  <link rel="stylesheet" href="style/spine-shelf.css">
   <link rel="stylesheet" href="style/menus.css">
+  <link rel="stylesheet" href="style/decor.css">
   <link rel="stylesheet" href="style/background.css">
 </head>
 <body data-page-node-id="fyhITFSae6zxcmzB16cSQh">
@@ -36,13 +39,17 @@
   <!--pnid:HoPSHlsLUYxKLkJgJNrMkz--><!-- ============ 主页 ============ -->
   <section data-page-node-id="stgr5ViTEVqnHfw0fXCMgD" id="home">
     <div data-page-node-id="gyQOrG09vQz6wBpbWpPbqx" class="topbar">
-      <!--pnid:VToggle--><!-- 两态切换：白色圆钮滑到当前那格（data-vt 由 syncViewToggle 同步）。
-                              左格=书架（多本并排），右格=左右滑动（一次一本） -->
+      <!--pnid:VToggle--><!-- 三态切换：白色圆钮滑到当前那格（data-vt 由 syncViewToggle 同步）。
+                              左格=多层书架，中格=单层书脊，右格=左右滑动 -->
       <div data-page-node-id="DDkftmqMqHIFpjzVMMaGt2" class="view-toggle" data-vt="carousel" id="viewToggle">
         <span data-page-node-id="VTThumb" class="vt-thumb"></span>
-        <button data-page-node-id="VTShf" data-vt="shelf" id="vtShelf" title="书架模式">
-          <!--pnid:VTShfIco--><!-- 一摞书（两本并排 + 一本斜靠）：书架上一排排摊开看 -->
+        <button data-page-node-id="VTShf" data-vt="shelf" id="vtShelf" title="多层书架模式">
+          <!--pnid:VTShfIco--><!-- 一摞书（两本并排 + 一本斜靠）：多层书架上一排排摊开看 -->
           <svg data-page-node-id="VTShfIco" fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="20"><path data-page-node-id="VTShfP1" d="M5 5a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1l0 -14"/><path data-page-node-id="VTShfP2" d="M9 5a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1l0 -14"/><path data-page-node-id="VTShfP3" d="M5 8h4"/><path data-page-node-id="VTShfP4" d="M9 16h4"/><path data-page-node-id="VTShfP5" d="M13.803 4.56l2.184 -.53c.562 -.135 1.133 .19 1.282 .732l3.695 13.418a1.02 1.02 0 0 1 -.634 1.219l-.133 .041l-2.184 .53c-.562 .135 -1.133 -.19 -1.282 -.732l-3.695 -13.418a1.02 1.02 0 0 1 .634 -1.219l.133 -.041"/><path data-page-node-id="VTShfP6" d="M14 9l4 -1"/><path data-page-node-id="VTShfP7" d="M16 16l3.923 -.98"/></svg>
+        </button>
+        <button data-page-node-id="VTSpn" data-vt="spine" id="vtSpine" title="单层书架模式" aria-label="单层书架模式">
+          <!-- 高低错落的竖立书脊：底部对齐，不再分层 -->
+          <svg data-page-node-id="VTSpnIco" fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="20"><path d="M4 20V9h4v11M8 20V5h4v15M12 20V8h4v12M16 20v-9h4v9M3 20h18"/><path d="M9.5 8h1M13 12h2"/></svg>
         </button>
         <button data-page-node-id="VTCar" data-vt="carousel" id="vtCarousel" title="左右滑动模式">
           <!--pnid:VTCarIco--><!-- 一本合着的书（带书签）：一次一本，左右翻着看 -->
@@ -73,6 +80,12 @@
       <div data-page-node-id="0aGtPsHZqoqiP3I8XeOBJW" class="carousel" id="carousel"></div>
     </div>
     <div data-page-node-id="ShelfWrap" class="shelf-wrap" id="shelfWrap" hidden></div>
+    <div data-page-node-id="SpineWrap" class="spine-wrap" id="spineWrap" hidden>
+      <div class="spine-scroll" id="spineScroll">
+        <div class="spine-row" id="spineRow" role="list" aria-label="单层书架"></div>
+      </div>
+      <div class="spine-detail" id="spineDetail" aria-live="polite"></div>
+    </div>
     <div data-page-node-id="PickBar" class="actionbar pickbar" id="pickBar" hidden>
       <span data-page-node-id="PickCount" class="pick-count" id="pickCount">已选 0 本</span>
       <button data-page-node-id="PickAll" class="pick-btn" id="pickAll">全选</button>
@@ -92,9 +105,10 @@
         <button data-page-node-id="RLPa22vt0cVTfo6ydSu6Z1" class="icon-btn" data-act="more" title="更多">
           <svg data-page-node-id="ZYf6OCewQLFZKUzqnJzUhQ" fill="currentColor" height="20" viewBox="0 0 24 24" width="20"><circle data-page-node-id="qjRa8MkHL4xfjbI4zoo4AJ" cx="5.5" cy="12" r="1.7"/><circle data-page-node-id="Wa8Z6PubotUsofffR7MFOL" cx="12" cy="12" r="1.7"/><circle data-page-node-id="lPLkR0IeyuhhSmgR1deIIg" cx="18.5" cy="12" r="1.7"/></svg>
         </button>
-        <!--pnid:MOnote--><!-- 更多：一键成书（多张图片 → 一图一页做成一本）、背景设置（主页 / 阅读器共用那一份） -->
+        <!--pnid:MOnote--><!-- 更多：一键成书（多张图片 → 一图一页做成一本）、PDF 导入（一页 PDF 一页纸）、背景设置（主页 / 阅读器共用那一份） -->
         <div data-page-node-id="MOMenu" class="addmenu share-pop" id="moreMenu">
           <button data-page-node-id="MObook" data-moreact="book"><svg data-page-node-id="MObookIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><rect data-page-node-id="MObookP1" height="11" rx="1.6" width="14" x="3.5" y="7"/><path data-page-node-id="MObookP2" d="M3.5 15.4l3.4-3.3 2.7 2.7 2.2-2.2 5.7 5.6"/><circle data-page-node-id="MObookP3" cx="8.4" cy="10.4" r="1.1"/><path data-page-node-id="MObookP4" d="M19.4 2.6l.62 1.7 1.7.62-1.7.62-.62 1.7-.62-1.7-1.7-.62 1.7-.62z"/></svg><!--pnid:MObookTx-->一键成书</button>
+          <button data-page-node-id="MOPdf" data-moreact="pdf"><svg data-page-node-id="MOPdfIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><path data-page-node-id="MOPdfP1" d="M7 4.5h7l4 4V19a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 7 19V5a.5.5 0 0 1 0-.5z"/><path data-page-node-id="MOPdfP2" d="M14 4.5V8.5h4"/><path data-page-node-id="MOPdfP3" d="M12 11.5v6.2"/><path data-page-node-id="MOPdfP4" d="M9.8 13L12 11.6l2.2 1.4"/></svg><!--pnid:MOPdfTx-->导入 PDF</button>
           <button data-page-node-id="MObg" data-moreact="bg"><svg data-page-node-id="MObgIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><rect data-page-node-id="MObgR" height="15" rx="2.2" width="17" x="3.5" y="4.5"/><circle data-page-node-id="MObgC" cx="8.6" cy="9.4" r="1.3"/><path data-page-node-id="MObgP1" d="M3.5 16.2l4.3-4.3 3.4 3.4 2.8-2.8 6.5 6.1"/></svg><!--pnid:MObgTx-->背景设置</button>
         </div>
       </div>
@@ -132,7 +146,9 @@
         </div>
         <button data-page-node-id="AMpage" data-addact="page"><svg data-page-node-id="AMpageIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><path data-page-node-id="AMpageP1" d="M7 4.5h7l4 4V19a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 7 19V5a.5.5 0 0 1 0-.5z"/><path data-page-node-id="AMpageP2" d="M14 4.5V8.5h4"/></svg><!--pnid:J6Mm35le86Y66zkaOEgbtd-->添加页<span data-page-node-id="AMpageP" class="am-p"></span></button>
         <button data-page-node-id="AMimg" data-addact="img"><svg data-page-node-id="AMimgIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><rect data-page-node-id="AMimgR" height="14" rx="2" width="16" x="4" y="5"/><path data-page-node-id="AMimgP1" d="M4 15l4-4 4 4 3-3 5 5"/><circle data-page-node-id="AMimgC" cx="9" cy="9" r="1.2"/></svg><!--pnid:1jWXATsjyDjflrECmEcdnl-->添加图片<span data-page-node-id="AMimgP" class="am-p"></span></button>
+        <button data-page-node-id="AMspread" data-addact="spread"><svg data-page-node-id="AMspreadIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><rect data-page-node-id="AMspreadR1" height="14" rx="1.6" width="7.4" x="3.2" y="5"/><rect data-page-node-id="AMspreadR2" height="14" rx="1.6" width="7.4" x="13.4" y="5"/><path data-page-node-id="AMspreadP1" d="M3.2 15.6l2.6-2.6 2.4 2.4"/><path data-page-node-id="AMspreadP2" d="M13.4 15.6l2.6-2.6 2.4 2.4"/></svg><!--pnid:AMspreadTx-->跨页图片<span data-page-node-id="AMspreadP" class="am-p"></span></button>
         <button data-page-node-id="AMtext" data-addact="text"><span data-page-node-id="AMtextIco" class="am-t"><!--pnid:daEy0hddPu4xJt9odUGyku-->T</span><!--pnid:wmvfMHu0bJp1J0W4jKw40h-->添加文字<span data-page-node-id="AMtextP" class="am-p"></span></button>
+        <button data-page-node-id="AMsticker" data-addact="sticker"><svg data-page-node-id="AMstickerIco" fill="none" height="16" stroke="currentColor" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><path data-page-node-id="AMstickerP1" d="M12 3.4l2.2 4.7 5.1.5-3.9 3.4 1.1 5L12 14.6l-4.5 2.6 1.1-5-3.9-3.4 5.1-.5z"/><path data-page-node-id="AMstickerP2" d="M5.4 19.8h5.2"/></svg><!--pnid:AMstickerTx-->贴纸<span data-page-node-id="AMstickerP" class="am-p"></span></button>
         <button data-page-node-id="AMbg" data-addact="bg"><svg data-page-node-id="AMbgIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><path data-page-node-id="AMbgP1" d="M12 21a9 9 0 110-18c4.97 0 9 3.58 9 8 0 1.5-1.23 2.5-2.5 2.5H17a2 2 0 00-1.42 3.42A1.94 1.94 0 0114 18.5c0-1.1-.9-2-2-2h-.5"/><circle data-page-node-id="AMbgC1" cx="7.6" cy="11.2" fill="currentColor" r=".85" stroke="none"/><circle data-page-node-id="AMbgC2" cx="10.6" cy="6.8" fill="currentColor" r=".85" stroke="none"/><circle data-page-node-id="AMbgC3" cx="15.6" cy="7.6" fill="currentColor" r=".85" stroke="none"/></svg><!--pnid:AMbgTx-->本页底色<span data-page-node-id="AMbgP" class="am-p"></span></button>
         <button data-page-node-id="AMdel" class="am-del" data-addact="del"><svg data-page-node-id="AMdelIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><path data-page-node-id="AMdelP1" d="M4.5 6.6h15"/><path data-page-node-id="AMdelP2" d="M9.6 6.6V4.9h4.8v1.7"/><path data-page-node-id="AMdelP3" d="M6.4 6.6l.9 11.9a1 1 0 001 .9h7.4a1 1 0 001-.9l.9-11.9"/><path data-page-node-id="AMdelP4" d="M10.4 10.4v5.6"/><path data-page-node-id="AMdelP5" d="M13.6 10.4v5.6"/></svg><!--pnid:AMdelTx-->删除本页<span data-page-node-id="AMdelP" class="am-p"></span></button>
       </div>
@@ -141,7 +157,7 @@
       <div data-page-node-id="FmGJ7VyULppa4wz67x1RIp" class="book" id="book">
         <div data-page-node-id="NuZIMyCTYc7r3XmkYSi9s0" class="page-slot left" id="slotL"></div>
         <div data-page-node-id="YUiUy6TZpZhxhue4Tz1oCP" class="page-slot right" id="slotR"></div>
-        <div data-page-node-id="GTgutTer000000000000000" class="gutter"></div>
+        <div data-page-node-id="GTgutTer000000000000000" class="gutter"><div class="grings" id="gutterRings"></div></div>
         <div data-page-node-id="7OzEG9xgqL278Fk9xfglns" class="leaf" id="leaf">
           <div data-page-node-id="FMmNrx58wJGs3yZtI998eW" class="leaf-face front" id="leafF"></div>
           <div data-page-node-id="9x5eVRr9TwZqQSFezMUfqR" class="leaf-face back" id="leafB"></div>
@@ -231,6 +247,55 @@
         <button data-page-node-id="BSCus" class="bs-btn" id="bsCus">自定义…</button>
       </div>
     </div>
+
+    <!--pnid:FRsheet--><!-- 图片边框面板：选中一张图 → 工具条上的「边框」→ 从底部升起。
+         六种框 + 八档颜色（含自定义）+ 三档粗细；挑一档立刻画到纸上并存档 -->
+    <div data-page-node-id="FRsheet" class="tsheet frsheet" id="frsheet" hidden>
+      <div data-page-node-id="FRGrab" class="ts-grab"></div>
+      <div data-page-node-id="FRTitle" class="ts-title">图片边框<span data-page-node-id="FRHint" class="fr-hint" id="frHint"></span></div>
+      <div data-page-node-id="FRPrev" class="fr-prev"><div data-page-node-id="FRDemo" class="fr-demo" id="frDemo"><img data-page-node-id="FRDemoImg" id="frDemoImg" src="" alt=""></div></div>
+      <div data-page-node-id="FRLab1" class="ts-lab">边框样式</div>
+      <div data-page-node-id="FRGrid" class="fr-grid" id="frGrid"></div>
+      <div data-page-node-id="FRLab2" class="ts-lab" id="frColorRow">边框颜色</div>
+      <div data-page-node-id="FRColors" class="ts-dots" id="frColors"></div>
+      <div data-page-node-id="FRLab3" class="ts-lab" id="frWidthRow">粗细<span class="fr-wval" id="frWidthVal">50</span></div>
+      <div data-page-node-id="FRWidths" class="fr-slider">
+        <input type="range" id="frWidth" min="1" max="100" step="1" value="50" aria-label="边框粗细">
+      </div>
+      <div data-page-node-id="FRFoot" class="bs-foot">
+        <button data-page-node-id="FRDone" class="bs-btn done on" id="frDone">完成</button>
+      </div>
+    </div>
+
+    <!--pnid:STsheet--><!-- 贴纸面板：便利贴（可打字的文字贴）/ 装饰胶带 / 手绘图案，点一下落到当前页 -->
+    <div data-page-node-id="STsheet" class="tsheet stsheet" id="stsheet" hidden>
+      <div data-page-node-id="STGrab" class="ts-grab"></div>
+      <div data-page-node-id="STTitle" class="ts-title">贴纸<span data-page-node-id="STPage" class="fr-hint" id="stPage"></span></div>
+      <div data-page-node-id="STTabs" class="ts-tabs" id="stTabs">
+        <button data-page-node-id="STtabNote" class="on" data-tab="note">便利贴</button>
+        <button data-page-node-id="STtabTape" data-tab="tape">装饰胶带</button>
+        <button data-page-node-id="STtabMine" data-tab="mine">我的贴纸</button>
+      </div>
+      <div data-page-node-id="STPanes" class="ts-panes" id="stPanes">
+        <div data-page-node-id="STpaneNote" class="ts-pane on" data-pane="note">
+          <div data-page-node-id="STNotes" class="st-grid st-notes" id="stNotes"></div>
+        </div>
+        <div data-page-node-id="STpaneTape" class="ts-pane" data-pane="tape">
+          <div data-page-node-id="STTapes" class="st-grid st-tapes" id="stTapes"></div>
+        </div>
+        <div data-page-node-id="STpaneMine" class="ts-pane" data-pane="mine">
+          <div data-page-node-id="STMine" class="st-grid st-mine" id="stMine"></div>
+          <p data-page-node-id="STMineEmpty" class="st-empty" id="stMineEmpty">还没有导入过贴纸 —— 点下面这颗把图片存进来，下次接着用</p>
+        </div>
+      </div>
+      <div data-page-node-id="STFoot" class="st-foot">
+        <button data-page-node-id="STImport" class="st-imp" id="stImport">
+          <svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><path d="M12 5v14M5 12h14"/></svg>
+          导入图片为贴纸
+        </button>
+      </div>
+      <input data-page-node-id="STFile" type="file" accept="image/*" id="stFile" hidden>
+    </div>
   </section>
 
   <!--pnid:0H0HYKmDGkCsZ7kxvFMMke--><!-- ============ 编辑器 ============ -->
@@ -244,6 +309,15 @@
         <label class="fold-head" id="edNameHead">名称<span class="fold-hint" id="edNameHint"></span><i class="fold-caret"></i></label>
         <div class="fold-body">
           <input data-page-node-id="1BcUIzjBZ6lvxCeUhV1zKO" class="text-input" id="edName" maxlength="20" placeholder="给手帐本起个名字">
+        </div>
+      </div>
+
+      <!--pnid:StyleSec--><!-- 装帧样式：精装 / 活页 / Personal 活页 / 方形画册。
+                              方形画册是 1:1 开本，封面和内页一起变方 -->
+      <div class="fold-sec" data-sec="style" id="edSecStyle">
+        <label class="fold-head" id="edStyleHead">装帧样式<span class="fold-hint" id="edStyleHint"></span><i class="fold-caret"></i></label>
+        <div class="fold-body">
+          <div class="sty-grid" id="edStyles"></div>
         </div>
       </div>
 
@@ -402,6 +476,8 @@
   <input data-page-node-id="BGfile" accept="image/*" hidden id="bgFile" type="file">
 
   <input data-page-node-id="0Lio0A3H1Vxl0cqCsqHD1u" accept="image/*" hidden id="filePicker" type="file">
+  <!-- 换图专用：跟「添加图片」分开，免得两者抢同一个 pendingPage -->
+  <input data-page-node-id="SWAPfile" accept="image/*" hidden id="swapFile" type="file">
   <input data-page-node-id="PfKLvwIHF0oGvl7g7C4CMc" accept="image/*" hidden id="coverFile" type="file">
 </div>
 
@@ -427,6 +503,8 @@
   <script src="src/page-bg.js" defer></script>
   <script src="src/media.js" defer></script>
   <script src="src/widgets.js" defer></script>
+  <script src="src/img-frame.js" defer></script>
+  <script src="src/stickers.js" defer></script>
   <script src="src/editor.js" defer></script>
   <script src="src/home-events.js" defer></script>
   <script src="src/reader-flow.js" defer></script>

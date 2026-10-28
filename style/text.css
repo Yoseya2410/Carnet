@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 文字贴与编辑态   （样式 6 / 16）
+ * Carnet · 文字贴与编辑态   （样式 7 / 19）
  * ---------------------------------------------------------------------
  * ① 文字贴本体与选中态
  * ② 选中对象时浮在它上方的那条工具条 .objbar
@@ -76,18 +76,21 @@
 /* 选中一个图片 / 文字贴时，浮在它上方的胶囊工具条（完成 / 复制 / 编辑 / 删除）。
    工具条挂在对象内部而不是全局定位：拖动、拉伸、翻页、重绘都自动跟手，不用另算坐标。 */
 :is(.pimg-wrap,.ptext-wrap) .objbar{
-  position:absolute;left:50%;bottom:calc(100% + 13px);z-index:18;
+  position:absolute;left:50%;bottom:calc(100% + var(--ob-gap,13px));z-index:18;
   display:none;align-items:center;gap:2px;padding:4px;border-radius:999px;white-space:nowrap;
   background:rgba(26,28,44,.5);border:1px solid rgba(255,255,255,.22);
   backdrop-filter:blur(18px) saturate(1.7);-webkit-backdrop-filter:blur(18px) saturate(1.7);
   box-shadow:0 12px 26px -12px rgba(4,6,16,.8),inset 0 1px 0 rgba(255,255,255,.16);
-  /* --ob-x 是横向纠偏量：整条顶到纸边时由 fitObjBar() 推回纸内，不会被裁掉；
-     后面那一段把工具条反着转回来 —— 对象转了多少度，工具条就转回多少度，始终是正的 */
-  transform:translateX(calc(-50% + var(--ob-x,0px))) rotate(calc(-1 * var(--rot,0deg)))
+  /* --ob-gap 是离对象边的距离：正数挂在外侧、负数塞进对象内侧（挂上还是挂下、离多远
+     全由 fitObjBar() 挑好下发）；--ob-dx / --ob-dy 是它算的避让位移。
+     位移是先按屏幕坐标算、再转回对象自身坐标系的值 —— 写在被转过的盒子里，
+     盒子带着它一转，正好又变回屏幕位移。
+     最后那一段把工具条反着转回来：对象转了多少度，工具条就转回多少度，始终是正的 */
+  transform:translateX(-50%) translate(var(--ob-dx,0px),var(--ob-dy,0px)) rotate(calc(-1 * var(--rot,0deg)))
 }
 :is(.pimg-wrap,.ptext-wrap).sel .objbar,:is(.pimg-wrap,.ptext-wrap).adjust .objbar{display:flex}
-/* 对象贴着纸的上沿时，改挂到下方 */
-:is(.pimg-wrap,.ptext-wrap).bar-below .objbar{bottom:auto;top:calc(100% + 13px)}
+/* 挂到下方（同样是 --ob-gap 那个距离） */
+:is(.pimg-wrap,.ptext-wrap).bar-below .objbar{bottom:auto;top:calc(100% + var(--ob-gap,13px))}
 .objbar .ob{
   width:31px;height:31px;border-radius:50%;display:grid;place-items:center;color:#fff;
   opacity:.82;transition:background .16s,opacity .16s,transform .14s
@@ -98,6 +101,10 @@
 .objbar .ob-del{color:#ff9e9e}
 .objbar .ob-del:hover{background:rgba(255,86,86,.24)}
 .objbar .ob svg{display:block;pointer-events:none}
+/* 图片小到一定程度（.tiny）时按钮跟着缩一号：图片有五颗钮（多一颗「换图」），
+   按原尺寸会把整张小图占满、连拉伸手柄都盖住 */
+.pimg-wrap.tiny .objbar .ob{width:26px;height:26px}
+.pimg-wrap.tiny .objbar .ob svg{width:14px;height:14px}
 /* 固定住 / 正在拉伸时工具条让位 */
 :is(.pimg-wrap,.ptext-wrap).locked .objbar,:is(.pimg-wrap,.ptext-wrap).resizing .objbar{display:none !important}
 

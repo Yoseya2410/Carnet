@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 系统 · 自适应与提示输出   （脚本 24 / 25）
+ * Carnet · 系统 · 自适应与提示输出   （脚本 26 / 27）
  * ---------------------------------------------------------------------
  * ① 窗口尺寸变化的重排（输入法弹起不重排，避免收走输入法）
  * ② toast()：所有提示统一输出到控制台，界面不再弹浮层
@@ -15,7 +15,9 @@ let rzTimer = null, lastVW = window.innerWidth;
 window.addEventListener('resize', () => {
   clearTimeout(rzTimer);
   rzTimer = setTimeout(() => {
-    if (state.prefs.view === 'shelf') renderShelf(); else layoutCarousel(false);
+    if (state.prefs.view === 'shelf') renderShelf();
+    else if (state.prefs.view === 'spine') renderSpineShelf();
+    else layoutCarousel(false);
     const vw = window.innerWidth;
     const widthChanged = vw !== lastVW;
     lastVW = vw;

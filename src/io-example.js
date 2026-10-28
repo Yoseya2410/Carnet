@@ -1,7 +1,7 @@
 /* =====================================================================
- * Carnet · 首次使用 · 自动导入 example 目录   （脚本 8 / 25）
+ * Carnet · 首次使用 · 自动导入 example 目录   （脚本 8 / 27）
  * ---------------------------------------------------------------------
- * ① 列出 example 目录里的手帐本文件（目录列表优先，manifest.json 兜底）
+ * ① 列出 example 目录里的手帐本文件（目录列表优先拿文件，顺序一律按 manifest.json 的 files）
  * ② 首次启动自动导入，写标记只导一次；file:// 打开时自动跳过
  * ③ 帮助与反馈邮件入口 openHelpMail
  *
@@ -27,11 +27,39 @@ async function fetchText(url) {
 function encodeFileName(name) {
   return encodeURIComponent(name).replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
 }
+/* 读 manifest.json 的 files 清单，返回文件名数组（没有 / 解析不了就 null）。
+   它有两个用处，不只是兜底：
+   ① 服务器没开目录列表时，这就是唯一的文件清单；
+   ② 更是「导入顺序」的依据 —— 目录列表的排序是服务器自己定的（字母序、按修改时间……
+      各家都不一样），manifest 里写的先后顺序才是书架上的摆放顺序。
+   往里加新文件记得顺手补进 files，否则它会排在所有已登记文件的后面。 */
+async function readExampleManifest() {
+  const mf = await fetchText(EXAMPLE_BASE + 'manifest.json');
+  if (!mf) return null;
+  try {
+    const parsed = JSON.parse(mf);
+    const list = Array.isArray(parsed) ? parsed : (parsed && parsed.files);
+    if (!Array.isArray(list)) return null;
+    const out = list.filter(n => typeof n === 'string' && n && n.toLowerCase() !== 'manifest.json');
+    return out.length ? out : null;
+  } catch (e) { console.warn('[example] manifest.json 解析失败', e); return null; }
+}
+/* 按 manifest 的顺序重排：名单里的按先后站好，没写进名单的排在后面（保持目录列表自己的相对顺序）。
+   ⚠️ 排名不能直接相减：「没登记」用的是 Infinity，两个 Infinity 相减是 NaN，比较函数一返 NaN 排序就乱了 */
+function sortByManifest(files, order) {
+  if (!order || !order.length) return files;
+  const rank = new Map(order.map((n, i) => [n, i]));
+  return files
+    .map((f, i) => ({ f, i, r: rank.has(f.name) ? rank.get(f.name) : Number.MAX_SAFE_INTEGER }))
+    .sort((a, b) => (a.r === b.r ? a.i - b.i : a.r - b.r))
+    .map(x => x.f);
+}
 /* 列出 example 目录里的手帐本文件，返回 [{ name, url }]：
    ① 先试静态服务器的目录列表 —— 直接用它给出的链接，最贴近服务器自己的编码；
-      往目录里丢新文件也不用改代码
+      往目录里丢新文件也不用改代码（顺序再按 manifest 校正一遍）
    ② 拿不到目录列表就退回目录里的 manifest.json 清单 */
 async function listExampleFiles() {
+  const order = await readExampleManifest();
   const html = await fetchText(EXAMPLE_BASE);
   if (html) {
     const out = [], seen = new Set();
@@ -45,19 +73,9 @@ async function listExampleFiles() {
       if (!name || name.toLowerCase() === 'manifest.json' || seen.has(name)) continue;
       seen.add(name); out.push({ name, url });
     }
-    if (out.length) return out;
+    if (out.length) return sortByManifest(out, order);
   }
-  const mf = await fetchText(EXAMPLE_BASE + 'manifest.json');
-  if (mf) {
-    try {
-      const parsed = JSON.parse(mf);
-      const list = Array.isArray(parsed) ? parsed : (parsed && parsed.files);
-      if (Array.isArray(list)) {
-        return list.filter(n => typeof n === 'string' && n)
-                   .map(n => ({ name: n, url: EXAMPLE_BASE + encodeFileName(n) }));
-      }
-    } catch (e) { console.warn('[example] manifest.json 解析失败', e); }
-  }
+  if (order) return order.map(n => ({ name: n, url: EXAMPLE_BASE + encodeFileName(n) }));
   return [];
 }
 /* 首次启动时调用：目录里有 .json 就逐本读进来，走和「导入手帐本」完全一样的校验与查重 */

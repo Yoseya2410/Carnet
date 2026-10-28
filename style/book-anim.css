@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 开合书动画   （样式 12 / 16）
+ * Carnet · 开合书动画   （样式 14 / 19）
  * ---------------------------------------------------------------------
  * ① 封面飞入放大成书、ghost 相位
  * ② 合书 / 退场动画，以及封面的单独成页态
@@ -7,19 +7,30 @@
  * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
  * ===================================================================== */
 /* ============ 开合书动画 ============ */
+/* 飞行封面 = 一个会「展开」的窗口：宽高与圆角由 JS 逐帧过渡（见 reader-flow 的 flyCover），
+   里面那层 .cover-ghost-fit 只做等比缩放 —— 所以封面内容从头到尾都不会被拉变形。
+   ⚠️ overflow:hidden 是这套做法的前提：内容比窗口大，靠裁剪露出「一条竖缝 → 整张封面」 */
 .cover-ghost{
   position:fixed;z-index:60;pointer-events:none;transform-origin:0 0;
-  border-radius:5px 13px 13px 5px;overflow:hidden;will-change:transform,opacity
+  border-radius:5px 13px 13px 5px;overflow:hidden;
+  will-change:width,height,transform,opacity
+}
+/* 内容层：按**落地封面**的真实尺寸渲染（宽高由 JS 写成 to 的尺寸），居中于窗口，
+   只做等比 scale —— 起点放大到刚好铺满细长的书脊窗口，随窗口展开回落到 1 */
+.cover-ghost-fit{
+  position:absolute;left:50%;top:50%;transform-origin:50% 50%;will-change:transform
 }
 .cover-ghost .cover{
   width:100% !important;height:100% !important;aspect-ratio:auto !important;
   border-radius:0;box-shadow:0 30px 60px -22px rgba(10,12,26,.7)
 }
-/* 只在最后 1/4 收一下：ghost 全程清晰，落点和书完全重合后才悄悄退场 */
+/* 只在最后 1/4 收一下：ghost 全程清晰，落点和书完全重合后才悄悄退场。
+   ⚠️ 这里**不能再动画 border-radius**：CSS 动画的层级高于内联样式，会把 JS 给细长书脊
+      设的 1.5px 小圆角顶掉，起点那根窄条会被糊上封面的 13px 大圆角。圆角交给 flyCover 过渡 */
 @keyframes ghostOut{
-  0%{opacity:1;border-radius:5px 13px 13px 5px;box-shadow:0 30px 60px -22px rgba(10,12,26,.7)}
-  70%{opacity:1;border-radius:4px 11px 11px 4px;box-shadow:0 20px 40px -20px rgba(10,12,26,.62)}
-  100%{opacity:0;border-radius:3px 10px 10px 3px;box-shadow:0 12px 26px -18px rgba(10,12,26,.5)}
+  0%{opacity:1;box-shadow:0 30px 60px -22px rgba(10,12,26,.7)}
+  70%{opacity:1;box-shadow:0 20px 40px -20px rgba(10,12,26,.62)}
+  100%{opacity:0;box-shadow:0 12px 26px -18px rgba(10,12,26,.5)}
 }
 #home{transition:transform .5s cubic-bezier(.32,.86,.3,1),opacity .42s ease,filter .42s ease}
 #home.book-opening{transform:scale(.93);opacity:0;filter:blur(7px);pointer-events:none}

@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 数据模型 · 运行时状态与构造   （脚本 10 / 25）
+ * Carnet · 数据模型 · 运行时状态与构造   （脚本 10 / 27）
  * ---------------------------------------------------------------------
  * ① state / cur() / pageCount()：当前书架与浏览位置
  * ② 手帐本与页面的构造：mkPage / mkPages / newText / newJournal
@@ -24,8 +24,9 @@ const state = {
   /* 下面两个不是初始状态，是运行时才写进来的，列在这里方便一眼看全：
      pw          当前一页的宽（px），由 layoutBook() 量出来；page-flip.js 靠它算半页位移，
                  所以「先 layoutBook 再翻页」这个顺序不能反
-     pendingPage 开书时要跳到的那一页，openReader / 加页时写，renderReader 消费后清空 */
-  pw: 0, pendingPage: null
+     pendingPage 开书时要跳到的那一页，openReader / 加页时写，renderReader 消费后清空
+     swapTarget  换图时要换掉的那一张：{ pid, iid }，点工具条「换图」时写，选完图后清空 */
+  pw: 0, pendingPage: null, swapTarget: null
 };
 const cur = () => state.journals[state.sel];
 const pageCount = () => cur() ? cur().pages.length : 0;
@@ -96,6 +97,9 @@ function newJournal() {
   return {
     id: uid(), name: '未命名手帐',
     cover: { type: 'gradient', value: GRADS[1], pattern: 'none', img: null },
+    /* style = 装帧样式（精装 / 活页 / Personal 活页 / 方形画册），见 visuals.js 的 BOOK_STYLES。
+       缺这个字段的老数据一律按「精装」渲染，跟加这个功能之前一模一样 */
+    style: BOOK_STYLE_DEFAULT,
     ribbon: '#c98a8a', template: 'blank', pageBg: '', pages: mkPages(1), created: Date.now()
   };
 }

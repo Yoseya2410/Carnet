@@ -1,12 +1,14 @@
 /* =====================================================================
- * Carnet · 文字贴 · 编辑面板与行内编辑   （脚本 16 / 25）
+ * Carnet · 文字贴 · 编辑面板与行内编辑   （脚本 16 / 27）
  * ---------------------------------------------------------------------
  * ① 底部「编辑文字」面板 .tsheet：正文 + 字体 / 颜色 / 字号 / 格式四个标签页
  * ② 面板会话内的撤销栈 shPush / shUndo，每一次改动即时画回纸面
  * ③ 编辑态 eflow：顶栏底栏让位、书整体上移避让（updateEflow / sheetLayout，底色面板复用同一套）
  * ④ 行内编辑（双击直接打字）startTextEdit / stopTextEdit
+ * ⑤ 对象工具条自动避让 fitObjBar：贴边 / 顶栏 / 底栏 / 面板 / 键盘挡住时自己换个地方待
  *
- * 对外接口：openTextSheet, closeTextSheet, startTextEdit, stopTextEdit, commitTextEdit, pageBusy, syncBar, updateEflow, sheetLayout
+ * 对外接口：openTextSheet, closeTextSheet, startTextEdit, stopTextEdit, commitTextEdit, pageBusy,
+ *           syncBar, fitObjBar, refitObjBars, updateEflow, sheetLayout
  *
  * 依赖模块：core, state, visuals（widgets / scrub / page-bg 后置，只在运行时调用）
  *
@@ -55,23 +57,182 @@ function textById(pid, iid) {
 function textWrap(iid) {
   return $(`#slotL .ptext-wrap[data-id="${iid}"], #slotR .ptext-wrap[data-id="${iid}"]`);
 }
-/* 工具条整条比纸还宽时（对象贴在纸边）横向推回来，别被纸裁掉 */
-function fitObjBar(w) {
+/* ==================== 工具条自动避让 ====================
+   工具条长在被旋转的那个盒子里（它自己反着转，所以永远是正的），默认挂在正上方 13px 处。
+   对象一旦挪到纸边、顶到底栏、或者被弹起来的面板压住，它就会被裁掉 / 盖住 ——
+   所以每次定位都重新挑个地方：
+     ① 四个候选：上 → 下 → 塞进对象内侧的上边 → 内侧的下边
+     ② 每个候选按屏幕矩形打分：探出纸面的部分会被裁掉（扣满），压到界面上的部分按权重扣，
+        盖住对象自己的部分折算着扣（盖住图 / 盖住刚打的字也不好看，但总好过被裁掉）
+     ③ 挑损失最小的（一样好取靠前的；上一回那个位置有一点点粘性，拖动时不来回跳）
+     ④ 还摆不下就再推一把：夹回纸内 → 往最近的出口推离挡住它的那块 → 再夹回纸内
+   大部分时候（对象好好待在纸中间）第一个候选就是零损失，一个字都不用写。
+   ⚠️ 算出来的位移是屏幕坐标，下发前要先转回对象自己的坐标系 —— 位移写在盒子里，
+      盒子本身是转过的，乘一次 R(⁻¹) 才能让它再被盒子转回正（同一套推导见 media.js 的 rotShift） */
+const BAR_GAP = 13;       // 工具条离对象边的距离（跟 text.css 里 --ob-gap 的默认值一致）
+const BAR_PAD = 6;        // 离纸边、离遮挡界面留的余量
+const BAR_IN = 8;         // 塞进对象内侧时离对象边的距离
+const BAR_STICK = 500;    // 上一回那个位置的粘性：约等于 20×25 的一小块，拖动时不来回跳
+const BAR_COVER = .35;    // 盖住对象自己的代价（比被裁掉轻，但也不是白盖的）
+/* 会挡住工具条的东西：顶栏 / 底栏 / 左上那组按钮 / 编辑面板 / 页数轴 / 双页中缝 / 输入法。
+   收起来的（[hidden] 或没 .show）量出来是零，自然跳过。
+   k 是权重：不透明的界面算 1（真挡住），中缝那道半透明暗部算 .45（只是发灰） */
+function barObstacles() {
+  const out = [];
+  const add = (l, t, r, b, k) => { if (r - l > 1 && b - t > 1) out.push({ r: { l, t, r, b }, k }); };
+  const box = s => {
+    const e = $(s); if (!e) return null;
+    const b = e.getBoundingClientRect();
+    return (b.width > 1 && b.height > 1) ? b : null;
+  };
+  ['#reader > .rtop', '#reader > .rbot', '#eflowTop', '#tsheet', '#bgsheet', '#addMenu', '#scrub.show']
+    .forEach(s => { const b = box(s); if (b) add(b.left, b.top, b.right, b.bottom, 1); });
+  const g = box('.book .gutter');
+  if (g) add(g.left, g.top, g.right, g.bottom, .45);
+  const kb = (window.__kbHeight ? window.__kbHeight() : 0);
+  if (kb > 4) add(0, window.innerHeight - kb, window.innerWidth, window.innerHeight, 1);
+  return out;
+}
+/* 对象的盒子（旋转前的布局盒子）：行内的 left/top/width/height 全是百分比。
+   不能用 getBoundingClientRect —— 那量的是「转过之后」的外接框，锚点会跟着歪掉 */
+function objBox(w, pr) {
+  const st = w.style, pc = k => (parseFloat(st[k]) || 0) / 100;
+  const ww = pc('width');
+  return {
+    x: pc('left'), y: pc('top'), w: ww, h: pc('height') || ww / .68,
+    rot: parseFloat(st.getPropertyValue('--rot')) || 0, pr
+  };
+}
+/* 盒子里的 (u,v)（0 = 左上角，1 = 右下角）→ 屏幕坐标：盒子是绕自己中心转的 */
+function boxAt(b, u, v) {
+  const a = b.rot * Math.PI / 180, cs = Math.cos(a), sn = Math.sin(a);
+  const cx = b.pr.left + (b.x + b.w / 2) * b.pr.width;
+  const cy = b.pr.top + (b.y + b.h / 2) * b.pr.height;
+  const px = (u - .5) * b.w * b.pr.width, py = (v - .5) * b.h * b.pr.height;
+  return [cx + px * cs - py * sn, cy + px * sn + py * cs];
+}
+/* 盒子的「上」在屏幕上朝哪：转 90° 时它就朝右了 —— 工具条跟着这个方向走 */
+function boxUp(b) {
+  const a = b.rot * Math.PI / 180;
+  return [Math.sin(a), -Math.cos(a)];
+}
+/* 对象在屏幕上的外接框（转过之后的外接矩形）：用来判断工具条有没有盖住它。
+   转过之后这是个偏大的近似（四个角有空白），只是算代价，够用 */
+function objAABB(b) {
+  const cs = [boxAt(b, 0, 0), boxAt(b, 1, 0), boxAt(b, 0, 1), boxAt(b, 1, 1)];
+  return {
+    l: Math.min(cs[0][0], cs[1][0], cs[2][0], cs[3][0]), r: Math.max(cs[0][0], cs[1][0], cs[2][0], cs[3][0]),
+    t: Math.min(cs[0][1], cs[1][1], cs[2][1], cs[3][1]), b: Math.max(cs[0][1], cs[1][1], cs[2][1], cs[3][1])
+  };
+}
+/* 工具条摆在盒子上 / 下沿外侧 gap 处（gap < 0 就是塞进内侧）时的屏幕中心 */
+function barSpot(b, below, gap, bh) {
+  const p = boxAt(b, .5, below ? 1 : 0), up = boxUp(b);
+  const s = (below ? -1 : 1) * (gap + bh / 2);
+  return [p[0] + up[0] * s, p[1] + up[1] * s];
+}
+const mkR = (x, y, w, h) => ({ l: x - w / 2, t: y - h / 2, r: x + w / 2, b: y + h / 2 });
+const rArea = r => Math.max(0, r.r - r.l) * Math.max(0, r.b - r.t);
+const rCut = (a, b) => ({ l: Math.max(a.l, b.l), t: Math.max(a.t, b.t), r: Math.min(a.r, b.r), b: Math.min(a.b, b.b) });
+/* 把矩形中心夹进 area（area 比它还小的话就直接居中） */
+function clampIn(c, A, w, h) {
+  return [
+    A.r - A.l >= w ? clamp(c[0], A.l + w / 2, A.r - w / 2) : (A.l + A.r) / 2,
+    A.b - A.t >= h ? clamp(c[1], A.t + h / 2, A.b - h / 2) : (A.t + A.b) / 2
+  ];
+}
+/* 压得最狠的那一块遮挡物（一点都没压到就 null；1px² 以内的那点边角不算） */
+function barHit(xy, bw, bh, obs) {
+  const R = mkR(xy[0], xy[1], bw, bh);
+  let hit = null, most = 1;
+  for (const o of obs) {
+    const a = o.k * rArea(rCut(R, o.r));
+    if (a > most) { most = a; hit = o; }
+  }
+  return hit;
+}
+/* 从遮挡物里推出来：上 / 下 / 左 / 右里挑「动得最少」的那个方向 */
+function barPush(xy, o, bw, bh) {
+  const r = o.r;
+  const opts = [
+    [xy[0], r.t - BAR_PAD - bh / 2], [xy[0], r.b + BAR_PAD + bh / 2],
+    [r.l - BAR_PAD - bw / 2, xy[1]], [r.r + BAR_PAD + bw / 2, xy[1]]
+  ];
+  let best = xy, bd = Infinity;
+  for (const p of opts) {
+    const d = Math.hypot(p[0] - xy[0], p[1] - xy[1]);
+    if (d < bd) { bd = d; best = p; }
+  }
+  return best;
+}
+/* ctx 是手势期间复用的那一份（纸和界面都不动，量一次就够，省掉每帧的重排） */
+function fitObjBar(w, ctx) {
   if (!w) return;
   const bar = w.querySelector('.objbar'); if (!bar) return;
-  bar.style.setProperty('--ob-x', '0px');
-  const paper = w.closest('.paper'); if (!paper) return;
-  const pr = paper.getBoundingClientRect(), br = bar.getBoundingClientRect();
-  if (!pr.width || !br.width) return;
-  let dx = 0;
-  if (br.left < pr.left + 6) dx = pr.left + 6 - br.left;
-  else if (br.right > pr.right - 6) dx = pr.right - 6 - br.right;
-  if (dx) bar.style.setProperty('--ob-x', dx.toFixed(1) + 'px');
+  const c = ctx || {};
+  if (!c.bw || !c.bh) { c.bw = bar.offsetWidth; c.bh = bar.offsetHeight; }
+  const bw = c.bw, bh = c.bh;
+  if (!bw || !bh) return;                     // 没展开（display:none）就没什么可摆的
+  if (!c.pr) { const p = w.closest('.paper'); if (!p) return; c.pr = p.getBoundingClientRect(); }
+  if (!c.obs) c.obs = barObstacles();
+  const pr = c.pr;
+  if (pr.width < 8 || pr.height < 8) return;
+  const A = { l: pr.left + BAR_PAD, t: pr.top + BAR_PAD, r: pr.right - BAR_PAD, b: pr.bottom - BAR_PAD };
+  const b = objBox(w, pr), own = objAABB(b);
+  const inGap = -(bh + BAR_IN);
+  const cands = [[0, BAR_GAP], [1, BAR_GAP], [0, inGap], [1, inGap]];   // [挂下方?, 间距]
+  let best = 0, bestLoss = Infinity;
+  for (let i = 0; i < cands.length; i++) {
+    const s = barSpot(b, !!cands[i][0], cands[i][1], bh);
+    const R = mkR(s[0], s[1], bw, bh);
+    let loss = rArea(R) - rArea(rCut(R, A)) + BAR_COVER * rArea(rCut(R, own));
+    for (const o of c.obs) loss += o.k * rArea(rCut(R, o.r));
+    if (i === w.__barCand) loss -= BAR_STICK;   // 上一回的位置粘一点
+    if (loss < bestLoss) { bestLoss = loss; best = i; }
+  }
+  const raw = barSpot(b, !!cands[best][0], cands[best][1], bh);
+  let xy = raw;
+  /* 放不下就再推一把：夹回纸内 → 往最近的出口推离遮挡物 → 再夹回纸内 */
+  for (let n = 0; n < 2; n++) {
+    xy = clampIn(xy, A, bw, bh);
+    const o = barHit(xy, bw, bh, c.obs); if (!o) break;
+    xy = barPush(xy, o, bw, bh);
+  }
+  xy = clampIn(xy, A, bw, bh);
+  /* 屏幕位移 → 对象自己的坐标系（见上面那段注释） */
+  const rad = b.rot * Math.PI / 180, cs = Math.cos(rad), sn = Math.sin(rad);
+  const dx = xy[0] - raw[0], dy = xy[1] - raw[1];
+  const vx = cs * dx + sn * dy, vy = cs * dy - sn * dx;
+  const below = !!cands[best][0], gap = cands[best][1];
+  const sig = (below ? 'b' : 't') + '|' + gap.toFixed(0) + '|' + vx.toFixed(1) + '|' + vy.toFixed(1);
+  if (sig !== w.__barSig) {                    // 值没变就别重写，省一次样式重算
+    w.__barSig = sig;
+    w.classList.toggle('bar-below', below);
+    bar.style.setProperty('--ob-gap', gap.toFixed(1) + 'px');
+    bar.style.setProperty('--ob-dx', vx.toFixed(1) + 'px');
+    bar.style.setProperty('--ob-dy', vy.toFixed(1) + 'px');
+  }
+  w.__barCand = best;
 }
-/* 对象贴着纸的上沿时，工具条改挂到下方 */
+/* 当前选中的那一个重新摆一次（转屏 / 面板起落 / 键盘升降都要） */
+function refitObjBars() {
+  $$('.pimg-wrap.sel, .ptext-wrap.adjust, .ptext-wrap.editing').forEach(w => fitObjBar(w));
+}
+let refitRaf = 0;
+const refitLater = () => {
+  if (refitRaf) return;
+  refitRaf = requestAnimationFrame(() => { refitRaf = 0; refitObjBars(); });
+};
+window.addEventListener('resize', refitLater);
+window.addEventListener('orientationchange', () => setTimeout(refitLater, 320));
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', refitLater);
+  window.visualViewport.addEventListener('scroll', refitLater);
+}
+window.__refitObjBars = refitLater;
+/* 工具条上的按钮状态（位置交给 fitObjBar 管） */
 function syncBar(w, im) {
   if (!w || !im) return;
-  w.classList.toggle('bar-below', (im.y ?? 0) < .13);
   const b = w.querySelector('.objbar .ob[data-ob="edit"]');
   if (b && w.classList.contains('pimg-wrap')) {
     b.classList.toggle('on', !!im.fill);
@@ -207,23 +368,28 @@ function shSync() {
 }
 /* 面板开关时：顶栏 / 底栏让位，面板高度记到 #reader 上供排版避让。
    「本页底色」弹窗（#bgsheet）借同一套编辑态，只是它没有撤销栈，把撤销 / 重做收起来 */
+/* 现在开着的是哪一张底部面板（文字 / 底色 / 边框 / 贴纸）。
+   同一时刻只会开一张，但「有没有开」这一问在好几处都要用，集中成一句话 */
+const SHEET_SELS = ['#tsheet', '#bgsheet', '#frsheet', '#stsheet'];
+function openSheetEl() { for (const s of SHEET_SELS) { const el = $(s); if (el && !el.hidden) return el; } return null; }
+function anySheetOpen() { return !!openSheetEl() || !!$('.ptext-wrap.editing'); }
 function updateEflow() {
   const reader = $('#reader'); if (!reader) return;
   const inline = !!$('.ptext-wrap.editing');
-  const on = sh.open || inline || !!window.__bgSheetOpen;
+  const on = sh.open || inline || !!openSheetEl();
   reader.classList.toggle('eflow', on);
   const top = $('#eflowTop');
   if (top) top.hidden = !on;
   const hist = $('#efHist');
   if (hist) hist.hidden = !sh.open;               // 只有文字面板才有撤销 / 重做
-  if (!sh.open && !window.__bgSheetOpen) { window.__sheetCov = 0; reader.style.setProperty('--stage-shift', '0px'); }
+  if (!sh.open && !openSheetEl()) { window.__sheetCov = 0; reader.style.setProperty('--stage-shift', '0px'); }
   shSyncHist();
+  refitLater();                  // 顶栏 / 左上角那组按钮一出一进，工具条要重新挑位置
 }
 /* 面板压住了下半截纸：量出重叠高度，书排版时避开、并整体上移一半 */
 function sheetLayout() {
   const reader = $('#reader'), stage = $('#stage');
-  const ts = $('#tsheet'), bs = $('#bgsheet');
-  const sheet = (ts && !ts.hidden) ? ts : ((bs && !bs.hidden) ? bs : null);
+  const sheet = openSheetEl();
   if (!reader || !stage || !sheet || sheet.hidden) {
     window.__sheetCov = 0;
     if (reader) reader.style.setProperty('--stage-shift', '0px');
@@ -268,8 +434,9 @@ function openTextSheet(pid, iid, focus) {
   sheet.hidden = false;
   shTab('font'); shSync();
   updateEflow();
-  requestAnimationFrame(() => { sheetLayout(); layoutBook(); });
-  setTimeout(() => { sheetLayout(); layoutBook(); }, 340);   // 展开动画走完再量一次
+  /* 面板撑开会把纸压小（layoutBook 会避开它），纸一缩工具条就得重新挑位置 */
+  requestAnimationFrame(() => { sheetLayout(); layoutBook(); refitObjBars(); });
+  setTimeout(() => { sheetLayout(); layoutBook(); refitLater(); }, 340);   // 展开动画走完再量一次
   if (focus) setTimeout(() => { const i = $('#tsInput'); if (i) { i.focus(); shGrowInput(); } }, 60);
   syncTextBar();
 }
@@ -392,6 +559,9 @@ function buildSheet() {
   /* 右上角「完成」：底色面板开着就是「按完成落盘」，文字面板开着收面板，行内打字中就结束输入 */
   $('#efOk').onclick = () => {
     if (window.__bgOk) { window.__bgOk(); return; }
+    /* 边框 / 贴纸面板：左上角这颗 ✓ 就是「收面板」（改动早就当场存过了） */
+    if (window.__frOk) { window.__frOk(); return; }
+    if (window.__stOk) { window.__stOk(); return; }
     if (sh.open) { closeTextSheet(true); return; }
     const w = $('.ptext-wrap.editing');
     if (w) stopTextEdit(w, true); else hideTextBar();
@@ -454,6 +624,15 @@ function fitTextHeight(w, el, growOnly) {
   if (growOnly) { if (need <= cur) return; }               // 还没顶到框底：不动
   const nh = clamp(need, lh, Math.max(lh, maxH));
   if (Math.abs(nh - cur) < 1.5) return;
+  /* 旋转过的文字：框长高 = 中心往下挪 = 整块会被转出去一段（原因见 media.js 的 rotShift）。
+     补回去之后顶边和已经打好的字才留在原地，不会一边打字一边整块飘 */
+  const sf = rotShift(pr, t.rot, 0, (nh - cur) / 2);
+  if (sf.x || sf.y) {
+    t.x = clamp((t.x ?? 0) + sf.x, OBJ_MIN, OBJ_MAX);
+    t.y = clamp((t.y ?? 0) + sf.y, OBJ_MIN, OBJ_MAX);
+    w.style.left = (t.x * 100).toFixed(2) + '%';
+    w.style.top = (t.y * 100).toFixed(2) + '%';
+  }
   t.h = clamp(nh / pr.height, .02, 1);
   w.style.height = (t.h * 100).toFixed(2) + '%';
   if (window.__syncTypeShift) window.__syncTypeShift();    // 框变高了，重新算要不要再抬一点

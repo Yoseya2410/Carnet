@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 本地存储 · 书架数据 / 显示偏好 / 背景   （脚本 3 / 25）
+ * Carnet · 本地存储 · 书架数据 / 显示偏好 / 背景   （脚本 3 / 27）
  * ---------------------------------------------------------------------
  * ① IndexedDB 键值封装 DB（不可用时降级 localStorage）与防抖保存 save()
  * ② 显示偏好 prefs：展示模式、主页与阅读器共用的背景 setBg / applyBg
@@ -133,9 +133,16 @@ function bgIsLight(v) {
   const n = parseInt(hex.slice(0, 6), 16);
   return (0.2126 * (n >> 16 & 255) + 0.7152 * (n >> 8 & 255) + 0.0722 * (n & 255)) / 255 > 0.62;
 }
+/* ⚠️ default 档现在也加 bg-light：默认界面背景本身就是浅色了（见 base.css 的 body 背景），
+   不加的话标题 / 页数 / 书架空提示这些白字直接压在浅底上，一个字都看不见。
+   毛玻璃控件不受影响 —— 它们自己的底色是深的（--frost），白字在上头照样读得清。 */
 function applyBgTo(el, b) {
   el.classList.remove('bg-light');
-  if (!b || b.mode === 'default' || (b.mode === 'color' && !b.value) || (b.mode === 'image' && !b.img)) { el.style.background = ''; return; }
+  if (!b || b.mode === 'default' || (b.mode === 'color' && !b.value) || (b.mode === 'image' && !b.img)) {
+    el.style.background = '';
+    el.classList.add('bg-light');
+    return;
+  }
   if (b.mode === 'image') { el.style.background = `url("${b.img}") center / cover no-repeat`; return; }
   el.style.background = b.value;
   if (bgIsLight(b.value)) el.classList.add('bg-light');

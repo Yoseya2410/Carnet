@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 搜索面板   （样式 10 / 16）
+ * Carnet · 搜索面板   （样式 12 / 19）
  * ---------------------------------------------------------------------
  * ① 搜索条与结果列表（含滚动条 gutter 防抖）
  * ② 结果里的封面缩略图
@@ -34,9 +34,12 @@
 }
 .sr-item:hover{background:rgba(255,255,255,.16)}
 /* 搜索里的封面缩略图：按真实封面等比缩小渲染，图案疏密、圆角比例都跟原封面一致 */
-.sr-thumb{position:relative;width:42px;aspect-ratio:3/4.05;flex:0 0 auto;overflow:hidden;
+.sr-thumb{--sr-w:42px;position:relative;width:var(--sr-w);aspect-ratio:3/4.05;flex:0 0 auto;overflow:hidden;
   border-radius:2px 4px 4px 2px;box-shadow:0 6px 14px -6px rgba(0,0,0,.6)}
-.sr-thumb .cover{width:var(--sr-cw,148px);border-radius:0;box-shadow:none;
+/* 方形画册：跟其它本子一样高，所以缩略图要跟着变宽（缩放系数不用动 —— 容器与封面同乘 1.35，比值不变） */
+.sr-thumb.sq{--sr-w:calc(42px * 4.05 / 3);aspect-ratio:1/1}
+/* ⚠️ 只设 --cover-w，别直接写 width —— 方形画册要按它把宽放大 1.35 倍才能跟别的本子一样高 */
+.sr-thumb .cover{--cover-w:var(--sr-cw,148px);border-radius:0;box-shadow:none;
   transform:scale(var(--sr-k,.2838));transform-origin:top left}
 .sr-item .info{flex:1;min-width:0}
 .sr-item .nm{font-size:14px;font-weight:600;letter-spacing:.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

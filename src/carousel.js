@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 主页 · 左右滑动轮播   （脚本 12 / 25）
+ * Carnet · 主页 · 左右滑动轮播   （脚本 12 / 27）
  * ---------------------------------------------------------------------
  * ① 排布与跟手：按屏幕比例算书的大小与间距 layoutCarousel
  * ② 滑动松手后落到最近的一本、居中吸附
@@ -224,6 +224,11 @@ const carousel = (() => {
 })();
 function layoutCarousel(animate) { carousel.layout(animate); }
 function selectJournal(i, animate = true) {
+  if (state.prefs.view === 'spine') {
+    state.sel = clamp(i, 0, Math.max(state.journals.length - 1, 0));
+    syncSpineSelection(animate);
+    return;
+  }
   if (state.prefs.view === 'shelf') {          // 书架模式：选中并滚到那本，不经过轮播
     state.sel = clamp(i, 0, Math.max(state.journals.length - 1, 0));
     syncHomeHead();

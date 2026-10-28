@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 阅读器   （样式 4 / 16）
+ * Carnet · 阅读器   （样式 5 / 19）
  * ---------------------------------------------------------------------
  * ① 书籍骨架、左页右页、翻页叶片
  * ② 中缝折痕与纸光
@@ -10,7 +10,11 @@
 /* ============ 阅读器 ============ */
 #reader{
   position:absolute;inset:0;display:none;flex-direction:column;
-  background:radial-gradient(120% 100% at 50% -10%,#4a5070 0%,#343a58 45%,#232840 100%);
+  /* ⚠️ 背景必须跟主页同一份（--app-bg，见 base.css）：主页是透明的、透出 body 那层，
+     阅读器这里要是自己写一条渐变，两者就不是一个画面了。
+     自定义背景（纯色 / 图片）由 storage.js 的 applyBg 用内联样式同时写到 #home / #reader / body 上，
+     内联优先级高于这条，所以三条路径下两边始终一致。 */
+  background:var(--app-bg);
 }
 #reader.show{display:flex;animation:fadeIn .32s ease}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
@@ -84,6 +88,32 @@
   content:"";position:absolute;top:0;bottom:0;left:calc(50% + 1.5px);width:1.5px;
   background:linear-gradient(180deg,rgba(255,255,255,.20),rgba(255,255,255,.10))
 }
+/* ---- 活页手帐的中缝金属环 ----
+   环是**横向跨过中缝**的一小截钢丝：左右两头搭在两页纸上，中间悬在书脊的凹槽上。
+   所以它得比中缝窄一点、并且左右各探出去一截 —— 只画在缝里看着是一排竖着的亮片，不像环。
+   z-index 要压过翻页叶片（20）：纸是绕着环翻过去的，环始终在最上层 */
+.gutter .grings{display:none}
+.book.ringed.spread:not(.cover-only) .gutter .grings{display:block}
+.gutter .grings i{
+  position:absolute;left:50%;transform:translateX(-50%);
+  width:calc(var(--pw) * .175);height:calc(var(--ph) * .026);border-radius:999px;
+  background:linear-gradient(180deg,#fff 0,#e8ebf3 12%,#9aa0b4 40%,#4e5364 64%,#7f8598 82%,#dfe3ee 100%);
+  box-shadow:0 3px 6px -1px rgba(8,10,24,.62),inset 0 0 0 .5px rgba(255,255,255,.6),
+             inset 0 -1px 1px rgba(0,0,0,.4),0 0 0 1px rgba(255,255,255,.06);
+  z-index:26
+}
+/* 环两端的「穿孔」：活页纸上是打过孔的，钢丝从孔里钻进去 ——
+   少了这两个孔，环看着只是搭在纸面上的两截亮片，不像穿在纸上。
+   一层圆形暗影（孔里的黑洞）+ 一圈更淡的外扩（孔边被压皱的纸），两层叠出打孔的感觉 */
+.gutter .grings i::before,.gutter .grings i::after{
+  content:"";position:absolute;top:50%;width:13%;aspect-ratio:1;
+  transform:translateY(-50%);border-radius:50%;
+  background:radial-gradient(circle at 50% 42%,
+    rgba(6,8,20,.72) 0%,rgba(6,8,20,.52) 42%,rgba(6,8,20,.26) 70%,rgba(6,8,20,.10) 88%,rgba(6,8,20,0) 100%);
+  box-shadow:0 0 0 1px rgba(6,8,20,.20),0 0 4px 1px rgba(6,8,20,.18)
+}
+.gutter .grings i::before{left:2%}
+.gutter .grings i::after{right:2%}
 /* 翻页时，叶片靠书脊的一侧也压暗，翻动过程中折痕不会消失 */
 .leaf-face::before{
   content:"";position:absolute;inset:0;pointer-events:none;z-index:5;

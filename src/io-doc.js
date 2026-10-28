@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 导出 · PDF 与 SVG 矢量   （脚本 5 / 25）
+ * Carnet · 导出 · PDF 与 SVG 矢量   （脚本 5 / 27）
  * ---------------------------------------------------------------------
  * ① 把每一页渲染成 XHTML：pageExportXHTML（PDF / SVG 共用这一份实现）
  * ② 纯前端拼 PDF：JPEG 转字节流、写 PDF 对象表 buildPdf
@@ -76,14 +76,29 @@ function pageExportHTML(j, idx, W, H) {
     const rbBg = ribbonSpine(j.ribbon) || ribbonSpine('#c98a8a');
     const bg = cv.img ? `background-image:url('${cv.img}');background-size:cover;background-position:center;` : `background:${cv.value || '#ddd'};`;
     const pat = (cv.pattern && cv.pattern !== 'none' && !cv.img) ? patternStyle(cv.pattern, cv) : '';
+    const st = bookStyleOf(j);
+    /* 装订那一列：活页画金属环（环数据 BOOK_STYLES.rings）；
+       ⚠️ 彩带只有笔记本这一档有（st.ribbon），跟屏幕上的取舍保持一致 */
+    let bind = '';
+    if (st.rings) {
+      const n = st.rings, gap = 92 / n, hh = 3.1;
+      bind = `<div style="position:absolute;left:0;top:0;bottom:0;width:3.6%;background:linear-gradient(90deg,rgba(0,0,0,.42),rgba(0,0,0,.1))"></div>`
+        + Array.from({ length: n }, (_, i) =>
+          `<div style="position:absolute;left:1.4%;top:${(4 + i * gap).toFixed(2)}%;width:4.2%;height:${hh}%;border-radius:999px;`
+          + `background:linear-gradient(180deg,#fdfdff,#e6e9f1 16%,#a6acc0 46%,#5c6274 70%,#cfd3e0);`
+          + `box-shadow:0 1px 2px rgba(10,12,26,.6)"></div>`).join('');
+    } else {
+      const spine = st.ribbon ? ribbonSpine(j.ribbon) : '';
+      const w = st.k === 'square' ? 6 : 8.5;
+      bind = spine
+        ? `<div style="position:absolute;left:0;top:0;bottom:0;width:${w}%;background:${spine}"></div>`
+        /* 无彩带：只留装订压痕阴影，不画颜色带 */
+        : `<div style="position:absolute;left:0;top:0;bottom:0;width:${w}%;box-shadow:2px 0 7px rgba(0,0,0,.24),inset -1px 0 0 rgba(255,255,255,.15)"></div>`;
+    }
     return `<div style="position:relative;width:${W}px;height:${H}px;overflow:hidden;${bg}">`
       + `<div style="position:absolute;inset:0;${pat}"></div>`
       + `<div style="position:absolute;inset:0;background:linear-gradient(112deg,rgba(255,255,255,.28) 0%,rgba(255,255,255,0) 34%,rgba(255,255,255,0) 68%,rgba(255,255,255,.12) 100%)"></div>`
-      /* 透明彩带：导出同样只留压痕阴影，不画颜色带 */
-      + (j.ribbon === RIBBON_NONE
-          ? `<div style="position:absolute;left:0;top:0;bottom:0;width:8.5%;box-shadow:2px 0 7px rgba(0,0,0,.24),inset -1px 0 0 rgba(255,255,255,.15)"></div>`
-          : `<div style="position:absolute;left:0;top:0;bottom:0;width:8.5%;background:${rbBg}"></div>`)
-      + `<div style="position:absolute;right:0;top:2%;bottom:2%;width:2.5%;background:linear-gradient(90deg,rgba(0,0,0,.06),rgba(255,255,255,.5))"></div>`
+      + bind
       + `</div>`;
   }
   const pg = j.pages[idx] || { images: [], texts: [] };
@@ -96,9 +111,18 @@ function pageExportHTML(j, idx, W, H) {
   const lined = j.template === 'lined' ? `<div style="position:absolute;left:${(34 * k).toFixed(1)}px;top:0;bottom:0;width:1px;background:#eab7c2;opacity:.8"></div>` : '';
   const imgHTML = im => {
     const hw = im.h || clamp(im.w / 0.68, .04, IMG_MAX);
-    const fit = im.fill ? 'object-fit:cover;border-radius:0;' : 'object-fit:fill;';
+    /* 「铺满」的盒子由 fillGeom 算好（可能有限度地拉过），一律不裁：
+       算过几何的（im.fit）按盒子拉满；老数据（整页 1×1）退回 contain 按原比例完整导出 */
+    const fit = im.fill ? (im.fit ? 'object-fit:fill;border-radius:0;' : 'object-fit:contain;border-radius:0;')
+                        : 'object-fit:fill;';
     const rot = im.rot ? `transform:rotate(${im.rot}deg);` : '';
-    return `<img src="${im.src}" style="position:absolute;left:${(im.x * 100).toFixed(2)}%;top:${(im.y * 100).toFixed(2)}%;width:${(im.w * 100).toFixed(2)}%;height:${(hw * 100).toFixed(2)}%;${fit}${rot}" />`;
+    const box = `position:absolute;left:${(im.x * 100).toFixed(2)}%;top:${(im.y * 100).toFixed(2)}%;width:${(im.w * 100).toFixed(2)}%;height:${(hw * 100).toFixed(2)}%;${rot}`;
+    const img = `<img src="${im.src}" style="width:100%;height:100%;display:block;${fit}${frameImgStyle(im)}" />`;
+    /* 有边框就套一层 .pframe 的等价物：样式由 frameBoxStyle 现算（跟屏幕上是同一个函数），
+       sc = W / PAGE_W_DEFAULT 把阴影那几个 px 按导出尺寸放大，大图小图看起来一样 */
+    return hasFrame(im)
+      ? `<div style="${box}"><div style="position:absolute;inset:0;box-sizing:border-box;${frameBoxStyle(im, W / PAGE_W_DEFAULT)}">${img}</div></div>`
+      : `<div style="${box}">${img}</div>`;
   };
   const txtHTML = t => {
     const fs = (t.size || 5.5) / 100 * W;
@@ -106,13 +130,24 @@ function pageExportHTML(j, idx, W, H) {
     const ffe = t.fontEn ? textEnStack(t.fontEn) : '';   // 英文字体排在中文字体前面
     const lh = exportFontIsHand(t.font) ? 1.42 : 1.32;
     const fam = [ffe, ff === 'inherit' ? '' : ff].filter(Boolean).join(',') || 'inherit';
+    /* 便利贴：一张带纸色的便签（跟屏幕上 .ptext-wrap.note .ptxt 同一套：纸色底 + 折角 + 落地影） */
+    const nc = normHex6(t.note);
+    const note = nc
+      ? `background:${nc};padding:.5em .66em;border-radius:3px;`
+        + `box-shadow:${(W * .006).toFixed(1)}px ${(W * .011).toFixed(1)}px ${(W * .024).toFixed(1)}px -${(W * .008).toFixed(1)}px rgba(24,26,44,.45),`
+        + `inset 0 0 0 ${(W * .004).toFixed(1)}px rgba(255,255,255,.34),inset 0 -${(W * .004).toFixed(1)}px 0 rgba(0,0,0,.08);`
+      : '';
     const inner = `width:100%;height:100%;overflow:hidden;font-size:${fs.toFixed(2)}px;color:${t.color || '#2b2f3d'};text-align:${t.align || 'left'};`
       + `${t.bold ? 'font-weight:700;' : ''}${t.italic ? 'font-style:italic;' : ''}`
       + `${t.underline ? 'text-decoration:underline;' : (t.strike ? 'text-decoration:line-through;' : '')}`
       + `${t.bg ? 'background:' + t.bg + ';' : ''}`
+      + `${note}`
       + `font-family:${fam};line-height:${lh};letter-spacing:.01em;white-space:pre-wrap;word-break:break-word;`;
     const rot = t.rot ? `transform:rotate(${t.rot}deg);` : '';
-    return `<div style="position:absolute;left:${((t.x ?? .16) * 100).toFixed(2)}%;top:${((t.y ?? .16) * 100).toFixed(2)}%;width:${((t.w ?? .56) * 100).toFixed(2)}%;height:${((t.h ?? .12) * 100).toFixed(2)}%;${rot}"><div style="${inner}">${esc(t.text || '')}</div></div>`;
+    /* 便利贴右下角那个折角 —— 用一层绝对定位的小三角盖上去（导出文档里没有伪元素可借） */
+    const fold = nc ? `<div style="position:absolute;right:0;bottom:0;width:${(W * .026).toFixed(0)}px;height:${(W * .026).toFixed(0)}px;`
+      + `background:linear-gradient(135deg,transparent 50%,rgba(0,0,0,.16) 50%)"></div>` : '';
+    return `<div style="position:absolute;left:${((t.x ?? .16) * 100).toFixed(2)}%;top:${((t.y ?? .16) * 100).toFixed(2)}%;width:${((t.w ?? .56) * 100).toFixed(2)}%;height:${((t.h ?? .12) * 100).toFixed(2)}%;${rot}"><div style="position:relative;width:100%;height:100%"><div style="${inner}">${esc(t.text || '')}</div>${fold}</div></div>`;
   };
   /* 上下层跟应用里一致：按 z 从小到大排，先加的在下、后加的盖在上面 */
   ensureZ(pg);
@@ -134,7 +169,7 @@ function pageExportXHTML(j, idx, W, H) {
     + pageExportHTML(j, idx, W, H) + `</div>`;
 }
 async function renderExportCanvas(j, idx, W) {
-  const H = Math.round(W * PAGE_RATIO);
+  const H = Math.round(W * pageRatioOf(j));
   const root = pageExportXHTML(j, idx, W, H);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><foreignObject width="100%" height="100%">${root}</foreignObject></svg>`;
   const img = await new Promise((res, rej) => {
@@ -207,7 +242,7 @@ async function exportJournalPDF(j) {
   const target = await pickExportTarget(name, 'PDF 文件', '.pdf', 'application/pdf');
   if (target === 'cancel') { toast('已取消导出'); return; }
   try {
-    const CW = EX_W, CH = Math.round(EX_W * PAGE_RATIO);
+    const CW = EX_W, CH = Math.round(EX_W * pageRatioOf(j));
     const jpegs = [];
     for (let i = 0; i < pages.length; i++) {
       toast(`正在生成 PDF… ${i + 1} / ${pages.length}`);
@@ -215,7 +250,7 @@ async function exportJournalPDF(j) {
       const blob = await canvasBytes(c, 0.9);
       jpegs.push({ w: CW, h: CH, data: new Uint8Array(await blob.arrayBuffer()) });
     }
-    const bytes = buildPdf(jpegs, 595, +(595 * PAGE_RATIO).toFixed(2));
+    const bytes = buildPdf(jpegs, 595, +(595 * pageRatioOf(j)).toFixed(2));
     await deliverBlob(target, name, new Blob([bytes], { type: 'application/pdf' }), 'application/pdf',
       `已导出《${j.name}》PDF · 共 ${jpegs.length} 页`);
   } catch (e) {
@@ -235,7 +270,7 @@ async function exportJournalSVG(j) {
   if (target === 'cancel') { toast('已取消导出'); return; }
   try {
     const W = EX_W;
-    const H = Math.round(W * PAGE_RATIO);
+    const H = Math.round(W * pageRatioOf(j));
     const totalH = H * pages.length;
     const body = pages.map((idx, i) =>
       `<foreignObject x="0" y="${i * H}" width="${W}" height="${H}">`

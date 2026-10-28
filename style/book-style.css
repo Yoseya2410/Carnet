@@ -1,0 +1,140 @@
+/* =====================================================================
+ * Carnet · 装帧样式与封面拟物   （样式 4 / 19）
+ * ---------------------------------------------------------------------
+ * ① 封面的光泽与明暗（.gloss）、暗角与内描边（::after）
+ * ② 硬壳装帧：书脊（.spine）；彩带颜色只有「笔记本」这一档用得上
+ * ③ 活页装帧：金属活页环（.rings）、装订压条（::before）
+ * ④ 方形画册：1:1 开本（.s-square）
+ * ⑤ 编辑器里的「装帧样式」选择卡（.sty-*)
+ *
+ * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
+ * ===================================================================== */
+/* ============ 封面：更像一本真书 ============ */
+/* 圆角不对称：靠书脊那侧（左）几乎是直角，翻口那侧（右）圆得明显 —— 硬壳书的招牌 */
+.cover{
+  border-radius:4px 13px 13px 4px;
+  /* 三层影子：远处的大范围软影 + 贴边的接触影 + 一圈内侧描边（把边缘勾出来）。
+     ⚠️ 两层外影都要**淡**：影子一重，书看着像浮在半空而不是坐在架子上，
+        浅色背景下尤其明显（深影会把整块背景压脏）。
+     ⚠️ 这条会盖掉 home.css 里 .cover 那条 —— 那边是兜底，改阴影两边都要动 */
+  box-shadow:
+    0 30px 50px -28px rgba(8,10,24,.30),
+    0 6px 12px -8px rgba(8,10,24,.18),
+    inset 0 0 0 1px rgba(255,255,255,.15),
+    inset 0 -1px 0 rgba(0,0,0,.22);
+}
+/* ---- 左右滑动模式：书是"悬在手边"的一排，影子要按真实的光来画 ----
+   ① 光源在左上 → 影子偏右下，而且**越远偏得越多**（半影随距离外扩），
+      所以下面几层的 x 偏移是一层一层加大的，不是全部同一个方向一个量；
+   ② 贴在书边那一圈最实最窄（接触影 / 环境光遮蔽），往外逐级变淡变散 ——
+      真实影子的衰减不是线性的，单一层 box-shadow 画出来是一块"贴上去的灰片"，
+      所以叠五层由实到虚把它铺出来；
+   ③ 影子带一点**冷灰蓝**（rgba(28,32,56)）而不是纯黑：浅底上的影子是背景色被遮住的结果，
+      纯黑压上去会发脏。
+   ⚠️ 只挂在 .carousel 下：书架那排是插进搁板的（接触影由 shelf.css 的板子负责），
+      编辑器 / 搜索结果里的小封面也不该有这么重的落地影。
+   ⚠️ 这条会盖掉上面 .cover 那条（选择器更具体）—— 改阴影时两边一起看。 */
+.carousel .book-item .cover{
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,.15),
+    inset 0 -1px 0 rgba(0,0,0,.22),
+    0 1px 2px rgba(30,34,58,.20),            /* 接触影：贴着书边那一线，四面均匀 */
+    1px 3px 7px -1px rgba(28,32,56,.17),     /* 近影 */
+    2px 10px 17px -6px rgba(26,30,54,.15),   /* 中影 */
+    4px 22px 34px -14px rgba(24,28,52,.13),  /* 远影 */
+    8px 42px 62px -26px rgba(20,24,48,.11);  /* 环境影：铺得最开、也最淡 */
+  transition:box-shadow .5s cubic-bezier(.25,.8,.3,1)
+}
+/* 中间那本离你最近（scale 1.05），影子也压得更实一点 —— 远近关系才立得住 */
+.carousel .book-item.active .cover{
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,.15),
+    inset 0 -1px 0 rgba(0,0,0,.22),
+    0 1px 2px rgba(30,34,58,.22),
+    1px 4px 9px -1px rgba(28,32,56,.18),
+    3px 12px 20px -6px rgba(26,30,54,.15),
+    5px 26px 40px -15px rgba(24,28,52,.13),
+    10px 48px 70px -28px rgba(20,24,48,.11)
+}
+/* 暗角 + 上下缘的明暗：上缘接住光、下缘压暗，封面才有厚度。
+   用内阴影而不是画一层渐变，免得盖住封面图案的颜色 */
+.cover::after{
+  content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;
+  box-shadow:
+    inset 0 0 0 1px rgba(0,0,0,.14),
+    inset 0 14px 20px -16px rgba(255,255,255,.55),
+    inset 0 -14px 22px -18px rgba(0,0,0,.30),
+    inset -12px 0 18px -14px rgba(0,0,0,.35),
+    /* 靠书脊这一侧也压一道：封面从书脊那儿凹进去，不可能一片平 */
+    inset 14px 0 20px -16px rgba(0,0,0,.42);
+}
+/* 活页那档要放开封面的裁剪 —— 金属环得探出左边一点点才像真的环。
+   放开的代价：里面每一层要自己按封面圆角裁（background 本来就跟着 border-radius 走，
+   所以只要给这几层补上 border-radius:inherit 就够了） */
+.cover.s-personal{overflow:visible}
+.cover .pattern,.cover .gloss{border-radius:inherit}
+/* ---- 光泽：斜向的一道亮带 + 顶部一片柔光（soft-light，只提亮不糊色） ---- */
+.cover .gloss{
+  background:
+    linear-gradient(112deg,rgba(255,255,255,.30) 0%,rgba(255,255,255,0) 34%,rgba(255,255,255,0) 66%,rgba(255,255,255,.14) 100%),
+    radial-gradient(120% 60% at 50% 6%,rgba(255,255,255,.22),rgba(255,255,255,0) 62%);
+}
+
+/* ============ 活页装帧 ============ */
+/* 装订压条：环穿过去的那道深色沟 */
+.cover.s-personal::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:3.6%;pointer-events:none;
+  background:linear-gradient(90deg,rgba(0,0,0,.42),rgba(0,0,0,.10));
+  box-shadow:inset -1px 0 0 rgba(255,255,255,.12)
+}
+/* ⚠️ .rings 必须铺满整张封面（inset:0）—— 环的宽高都是百分比，
+   容器一旦只有 8% 宽，百分比就按那 8% 算，环会缩成一条 1px 的缝 */
+.cover .rings{position:absolute;inset:0;pointer-events:none}
+/* 一颗环 = 一小段横着穿出来的金属丝：上下「亮—暗—亮」做出圆柱的高光，
+   落地影压在环的下缘（::after），整排看上去就是绕在装订边上的那圈钢丝。
+   ⚠️ 尺寸要按「封面（高）」和「封面（宽）」分别取百分比：
+      高用 % 才不会被封面宽窄带偏，宽用 % 才跟着封面一起放大 */
+.cover .rings i{
+  position:absolute;left:-2.2%;width:6%;height:2.5%;border-radius:999px;
+  background:linear-gradient(180deg,#fff 0,#e8ebf3 12%,#9aa0b4 40%,#4e5364 64%,#7f8598 82%,#dfe3ee 100%);
+  box-shadow:0 3px 5px -1px rgba(8,10,24,.6),inset 0 0 0 .5px rgba(255,255,255,.6),inset 0 -1px 1px rgba(0,0,0,.4)
+}
+/* 环穿进封面的那个孔：右端一小团暗影，看着就是「钢丝从这里钻进纸里」 */
+.cover .rings i::before{
+  content:"";position:absolute;right:-7%;top:16%;width:17%;height:68%;border-radius:999px;
+  background:radial-gradient(ellipse at 42% 42%,rgba(10,12,26,.58),rgba(10,12,26,.14) 62%,rgba(10,12,26,0) 78%)
+}
+/* 环下面那道接触影：金属是圆的，压在纸面上必然有一小条暗影 —— 有了它环才浮得起来 */
+.cover .rings i::after{
+  content:"";position:absolute;left:8%;right:8%;top:82%;height:52%;border-radius:0 0 999px 999px;
+  background:linear-gradient(180deg,rgba(10,12,26,.5),rgba(10,12,26,0))
+}
+/* 六孔活页：环大一点，一眼能跟其它装帧区分开 */
+.cover .rings.n6 i{left:-3%;width:8.2%;height:4%}
+/* ============ 方形画册：1:1 开本 ============ */
+/* ⚠️ 关键：宽度取「常规封面的高」（--cover-w × 4.05/3），不是沿用 --cover-w。
+   正方形下宽=高，这样画册的高度才跟精装 / 活页一模一样 —— 摆在一起不矮一截。
+   （若沿用 --cover-w，画册会比别人矮 26%，书架里一眼就看出来。） */
+.cover.s-square{width:calc(var(--cover-w) * 4.05 / 3);aspect-ratio:1/1;border-radius:5px 12px 11px 5px}
+/* 画册更宽 → 所有竖条的百分比要同比调小，视觉宽度才跟其它本子一致（≈ 原值 ÷ 1.35） */
+.cover.s-square .spine{width:6%}
+
+/* ============ 编辑器：装帧样式选择卡 ============ */
+/* 固定两列：四档正好 2×2 排整齐，且列宽足够放下方形画册（它比常规封面宽 1.35 倍，
+   用 auto-fill + 78px 时手机上会排到 4 列、卡片装不下 82px 宽的方形封面） */
+.sty-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.sty{
+  position:relative;border-radius:11px;padding:7px 6px 8px;cursor:pointer;
+  background:rgba(255,255,255,.06);border:1.5px solid transparent;transition:background .18s,border-color .18s,transform .14s
+}
+.sty:hover{background:rgba(255,255,255,.12)}
+.sty:active{transform:scale(.97)}
+.sty.on{border-color:#fff;background:rgba(255,255,255,.16)}
+/* 卡片里那本小书：用封面渲染的真实 HTML 缩一份，选样式时看到的就是成品的样子。
+   缩的时候整块跟着变小（transform），环 / 书槽这些细节按比例一齐缩，不走单独画一套 */
+.sty-pv{height:82px;display:flex;align-items:center;justify-content:center;margin-bottom:6px}
+/* 卡片按高度定尺：四档开本宽窄不同，统一高度才排得整齐（方形那档自动走 aspect-ratio:1/1 变宽） */
+.sty-pv .cover{width:auto;height:82px;box-shadow:0 8px 16px -8px rgba(0,0,0,.6),inset 0 0 0 1px rgba(255,255,255,.15)}
+.sty-pv .gear,.sty-pv .cover-badge{display:none}
+.sty-n{font-size:12px;text-align:center;letter-spacing:.04em;line-height:1.25}
+.sty-d{font-size:10.5px;text-align:center;opacity:.62;margin-top:2px;letter-spacing:.02em}
