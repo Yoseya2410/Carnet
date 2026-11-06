@@ -79,10 +79,12 @@
   box-shadow:0 4px 0 currentColor,0 8px 0 currentColor;pointer-events:none
 }
 /* 预览框只放一张封面（不再挂编辑按钮、也不重复书名页数），所以只需要装下封面那一块。
-   封面尺寸同时受宽度和高度约束（min(vw,vh)），矮屏上自动让一让 */
+   封面尺寸同时受宽度和高度约束（min(vw,vh)），矮屏上自动让一让。
+   ⚠️ 封面是**绝对定位**的：它要横着挪到「选中的那一根书脊」正下方（--px 由
+      spineDetailShift() 量出来，是相对预览框中心的偏移），用 flow 布局只能永远居中。
+      框本身仍占原来那一截高度，书脊的长度不受影响 */
 .spine-detail{
-  flex:0 0 clamp(138px,18vh,166px);display:flex;flex-direction:column;align-items:center;
-  padding-top:clamp(12px,2vh,20px);min-height:0;transition:opacity .16s ease
+  flex:0 0 clamp(138px,18vh,166px);position:relative;min-height:0;transition:opacity .16s ease
 }
 /* 预览淡入淡出：整块内容换掉时给一点过渡，不至于一闪一闪 */
 .spine-detail-cover{animation:fadeIn .17s ease}
@@ -91,7 +93,20 @@
 #spineWrap.no-preview .spine-detail{display:none}
 #spineWrap.no-preview{padding-bottom:calc(var(--botbar-h,90px) + 10px)}
 .spine-detail.empty{pointer-events:none}
-.spine-detail-cover.book-item{position:relative;flex:0 0 auto;transform:none;filter:none;cursor:pointer}
+/* 换预览时不许带着上一本的偏移滑过来：切换的这一帧先把位移过渡掐掉，
+   让封面直接出现在它对着的书脊正下方（.jump 由 renderSpineDetail 加上、下一帧摘掉）。
+   ⚠️ 不能把上面那条 transform 的 transition 直接删掉：横滑书排时预览要贴着书脊走
+      （那一路由 .sliding 负责掐过渡），两者走的是同一条位移 */
+.spine-detail.jump .spine-detail-cover.book-item{transition:none}
+/* 横滑书排时不给对位过渡（.sliding 由 home-events.js 的 scroll 处理加上/摘掉） */
+.spine-detail.sliding .spine-detail-cover.book-item{transition:none}
+/* ⚠️ 对位用 transform 而不是 left：横向挪动走合成层，切书 / 滑书排时不会一顿一顿。
+   默认 --px:0（没量到就老老实实居中），量到之后是「目标书脊中心 − 预览框中心」 */
+.spine-detail-cover.book-item{
+  position:absolute;left:50%;top:clamp(12px,2vh,20px);flex:0 0 auto;filter:none;cursor:pointer;
+  transform:translateX(calc(var(--px,0px) - 50%));
+  transition:transform .26s cubic-bezier(.22,.8,.3,1)
+}
 .spine-detail-cover .cover{--cover-w:clamp(58px,min(6.4vw,11vh),88px)}
 /* ==================== 点书脊：从架子上抽出来 ====================
    ① 先自己往上抽出一截（像手指捏住书脊往上提）+ 稍微放大，影子和光泽跟着变；
@@ -112,7 +127,20 @@
 .spine-item.lifted{opacity:.18;filter:none;transform:none}
 #spineWrap.sorting{touch-action:none;user-select:none;-webkit-user-select:none}
 #spineWrap.sorting .spine-item{cursor:grabbing;will-change:transform}
-#spineWrap.sorting .spine-item:hover{transform:none;filter:none}
+/* ⚠️ 排序中把整排压成同一副样子：手上的副本已经代表被拖的那一本，
+   原位剩下几本要是还各自「悬停抬起 / 选中加亮 / 投影加深 / 描白边」，
+   目光会跟着乱跳，看不清手指底下到底让到了哪一格。
+   这里把 transform / filter / 投影都写回**基础档**（不是 none）—— 直接写 none 会
+   让经过的每一本反而比平时更亮，那是一种更刺眼的「样式变化」。
+   .lifted 那本的 opacity 不在这几条里，淡坑照旧。
+   ⚠️ FLIP 让位是写内联 transform 的，内联压得过这里的 transform:none，不受影响 */
+#spineWrap.sorting .spine-item,
+#spineWrap.sorting .spine-item:hover,
+#spineWrap.sorting .spine-item.active{
+  transform:none;filter:saturate(.88) brightness(.96);
+  box-shadow:2px 5px 8px -5px rgba(10,12,20,.62),inset 0 0 0 1px rgba(255,255,255,.12)
+}
+#spineWrap.sorting .spine-item.active::after{border-color:transparent;box-shadow:none}
 /* 跟着手指走的悬浮副本。transition:none 必须留着 —— 它是 .spine-item 的克隆，
    会继承那套 hover 过渡，否则刚长按出来时会从屏幕左上角慢慢飘到手指下 */
 .spine-ghost{
@@ -178,4 +206,5 @@
 }
 @media (prefers-reduced-motion:reduce){
   .spine-item{transition:none}
+  .spine-detail-cover.book-item{transition:none}
 }

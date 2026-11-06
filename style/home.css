@@ -62,10 +62,12 @@
   /* 屏幕一窄就按宽度走（44vw，屏幕上占得满满的），屏幕矮就按高度让一让（40vh），
      宽屏不再一路放大，收在 246px。以前只有 19vw，手机上直接跌到 148px 的下限，看着偏小 */
   --cover-w:clamp(158px,min(44vw,40vh),246px);
-  /* 高度由 aspect-ratio 撑出来（常规 3:4.05）。方形画册会把宽改成「这里的高」，
-     于是所有本子一样高、只是画册更宽 —— 所以尺寸基准必须是这个变量，别写成固定 px */
-  position:relative;width:var(--cover-w);aspect-ratio:3/4.05;
-  border-radius:5px 13px 13px 5px;overflow:hidden;
+  /* 高度由 aspect-ratio 撑出来（常规 A5 148×210）。方形画册会把宽改成「这里的高」，
+     于是所有本子一样高、只是画册更宽 —— 所以尺寸基准必须是这个变量，别写成固定 px。
+     ⚠️ 活页手帐封面是 B6（125×176），在 book-style.css 里单独改比例 */
+  position:relative;width:var(--cover-w);aspect-ratio:148/210;
+  /* 圆角比照书脊那侧收小（book-style.css 那条是最终生效的，这里同值兜底） */
+  border-radius:3px 10px 10px 3px;overflow:hidden;
   /* 落地影要淡：影子太重书看着像浮在半空、而不是坐在架子上。
      两层的活儿分开 —— 远处那道大范围软影只留一点点，贴边那道更要淡 */
   box-shadow:0 22px 40px -20px rgba(20,22,40,.32),0 4px 12px -4px rgba(20,22,40,.14),

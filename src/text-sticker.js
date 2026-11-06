@@ -3,12 +3,16 @@
  * ---------------------------------------------------------------------
  * ① 底部「编辑文字」面板 .tsheet：正文 + 字体 / 颜色 / 字号 / 格式四个标签页
  * ② 面板会话内的撤销栈 shPush / shUndo，每一次改动即时画回纸面
- * ③ 编辑态 eflow：顶栏底栏让位、书整体上移避让（updateEflow / sheetLayout，底色面板复用同一套）
+ * ③ 编辑态 eflow：顶栏底栏让位、书避让（updateEflow / sheetLayout，四张面板复用同一套）
+ *    竖屏 = 面板贴底、书整体上移；横屏 = 面板挂右侧一竖条、书左移让位（不缩小）
  * ④ 行内编辑（双击直接打字）startTextEdit / stopTextEdit
- * ⑤ 对象工具条自动避让 fitObjBar：贴边 / 顶栏 / 底栏 / 面板 / 键盘挡住时自己换个地方待
+ * ⑤ 框紧贴内容 fitTextBox / textFitSize / refitVisibleTexts（宽高都实量，字体到位后再补一次）
+ * ⑥ 对象工具条自动避让 fitObjBar：贴边 / 顶栏 / 底栏 / 面板 / 键盘挡住时自己换个地方待
  *
  * 对外接口：openTextSheet, closeTextSheet, startTextEdit, stopTextEdit, commitTextEdit, pageBusy,
- *           syncBar, fitObjBar, refitObjBars, updateEflow, sheetLayout
+ *           syncBar, fitObjBar, refitObjBars, syncTextSizeUI, fitTextBox, fitTextHeight,
+ *           refitVisibleTexts, updateEflow, sheetLayout,
+ *           isSideSheet, resetSheetSpace, anySheetOpen, openSheetEl
  *
  * 依赖模块：core, state, visuals（widgets / scrub / page-bg 后置，只在运行时调用）
  *
@@ -323,7 +327,7 @@ function shPaint() {
       el.className = 'ptxt' + (has ? '' : ' placeholder');
       el.setAttribute('style', textStyle(t));
       el.textContent = has ? t.text : '双击编辑文字';
-      fitTextHeight(w, el, false);
+      fitTextBox(w, el, false);
     }
     syncBar(w, t);
     fitObjBar(w);
@@ -366,6 +370,18 @@ function shSync() {
   $$('#tsAlignRow button').forEach(b => b.classList.toggle('on', b.dataset.align === (t.align || 'left')));
   shSyncHist();
 }
+/* 拖四角等比缩放时，字号是在纸面上直接改的（拉伸期间不整页重绘，否则会打断手势）。
+   面板正好开着的话，滑块 / px 数字 / 快捷档得跟着走，界面上才不会还停在旧值。 */
+function syncTextSizeUI(iid) {
+  if (!sh.open || sh.iid !== iid) return;
+  const t = shCur(); if (!t) return;
+  const size = +(t.size || TS_SIZE_DEFAULT);
+  const rg = $('#tsSize');
+  if (rg && document.activeElement !== rg) rg.value = size;
+  const sv = $('#tsSizeVal');
+  if (sv) sv.textContent = (size / 100 * (state.pw || PAGE_W_DEFAULT)).toFixed(1) + 'px';
+  $$('#tsSizes button').forEach(b => b.classList.toggle('on', Math.abs(+b.dataset.s - size) < .05));
+}
 /* 面板开关时：顶栏 / 底栏让位，面板高度记到 #reader 上供排版避让。
    「本页底色」弹窗（#bgsheet）借同一套编辑态，只是它没有撤销栈，把撤销 / 重做收起来 */
 /* 现在开着的是哪一张底部面板（文字 / 底色 / 边框 / 贴纸）。
@@ -373,6 +389,24 @@ function shSync() {
 const SHEET_SELS = ['#tsheet', '#bgsheet', '#frsheet', '#stsheet'];
 function openSheetEl() { for (const s of SHEET_SELS) { const el = $(s); if (el && !el.hidden) return el; } return null; }
 function anySheetOpen() { return !!openSheetEl() || !!$('.ptext-wrap.editing'); }
+/* ---- 横屏：面板从「贴底升起」改成「右侧挂一竖条」 ----
+   书是竖的、横屏卡的恰恰是高度，面板贴底会把这本来就不多的高度吃掉一大半，
+   书被压成一条（layoutBook 拿到的 availH 只剩一点点）。横屏宽度反而富余，
+   所以改成：面板挂在右侧占一条，书往左让出同样的宽度、在自己那一半里居中 —— 不缩放。
+   ⚠️ 这条字符串必须和 style/text.css 末尾那段媒体查询一字不差：JS 按它量宽度、
+      CSS 按它排版，错一个字就变成一个让位一个不让。 */
+const SIDE_SHEET_MQ = '(orientation:landscape) and (min-width:620px)';
+function isSideSheet() { return !!window.matchMedia && window.matchMedia(SIDE_SHEET_MQ).matches; }
+/* 面板腾出来的地方归零：竖向让位（--stage-shift）与横向让位（--sheet-side）、
+   输入法抬起的下沿（--sheet-kb）一起清 —— 四张面板的关闭处都调它 */
+function resetSheetSpace() {
+  const reader = $('#reader');
+  window.__sheetCov = 0;
+  if (!reader) return;
+  reader.style.setProperty('--stage-shift', '0px');
+  reader.style.setProperty('--sheet-side', '0px');
+  reader.style.setProperty('--sheet-kb', '0px');
+}
 function updateEflow() {
   const reader = $('#reader'); if (!reader) return;
   const inline = !!$('.ptext-wrap.editing');
@@ -382,19 +416,27 @@ function updateEflow() {
   if (top) top.hidden = !on;
   const hist = $('#efHist');
   if (hist) hist.hidden = !sh.open;               // 只有文字面板才有撤销 / 重做
-  if (!sh.open && !openSheetEl()) { window.__sheetCov = 0; reader.style.setProperty('--stage-shift', '0px'); }
+  if (!sh.open && !openSheetEl()) resetSheetSpace();
   shSyncHist();
   refitLater();                  // 顶栏 / 左上角那组按钮一出一进，工具条要重新挑位置
 }
-/* 面板压住了下半截纸：量出重叠高度，书排版时避开、并整体上移一半 */
+/* 面板压住了纸：竖屏量竖向重叠（书整体上移一半并避开那一段）；
+   横屏量它从右边占掉多宽（书往左让，不缩小）。两种都记到 #reader 上给排版用 */
 function sheetLayout() {
   const reader = $('#reader'), stage = $('#stage');
   const sheet = openSheetEl();
-  if (!reader || !stage || !sheet || sheet.hidden) {
-    window.__sheetCov = 0;
-    if (reader) reader.style.setProperty('--stage-shift', '0px');
+  if (!reader || !stage || !sheet || sheet.hidden) { resetSheetSpace(); return 0; }
+  if (isSideSheet()) {
+    /* 基准取 #reader 的右沿：.stage 收窄后它自己的 right 会跟着左移，拿它当基准会越量越小、
+       最后归零（面板一动书就抖回去）。#reader 是 inset:0，右沿永远贴着屏幕边。 */
+    const rr = reader.getBoundingClientRect(), hr = sheet.getBoundingClientRect();
+    const side = Math.max(0, Math.round(rr.right - hr.left + 12));
+    window.__sheetCov = 0;                       // 竖向一个像素都不压 —— 书不缩小
+    reader.style.setProperty('--stage-shift', '0px');
+    reader.style.setProperty('--sheet-side', side + 'px');   // .stage 按它收窄，书在剩下那半里居中
     return 0;
   }
+  reader.style.setProperty('--sheet-side', '0px');
   const sr = stage.getBoundingClientRect(), hr = sheet.getBoundingClientRect();
   const cov = Math.max(0, Math.round(sr.bottom - hr.top + 4));
   window.__sheetCov = cov;
@@ -413,6 +455,14 @@ function shKb() {
   if (!sheet || sheet.hidden) return;
   const reader = $('#reader');
   const kb = (window.__kbHeight ? window.__kbHeight() : 0);
+  if (isSideSheet()) {
+    /* 横屏那条竖条是顶天立地的，整块往上抬会把顶上的标题推出屏幕 ——
+       改成只把下沿提到键盘上沿（--sheet-kb 由 CSS 加进 bottom，见 text.css） */
+    sheet.style.transform = '';
+    sheet.style.maxHeight = '';
+    if (reader) reader.style.setProperty('--sheet-kb', (kb > 4 ? kb : 0) + 'px');
+    return;
+  }
   if (kb > 4) {
     sheet.style.transform = `translateY(${-kb}px)`;
     sheet.style.maxHeight = Math.max(220, Math.round(reader.clientHeight - kb - 10)) + 'px';
@@ -434,9 +484,10 @@ function openTextSheet(pid, iid, focus) {
   sheet.hidden = false;
   shTab('font'); shSync();
   updateEflow();
-  /* 面板撑开会把纸压小（layoutBook 会避开它），纸一缩工具条就得重新挑位置 */
-  requestAnimationFrame(() => { sheetLayout(); layoutBook(); refitObjBars(); });
-  setTimeout(() => { sheetLayout(); layoutBook(); refitLater(); }, 340);   // 展开动画走完再量一次
+  /* 面板撑开会把纸压小（layoutBook 会避开它），纸一缩工具条就得重新挑位置，
+     文字贴的贴合尺寸也跟着纸重贴一遍（字号是 --pw 的百分比，比例不变，但实量一次更稳） */
+  requestAnimationFrame(() => { sheetLayout(); layoutBook(); refitVisibleTexts(); refitObjBars(); });
+  setTimeout(() => { sheetLayout(); layoutBook(); refitVisibleTexts(); refitLater(); }, 340);
   if (focus) setTimeout(() => { const i = $('#tsInput'); if (i) { i.focus(); shGrowInput(); } }, 60);
   syncTextBar();
 }
@@ -452,7 +503,7 @@ function closeTextSheet(commit) {
     if (w) {
       const el = w.querySelector('.ptxt');
       const has = !!(t.text || '').trim();
-      if (el) { el.textContent = has ? t.text : '双击编辑文字'; el.className = 'ptxt' + (has ? '' : ' placeholder'); fitTextHeight(w, el, false); }
+      if (el) { el.textContent = has ? t.text : '双击编辑文字'; el.className = 'ptxt' + (has ? '' : ' placeholder'); fitTextBox(w, el, false); }
     }
   }
   save();
@@ -461,9 +512,7 @@ function closeTextSheet(commit) {
   /* 记一下收面板的时刻：紧接着那一下点击只是「关面板」，不该顺手把页翻过去 */
   markFlipSuppressed();
   sh.hist = []; sh.pos = -1; sh.pid = null; sh.iid = null;
-  window.__sheetCov = 0;
-  const reader = $('#reader');
-  if (reader) { reader.style.setProperty('--stage-shift', '0px'); }
+  resetSheetSpace();
   updateEflow();
   if (window.__syncTypeShift) window.__syncTypeShift();
   if (window.__syncBotBar) window.__syncBotBar();
@@ -485,8 +534,11 @@ function buildSheet() {
   /* 中文字体：每档用自己那套字族显示，点之前就看得出写出来是什么样 */
   $('#tsFonts').innerHTML = TEXT_FONTS.map(f =>
     `<button data-f="${f.k}" title="${f.n}" style="font-family:${f.css || 'inherit'}">${f.abbr}</button>`).join('');
+  /* 英文字体：同样用自己那套字族显示（项目自带的四档会在这一刻触发 woff2 下载）。
+     自带字体只有拉丁字形，光写中文名的话按钮上一点都看不出字体长什么样，
+     所以那几档前面补一个 'Aa' 样例；新档位带 hint 时用它当悬浮说明，写着原字体名。 */
   $('#tsEnFonts').innerHTML = EN_FONTS.map(f =>
-    `<button data-ef="${f.k}" title="${f.n}" style="${f.css ? 'font-family:' + f.css : ''}">${f.n}</button>`).join('');
+    `<button data-ef="${f.k}" title="${f.hint || f.n}" style="${f.css ? 'font-family:' + f.css : ''}">${f.face ? 'Aa ' : ''}${f.n}</button>`).join('');
   $('#tsColors').innerHTML = TEXT_COLORS.map(c =>
     `<button data-c="${c}" style="background:${c}" title="${c}"></button>`).join('')
     + '<button class="custom" data-c="__custom" title="自定义颜色"></button>';
@@ -533,8 +585,11 @@ function buildSheet() {
     const cur = shCur(); if (!cur) return;
     openColorPicker('文字高亮', cur.bg || '', hex => act(t => { t.bg = hex; }, 'bg'));
   });
-  /* 字号滑块：拖着走就实时跟，松手才算一步（走 'text' 之外的 kind，不合并） */
+  /* 字号滑块：拖着走就实时跟，松手才算一步（走 'text' 之外的 kind，不合并）。
+     min / max 由 state.js 的 TS_SIZE_* 统一下发：四角等比缩放也按这个范围夹倍数，
+     改范围只改那一处，滑块和纸面不会各说各话。 */
   const rg = $('#tsSize');
+  if (rg) { rg.min = TS_SIZE_MIN; rg.max = TS_SIZE_MAX; }
   if (rg) rg.addEventListener('input', () => {
     const t = shCur();
     if (!t) return;
@@ -588,54 +643,132 @@ function caretRangeAt(el, x, y) {
   } catch (_) {}
   return null;
 }
-/* 内容真正的高度：临时把 height 放开成 auto 再读布局高度。
-   两个坑（都踩过）：
-   ① 不能读 scrollHeight —— 它是「max(框高, 内容高)」，内容没顶满框时量到的就是框高，
-      配合下面的「+余量」就成了正反馈：每输入一次 +几 px，框一路长下去停不下来
-      （旋转过的框原先用 scrollHeight 兜底，正是这个毛病：打一下长一下）。
-   ② 不能用 Range.getBoundingClientRect —— 它量的是「文字的字体外框」而不是行盒，
-      一行只有 line-height 的七成，多行就更少，框会一直比内容矮、最后一行被裁掉；
-      转过角度时它量的是旋转后的外接框，会虚高一大截。
-   offsetHeight 是布局高度，不受 transform 影响 —— 旋转多少度都量得准 */
-function textContentH(el) {
-  if (!el) return 0;
-  const prev = el.style.height;
-  el.style.height = 'auto';
-  const h = el.offsetHeight;                 // 同步读一次布局，紧接着就还原，不会闪
-  el.style.height = prev;
-  return h || 0;
+/* ==================== 文字贴：框紧贴内容 ====================
+   以前只把「框高」对齐内容，宽度一直沿用 newText 的 .56 页宽 —— 短句右边空一大截；
+   四角拉伸又拿图片那套 IMG_MIN_W / IMG_MIN_H（都是 .1）去夹，一行字只有约 6% 页高，
+   手指刚动 4px 就被强行放大到 1.7 倍（「一拖就变得很大」的根因，见 page-edit.js）。
+   现在宽高都实量，三个量分开记：
+     t.ww    行宽上限（文字到这儿才折行，占纸宽比例）—— 用户拖四角改的就是它
+     t.w     实际框宽（占纸宽比例）—— 短句收到文字宽度，长段落停在 t.ww
+     t.autoW 是否自动贴宽；按住 Alt 自由拉伸过就置 false，保留手动行宽
+   量法：复制一份 .ptxt 挂回同一个 .ptext-wrap（继承 --pw / 字体 / 行高等全部上下文），
+     ① width:max-content + max-width:行宽上限 → 文字本来要占多宽（长文在这里折行）
+     ② 再把它固定到贴合宽度 → 这个宽度下的行数高度才是准的
+   三个坑（都踩过）：
+   ① 不能读 scrollHeight —— 它是 max(框高, 内容高)，内容没顶满框时量到的是框高，
+      加余量就成了正反馈：每输入一次长几 px，框一路长下去停不下来。
+   ② 不能用 Range.getBoundingClientRect —— 它量的是字体外框不是行盒，一行只有行高七成。
+   ③ offset* 是布局尺寸，不受 transform 影响 —— 旋转多少度都量得准。
+   安全边按「字号 / 行高」的倍数而不是固定 px：等比拖四角时字、框、边一起缩放，
+   换行位置才会一模一样；顺便给导出时字体的细微差别留一点余量，不会裁字。 */
+const TEXT_FIT_PAD_X = .14;      // × 字号，横向安全边
+const TEXT_FIT_PAD_Y = .10;      // × 行高，纵向安全边
+function textFitSize(el, capWPx) {
+  if (!el || !el.parentNode || capWPx < 1) return null;
+  const c = el.cloneNode(true);
+  c.removeAttribute('contenteditable');
+  const s = c.style;
+  s.position = 'absolute'; s.left = '0'; s.top = '0';
+  s.visibility = 'hidden'; s.pointerEvents = 'none';
+  s.width = 'max-content'; s.maxWidth = capWPx.toFixed(2) + 'px'; s.minWidth = '0';
+  s.height = 'auto'; s.overflow = 'visible';
+  s.whiteSpace = 'pre-wrap'; s.wordBreak = 'break-word';
+  el.parentNode.appendChild(c);
+  const natW = c.offsetWidth;                  // 文字本来要占的宽度（长文被行宽上限截住）
+  const cs = getComputedStyle(c);
+  const fs = parseFloat(cs.fontSize) || 18;
+  const lh = parseFloat(cs.lineHeight) || fs * 1.42;
+  const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+  const wantW = Math.min(capWPx, natW + fs * TEXT_FIT_PAD_X);
+  s.width = wantW.toFixed(2) + 'px'; s.maxWidth = 'none';
+  const wantH = c.offsetHeight;               // 贴合宽度下实量的行数高度（便利贴 padding 已在内）
+  c.remove();
+  /* offsetHeight 是整数：一行只有 30 来 px，取整误差就有 3%，等比放大时框高会和字号脱钩。
+     这里只拿它数「有几行」，高度改用分数的行高重算，误差就回到 0。
+     安全边也留一份，避免行高被浏览器取整后刚好差那么一点裁到字。 */
+  const nLines = Math.max(1, Math.round(Math.max(0, wantH - padY) / Math.max(lh, 1)));
+  const contentH = nLines * lh + padY;
+  const edgeY = lh * TEXT_FIT_PAD_Y;
+  return { w: wantW, h: contentH + edgeY,
+           minW: fs * .8, minH: lh + padY + edgeY, fs, lh, lines: nLines };
 }
-/* 把框高对齐到内容：growOnly 时只长不缩，否则两头都收（打字时也收紧，删字才不会留空白） */
-function fitTextHeight(w, el, growOnly) {
-  /* 落盘认框自己的 data-page / data-id：面板开着时 selText 可能是空的 */
-  const t = (selText ? textById(selText.pid, selText.iid) : null)
-    || textById(+w.dataset.page, w.dataset.id);
-  if (!t || !el) return;
-  const pageEl = w.closest('.paper'); if (!pageEl) return;
+/* 把框对齐到内容：growOnly 时只长不缩；返回是否真的改了数据（好让调用方决定要不要存盘）。
+   tObj 可选：四角拉伸那边手里就握着对象实例，直接传进来最稳妥（selText 可能指向另一段文字）。 */
+function fitTextBox(w, el, growOnly, tObj) {
+  /* 优先认框自己的 data-page / data-id（跨页拖迁时会一起更新），selText 只作兜底 */
+  const t = tObj || textById(+w.dataset.page, w.dataset.id)
+    || (selText ? textById(selText.pid, selText.iid) : null);
+  if (!t || !el) return false;
+  const pageEl = w.closest('.paper'); if (!pageEl) return false;
   const pr = pageEl.getBoundingClientRect();
-  /* 用 offset* 而不是 getBoundingClientRect：后者量的是「转过之后的外接框」，
-     文字一旋转就会比实际高出一大截，框会被越撑越大 */
-  const wh = w.offsetHeight, wt = w.offsetTop;
-  if (!pr.height || !wh) return;
-  const lh = (parseFloat(getComputedStyle(el).lineHeight) || parseFloat(getComputedStyle(el).fontSize) * 1.42);
-  const need = Math.max(textContentH(el) + 2, lh);         // 至少留一行，空框也不会塌成一条线
-  const cur = wh;
-  const maxH = pr.height - Math.max(0, wt);                // 不许越过纸的下边缘
-  if (growOnly) { if (need <= cur) return; }               // 还没顶到框底：不动
-  const nh = clamp(need, lh, Math.max(lh, maxH));
-  if (Math.abs(nh - cur) < 1.5) return;
-  /* 旋转过的文字：框长高 = 中心往下挪 = 整块会被转出去一段（原因见 media.js 的 rotShift）。
-     补回去之后顶边和已经打好的字才留在原地，不会一边打字一边整块飘 */
-  const sf = rotShift(pr, t.rot, 0, (nh - cur) / 2);
-  if (sf.x || sf.y) {
-    t.x = clamp((t.x ?? 0) + sf.x, OBJ_MIN, OBJ_MAX);
-    t.y = clamp((t.y ?? 0) + sf.y, OBJ_MIN, OBJ_MAX);
-    w.style.left = (t.x * 100).toFixed(2) + '%';
-    w.style.top = (t.y * 100).toFixed(2) + '%';
+  /* 用 offset* 而不是 getBoundingClientRect：后者量的是「转过之后的外接框」 */
+  const ww = w.offsetWidth, wh = w.offsetHeight, wt = w.offsetTop;
+  if (!pr.width || !pr.height || !ww || !wh) return false;
+  /* 老数据没有 ww：拿它现在的框宽当行宽上限，收紧之后长文照样在原来的地方折行 */
+  if (!(t.ww > 0)) t.ww = t.w ?? .56;
+  t.ww = clamp(t.ww, .02, IMG_MAX);
+  /* 纸边余量按对齐方向算：左对齐看右边、右对齐看左边、居中看两侧较窄的那边，
+     不然右边钉住的段落越打越长会从纸的左侧探出去 */
+  const ox0 = t.x ?? 0, ow0 = t.w ?? 0;
+  let roomW = 1 - IMG_M - ox0;
+  if (t.align === 'right') roomW = ox0 + ow0 - IMG_M;
+  else if (t.align === 'center') {
+    const c = ox0 + ow0 / 2;
+    roomW = 2 * Math.min(c - IMG_M, 1 - IMG_M - c);
   }
-  t.h = clamp(nh / pr.height, .02, 1);
-  w.style.height = (t.h * 100).toFixed(2) + '%';
-  if (window.__syncTypeShift) window.__syncTypeShift();    // 框变高了，重新算要不要再抬一点
+  const capW = Math.max(1, Math.min(t.ww * pr.width, roomW * pr.width));
+  const m = textFitSize(el, capW); if (!m) return false;
+  const autoW = t.autoW !== false;
+  const nw = autoW ? clamp(m.w, Math.min(m.minW, capW), capW) : capW;
+  const maxH = pr.height - Math.max(0, wt);   // 不许越过纸的下边缘
+  const nh = Math.min(Math.max(m.h, m.minH), Math.max(maxH, m.minH));
+  const ox = t.x ?? 0, oy = t.y ?? 0, ow = t.w ?? ww / pr.width, oh = t.h ?? wh / pr.height;
+  let fw = clamp(nw / pr.width, .006, 1), fh = clamp(nh / pr.height, .006, 1);
+  if (growOnly) { fw = Math.max(fw, ow); fh = Math.max(fh, oh); }
+  let nx = ox, ny = oy;
+  const rot = +(t.rot || 0);
+  if (rot) {
+    /* 旋转过的文字：框变了 = 中心挪了 = 整块会被转出去一段（见 media.js 的 rotShift），
+       补回去之后已经打好的字才留在原地，不会一边打字一边整块飘 */
+    const sf = rotShift(pr, rot, (fw * pr.width - ww) / 2, (fh * pr.height - wh) / 2);
+    nx = ox + sf.x; ny = oy + sf.y;
+  } else if (autoW) {
+    /* 不旋转时按对齐方向钉住那一条边：左对齐钉左边、右对齐钉右边、居中钉中线，
+       打字时框变宽，字只往该去的方向长，不会横向乱飘 */
+    if (t.align === 'right') nx = ox + ow - fw;
+    else if (t.align === 'center') nx = ox + (ow - fw) / 2;
+  }
+  nx = clamp(nx, OBJ_MIN, OBJ_MAX); ny = clamp(ny, OBJ_MIN, OBJ_MAX);
+  const changed = Math.abs(fw - ow) > .0002 || Math.abs(fh - oh) > .0002
+    || Math.abs(nx - ox) > .0002 || Math.abs(ny - oy) > .0002;
+  t.w = fw; t.h = fh; t.x = nx; t.y = ny; t.fitV = TEXT_FIT_V;
+  w.style.left = (nx * 100).toFixed(2) + '%'; w.style.top = (ny * 100).toFixed(2) + '%';
+  w.style.width = (fw * 100).toFixed(2) + '%'; w.style.height = (fh * 100).toFixed(2) + '%';
+  if (changed && window.__syncTypeShift) window.__syncTypeShift();
+  return changed;
+}
+/* 旧名字留个入口：以前只管高度，现在宽高一起贴 */
+function fitTextHeight(w, el, growOnly) { return fitTextBox(w, el, growOnly); }
+/* 当前摊开的两页里所有文字贴重新贴一遍：布局变了 / 字体到位了都用它。
+   手势或行内打字正在进行时别插一杠子（会打断输入）。 */
+function refitVisibleTexts() {
+  if (pageBusy()) return false;
+  let changed = false;
+  $$('#slotL .ptext-wrap, #slotR .ptext-wrap').forEach(w => {
+    const el = w.querySelector('.ptxt');
+    if (el && fitTextBox(w, el, false)) changed = true;
+  });
+  if (changed) save();
+  return changed;
+}
+/* 自带的四款英文字体是懒加载的：换字体那一刻量到的还是回退字体的字宽，
+   字体真正到位后再贴一次，否则贴合框会按旧宽度把新字形裁掉 */
+if (typeof document !== 'undefined' && document.fonts && document.fonts.addEventListener) {
+  let fontRefitTimer = 0;
+  document.fonts.addEventListener('loadingdone', () => {
+    clearTimeout(fontRefitTimer);
+    fontRefitTimer = setTimeout(refitVisibleTexts, 80);
+  });
 }
 function startTextEdit(w, pid, iid, pt) {
   if (sh.open) return;                    // 面板开着的时候，改字走面板
@@ -674,7 +807,7 @@ function startTextEdit(w, pid, iid, pt) {
   });
   /* 打字时框跟着内容走：长了跟着长，删掉几行也跟着收回去。
      内容高度现在是「放开 height 后实量的」，不会自己越长越大，所以两头都收是安全的 */
-  w.__onInput = () => fitTextHeight(w, el, false);
+  w.__onInput = () => fitTextBox(w, el, false);
   el.addEventListener('input', w.__onInput);
   // 点纸面空白处不会触发 contentEditable 的 blur，得自己兜住
   // 编辑面板上的按键自己会保住焦点，不能在这里先提交掉
@@ -703,7 +836,7 @@ function stopTextEdit(w, commit, noRender) {
   if (el) {
     el.contentEditable = 'false';
     /* 收尾时把框收紧到内容高度：删掉几行后不会留一大块空白 */
-    if (commit) fitTextHeight(w, el, false);
+    if (commit) fitTextBox(w, el, false);
   } else { hideTextBar(); return; }
   if (commit) {
     /* 落盘认框自己的 data-page / data-id，不认 selText ——

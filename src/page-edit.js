@@ -1,10 +1,12 @@
 /* =====================================================================
  * Carnet · 页面内容编辑 · 图片与文字对象   （脚本 15 / 27）
  * ---------------------------------------------------------------------
- * ① bindPage：页面手势（拖动 / 四角拉伸 / 旋转 / 长按解锁）
- * ② 选中对象后的工具条 objAction：完成 ✓ / 复制 / 换图（仅图片）/ 编辑 / 删除
+ * ① bindPage：页面手势（拖动 / 四角拉伸 / 旋转 / 长按解锁）；首绘时把文字贴框收紧到内容
+ *    图片四角 = 自由拉伸；文字贴四角 = 整块等比缩放（框宽、框高、字号同乘一个系数）
+ * ② 选中对象后的工具条 objAction：完成 ✓ / 复制 / 换图（仅图片）/ 字随框缩放（仅文字）/ 编辑 / 删除
  * ③ 右上角「添加」菜单：加页 / 加图片 / 加文字 / 本页底色 / 删本页，目标页判定 currentAddPage
- * ④ 文字贴单击零反应、双击才进编辑态（编辑逻辑在 text-sticker.js）
+ * ④ 文字贴单击零反应、长按解除固定并可拖着挪位置、双击才进编辑态（编辑逻辑在 text-sticker.js）
+ *    ⚠️ 文字贴的最小尺寸按「一个字 / 一行」算，绝不能套图片那套 IMG_MIN_*（见四角拉伸分支）
  *
  * 对外接口：bindPage, objAction, addImageTo, addTextTo, currentAddPage, toggleAddMenu
  *
@@ -62,6 +64,20 @@ function objAction(act, w, pid, iid, isText) {
     if (isText) return;
     if (typeof frs !== 'undefined' && frs.open && frs.iid === iid) { closeFrameSheet(); return; }
     openFrameSheet(pid, iid);
+    return;
+  }
+  /* 文字贴「字随框缩放」开关：只改这一个对象的模式，存进数据里，整页重绘后状态还在。
+     关掉之后拖四角就是老的自由拉伸（字号不动）；桌面临时按住 Alt 拖也是这个效果。 */
+  if (act === 'fslink') {
+    if (!isText) return;
+    const on = im.fsLink === false;        // 原来是关 → 现在开；原来是开 → 现在关
+    im.fsLink = on;
+    save();
+    $$('.objbar .ob[data-ob="fslink"]').forEach(b => {
+      b.classList.toggle('on', on);
+      b.title = on ? '字随框缩放：开 · 点一下改成只改框' : '字随框缩放：关 · 点一下让字跟着框变大变小';
+    });
+    toast(on ? '字随框缩放 · 拖四角字会跟着变大变小' : '只改框 · 字号不变');
     return;
   }
   if (act === 'del') {
@@ -136,6 +152,16 @@ function bindPage() {
       const pg = cur().pages[pid]; if (!pg) return null;
       return isText ? pageTexts(pg).find(x => x.id === iid) : (pg.images || []).find(x => x.id === iid);
     };
+    /* 文字贴第一次画到纸上就把框收紧到内容：老本子 / 新建文字贴都还带着
+       newText 的 .56 × .12 大方框。fitV 是贴合算法版本，一个对象只贴一次，
+       之后翻页来回重绘不会反复改数据（算法在 text-sticker.js 的 fitTextBox）。 */
+    if (isText) {
+      const t0 = getIm();
+      if (t0 && t0.fitV !== TEXT_FIT_V) {
+        const el0 = w.querySelector('.ptxt');
+        if (el0 && fitTextBox(w, el0, false, t0)) save();
+      }
+    }
     const disarmOut = () => {
       if (w.__outDown) { document.removeEventListener('pointerdown', w.__outDown, true); w.__outDown = null; }
     };
@@ -253,6 +279,38 @@ function bindPage() {
         state.imgDragging = false;
         if (moved) { save(); realign(); }
       });
+    };
+
+    /* 文字贴长按：解除固定 → 选中（虚线框 + 工具条）→ 手指不用抬就能接着拖着挪位置。
+       固定态的文字单击是「完全没反应」的（手势归翻页），所以挪位置得先双击进编辑；
+       这里补一条跟图片一样的长按，抬手前就能直接拖。
+       没按够 420ms 就松手、或中途划开了，都算单击，手势照旧交回翻页 */
+    const armTextHold = e => {
+      const sx = e.clientX, sy = e.clientY;
+      let timer = setTimeout(() => {
+        timer = null;
+        if (w.__tTap) w.__tTap = 0;                 // 长按不算「第一下点」，别跟后面那下凑成双击
+        const t = getIm(); if (!t) return;
+        if (t.locked) { t.locked = false; save(); }
+        w.classList.remove('locked');
+        selectText();                               // 虚线框 + 工具条；点框外自动重新固定
+        if (navigator.vibrate) { try { navigator.vibrate(12); } catch (_) {} }
+        toast('已解除固定 · 拖动可挪位置');
+        startTextDrag({ clientX: sx, clientY: sy, preventDefault() {} });
+      }, 420);
+      const cancel = ev => {
+        if (!timer) return;
+        if (Math.abs(ev.clientX - sx) > 10 || Math.abs(ev.clientY - sy) > 10) { clearTimeout(timer); timer = null; }
+      };
+      const up = () => {
+        if (timer) { clearTimeout(timer); timer = null; }
+        window.removeEventListener('pointermove', cancel);
+        window.removeEventListener('pointerup', up);
+        window.removeEventListener('pointercancel', up);
+      };
+      window.addEventListener('pointermove', cancel);
+      window.addEventListener('pointerup', up);
+      window.addEventListener('pointercancel', up);
     };
 
     /* 记一次「纯点击」，只有它才能凑成双击：中途划开了就作废 ——
@@ -377,7 +435,7 @@ function bindPage() {
             startTextEdit(w, pid, iid, { x: ev.clientX, y: ev.clientY });   // 光标落在点的那个字上
             if (!window.__textHintShown) {
               window.__textHintShown = true;
-              toast('拖动挪位置 · 拖四角改大小 · 右边那颗转');
+              toast('拖四角整块缩放（字跟着变大）· 按住 Alt 只改框 · 右边那颗转');
             }
           };
           window.addEventListener('pointermove', mv);
@@ -385,10 +443,12 @@ function bindPage() {
           window.addEventListener('pointercancel', off);
           return;
         }
-        /* 单击：什么都不做 —— 不选中、不画框、不能拖，手势照旧归翻页 */
+        /* 单击：什么都不做 —— 不选中、不画框，手势照旧归翻页（横划一下照样翻页）；
+           按住 420ms 则解除固定并进选中态，接着就能把整段拖到别处 */
         armTap(e);
         e.preventDefault();
-        if (w.classList.contains('adjust')) startTextDrag(e);   // 面板开着时本来就是解锁态，按住照旧能挪
+        if (w.classList.contains('adjust')) { startTextDrag(e); return; }   // 面板开着时本来就是解锁态，按住照旧能挪
+        armTextHold(e);
         return;
       }
       if (!im.locked) { startDrag(e); return; }
@@ -479,12 +539,40 @@ function bindPage() {
           });
           return;
         }
-        /* ---- 四角拉伸 ---- */
+        /* ---- 四角拉伸 ----
+           图片：自由拉伸（横竖各改各的，按住 Shift 才锁原宽高比）。
+           文字贴：默认「字随框缩放」——框宽、框高、字号同乘一个系数、对角钉死不动，
+           整块像贴纸一样放大缩小，字相对框的比例不变，换行位置也不变。
+           框始终紧贴内容（见 text-sticker.js 的 fitTextBox）：拖之前贴一次当基准，
+           拖完再贴一次收掉取整误差。按住 Alt 拖、或工具条上把「字随框缩放」点灭，
+           就回到自由拉伸（字号不动，行宽按用户拉出来的算，之后打字也不再自动收窄）。
+           模式在手势落下那一刻锁死：拖到一半才按 Alt 不让尺寸突然跳一下。
+           ⚠️ 文字贴不能用图片那套 IMG_MIN_W / IMG_MIN_H（都是 .1）当最小尺寸：
+           一行字只有约 6% 页高，拿 .1 一夹，手指刚动 4px 就被强行放大到 1.7 倍 ——
+           这就是「一拖动就变得很大」的根因。下限改成「一个字宽 / 一行行高」。 */
+        const size0 = im.size || TS_SIZE_DEFAULT;
+        const scaleFont = isText && !e.altKey && im.fsLink !== false;
+        const txtEl = scaleFont ? w.querySelector('.ptxt') : null;
+        let minW = IMG_MIN_W, minH = IMG_MIN_H;
+        if (isText) {
+          const te = w.querySelector('.ptxt');
+          const tcs = te ? getComputedStyle(te) : null;
+          const fs = tcs ? (parseFloat(tcs.fontSize) || 18) : 18;
+          const lh = tcs ? (parseFloat(tcs.lineHeight) || fs * 1.42) : fs * 1.42;
+          minW = Math.max(.012, fs * .8 / rect.width);
+          minH = Math.max(.008, lh / rect.height);
+          if (scaleFont) im.autoW = true;      // 默认拖角 = 回到自动贴合
+          /* 先按内容贴紧当基准：正常情况下 bindPage 已经贴过，这里就是空转。
+             直接把 im 传进去，别让 selText（可能指向另一段文字）挑错对象 */
+          if (te) fitTextBox(w, te, false, im);
+        }
         const ox = im.x, oy = im.y, ow = im.w, oh = im.h || ow / 0.68;
         const oL = ox, oR = ox + ow, oT = oy, oB = oy + oh;
         const ratio = ow / Math.max(oh, 1e-4);
         const moveLeft = c === 'tl' || c === 'bl', moveTop = c === 'tl' || c === 'tr';
         let moved = false;
+        /* 行宽上限：等比时跟框一起乘 s；自由拉伸收尾时记成用户手动拉出来的宽度 */
+        const ww0 = isText ? (im.ww > 0 ? im.ww : ow) : 0;
         // 拉伸期间让工具条让位：不抢手势、也不挡视线
         w.classList.add('resizing');
         state.imgResizing = true;
@@ -499,35 +587,79 @@ function bindPage() {
         const c0x = (oL + oR) / 2 * rect.width, c0y = (oT + oB) / 2 * rect.height;
         track(e.clientX, e.clientY, (ev, sx, sy) => {
           const px = ev.clientX - sx, py = ev.clientY - sy;
-          const dx = (px * cs + py * sn) / rect.width;
-          const dy = (-px * sn + py * cs) / rect.height;
-          // 用四条边来算：被拖的角移动两条边，对角固定
-          let L = moveLeft ? oL + dx : oL;
-          let R = moveLeft ? oR : oR + dx;
-          let T = moveTop ? oT + dy : oT;
-          let B = moveTop ? oB : oB + dy;
-          if (ev.shiftKey) {                        // 按住 Shift 等比缩放
-            const nw0 = R - L, nh0 = nw0 / ratio;
-            if (moveTop) T = B - nh0; else B = T + nh0;
+          const dxPx = px * cs + py * sn, dyPx = -px * sn + py * cs;
+          let L, R, T, B, s = 1;
+          if (scaleFont) {
+            /* 等比：把手指位移投影到「对角 → 被拖角」这条对角线上，投影占原对角长度
+               的比例就是整块的缩放倍数。沿对角拖完全跟手；斜着拖也不会让字和框各走
+               一个比例。旋转过的对象用的是已经转回自身坐标系的 dxPx / dyPx。 */
+            const vx = (moveLeft ? -1 : 1) * ow * rect.width;
+            const vy = (moveTop ? -1 : 1) * oh * rect.height;
+            const den = Math.max(vx * vx + vy * vy, 64);
+            const raw = 1 + (dxPx * vx + dyPx * vy) / den;
+            /* 框宽高本来就跟着字号一起缩放，一个字 / 一行不会缩没，
+               所以下界只看字号，绝不能再拿框的最小尺寸去除（那会瞬间把整块撑大）。
+               上界再看纸边和字号上限；夹的是同一个数，字相对框的比例才始终不变。 */
+            const sLo = TS_SIZE_MIN / size0;
+            const roomX = moveLeft ? (oR - IMG_M) : (1 - IMG_M - oL);
+            const roomY = moveTop ? (oB - IMG_M) : (1 - IMG_M - oT);
+            /* ≥1：框本来就已经贴到（或略微探出）纸边时，room/ow 会小于 1，
+               拿到这里直接夹会把「刚按下还没拖」也缩一圈。上限只管往大拖，
+               往小拖交给 sLo，别在手势起点偷偷改尺寸。 */
+            const sHi = Math.max(1, Math.min(roomX / ow, roomY / oh, TS_SIZE_MAX / size0));
+            s = clamp(clamp(raw, .05, 20), sLo, sHi);
+            const nw0 = ow * s, nh0 = oh * s;
+            L = moveLeft ? oR - nw0 : oL; R = L + nw0;
+            T = moveTop ? oB - nh0 : oT; B = T + nh0;
+          } else {
+            const dx = dxPx / rect.width, dy = dyPx / rect.height;
+            // 用四条边来算：被拖的角移动两条边，对角固定
+            L = moveLeft ? oL + dx : oL;
+            R = moveLeft ? oR : oR + dx;
+            T = moveTop ? oT + dy : oT;
+            B = moveTop ? oB : oB + dy;
+            if (ev.shiftKey) {                        // 按住 Shift 等比缩放
+              const nw0 = R - L, nh0 = nw0 / ratio;
+              if (moveTop) T = B - nh0; else B = T + nh0;
+            }
+            // 限制在纸内，四个角的调节手柄始终看得见、点得到
+            L = clamp(L, IMG_M, 1 - IMG_M); R = clamp(R, IMG_M, 1 - IMG_M);
+            T = clamp(T, IMG_M, 1 - IMG_M); B = clamp(B, IMG_M, 1 - IMG_M);
+            if (R - L < minW) { if (moveLeft) L = Math.max(IMG_M, R - minW); else R = Math.min(1 - IMG_M, L + minW); }
+            if (B - T < minH) { if (moveTop) T = Math.max(IMG_M, B - minH); else B = Math.min(1 - IMG_M, T + minH); }
           }
-          // 限制在纸内，四个角的调节手柄始终看得见、点得到
-          L = clamp(L, IMG_M, 1 - IMG_M); R = clamp(R, IMG_M, 1 - IMG_M);
-          T = clamp(T, IMG_M, 1 - IMG_M); B = clamp(B, IMG_M, 1 - IMG_M);
-          if (R - L < IMG_MIN_W) { if (moveLeft) L = Math.max(IMG_M, R - IMG_MIN_W); else R = Math.min(1 - IMG_M, L + IMG_MIN_W); }
-          if (B - T < IMG_MIN_H) { if (moveTop) T = Math.max(IMG_M, B - IMG_MIN_H); else B = Math.min(1 - IMG_M, T + IMG_MIN_H); }
-          const nw = Math.max(R - L, IMG_MIN_W), nh = Math.max(B - T, IMG_MIN_H);
+          const nw = Math.max(R - L, minW), nh = Math.max(B - T, minH);
           /* 中心挪了多少 → 补多少（见 rotShift）；补完再夹一层，别一甩就出纸找不回来 */
           const sf = rotShift(rect, im.rot, (L + R) / 2 * rect.width - c0x, (T + B) / 2 * rect.height - c0y);
           const nx = clamp(L + sf.x, OBJ_MIN, OBJ_MAX), ny = clamp(T + sf.y, OBJ_MIN, OBJ_MAX);
           if (Math.abs(nw - ow) > .002 || Math.abs(nh - oh) > .002 ||
-              Math.abs(nx - ox) > .002 || Math.abs(ny - oy) > .002) moved = true;
+              Math.abs(nx - ox) > .002 || Math.abs(ny - oy) > .002 ||
+              (scaleFont && Math.abs(s - 1) > .00002)) moved = true;
           im.x = nx; im.y = ny; im.w = nw; im.h = nh;
+          if (scaleFont) {
+            /* 字号当场写进数据 + 画回纸面：拉伸期间不整页重绘（会打断手势），只改这一条样式。
+               四位小数足够精确，数据里也不会拖着一长串浮点。 */
+            im.size = Math.round(size0 * s * 10000) / 10000;
+            im.ww = ww0 * s;                    // 折行宽度同比放大，长段落的换行位置才不变
+            if (txtEl) txtEl.style.fontSize = `calc(var(--pw,340px) * ${(im.size / 100).toFixed(6)})`;
+            /* 面板正好开着的话，字号滑块 / px 数字 / 快捷档也要跟着走 */
+            if (typeof syncTextSizeUI === 'function') syncTextSizeUI(iid);
+          }
           applyBox(w, im);
           syncTiny(w, im);
         }, () => {
           w.classList.remove('resizing');
           state.imgResizing = false;
-          if (moved) { save(); realign(); }
+          if (moved) {
+            if (isText) {
+              /* 自由拉伸：这一下拉出来的是用户自己要的行宽，记下来，之后打字别再收窄 */
+              if (!scaleFont) { im.autoW = false; im.ww = im.w; }
+              /* 收尾再贴一次：去掉两位的百分比取整误差，框始终紧贴文字不留空白 */
+              const te = w.querySelector('.ptxt');
+              if (te) fitTextBox(w, te, false, im);
+            }
+            save(); realign();
+          }
         });
       });
     });
@@ -542,7 +674,7 @@ function bindPage() {
    - 「+」菜单展开时点某一页，就把那一页设为目标（右页也能选）
    - 在某一页上拖图片 / 编辑文字，也会把那一页记为最近操作页 */
 let addPageIdx = null;                       // 用户指定的目标页；null = 跟随当前视图
-function slotPageIndex(slotEl) {             // 某个页槽当前显示的是第几页（-1 = 封面 / 衬页）
+function slotPageIndex(slotEl) {             // 某个页槽当前显示的是第几页（-1 = 封面，-2 = 封面内侧）
   if (state.mode !== 'spread') return state.page;
   const [a, b] = currentIndices();
   return slotEl && slotEl.id === 'slotL' ? a : b;
@@ -562,9 +694,10 @@ function currentAddPage() {
   const j = cur(); if (!j || !j.pages.length) return 0;
   const n = j.pages.length;
   if (state.mode === 'spread') {
-    const a = state.spread * 2, b = a + 1;
+    /* 默认目标仍是左页；第一跨页的左边是封面内侧（-2，不是正文页），这时回落到右页 */
+    const [a, b] = currentIndices();
     if (addPageIdx === a || addPageIdx === b) return clamp(addPageIdx, 0, n - 1);
-    return clamp(a, 0, n - 1);
+    return clamp(a >= 0 ? a : b, 0, n - 1);
   }
   return clamp(state.page, 0, n - 1);
 }
@@ -592,7 +725,9 @@ function updateAddMenuHint() {
   $$('#amTarget .am-side').forEach(btn => {
     const pid = btn.dataset.side === 'L' ? a : b;
     const ok = pid >= 0 && !!j.pages[pid];
-    btn.textContent = (btn.dataset.side === 'L' ? '左页 ' : '右页 ') + (pid + 1);
+    /* 第一跨页的左半边是封面内侧，不是正文页：这一侧不可选 */
+    btn.textContent = ok ? (btn.dataset.side === 'L' ? '左页 ' : '右页 ') + (pid + 1)
+      : (pid === PAGE_INSIDE_COVER ? '封面内侧' : '—');
     btn.classList.toggle('on', ok && pid === p);
     btn.disabled = !ok;
   });

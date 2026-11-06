@@ -341,19 +341,22 @@ async function sliceSpread(src) {
   full.width = full.height = 0;
   return { left: out[0], right: out[1], wide: (im.naturalWidth || 1) / (im.naturalHeight || 1) };
 }
-/* 跨页图插在哪儿：落在参考页所在跨页的「后面」那个跨页，起点永远是偶数页
-   —— 左页只能在偶数下标上，不然摊开时是新页（左）配别人的页（右），看着是错页 */
+/* 跨页图插在哪儿：落在参考页所在跨页的「后面」那个跨页。
+   ⚠️ 起点必须是**跨页的左页**那一档下标，否则一张图会被拆到「上一跨页的右页 + 下一跨页的左页」，
+      摊开时两边根本不挨着。哪一档是左页由装帧决定（见 reader-view 的 spreadIndices）：
+      活页摊开后左半边是封面内侧，正文配对从下标 1 起（左页是 1、3、5…奇数）；
+      笔记本 / 画册打开就是第 1 页，左页是 0、2、4…偶数。 */
 function spreadInsertIndex(refPid) {
   const j = cur(); if (!j) return -1;
   const n = j.pages.length;
   if (!n) return 0;
-  if (state.mode === 'spread' && isCoverView()) return 0;         // 停在封面 → 插到最前面
+  const par = spreadHasInsideCover() ? 1 : 0;             // 左页下标的奇偶
+  if (state.mode === 'spread' && isCoverView()) return par;   // 停在封面 → 插在最前面那一跨
   const p = clamp(Number.isFinite(+refPid) ? +refPid : 0, 0, n - 1);
-  /* 起点必须是偶数 + 两页要连着，这两个条件一起把落点夹住：
-     参考的那个跨页已经走到最后时（比如全书只有奇数页），就从前一跨页的开头下手，
-     落点始终 <= 页数，绝不会插出一个「跨搭配对」 */
-  const maxEven = n % 2 === 0 ? n : n - 1;
-  return clamp(Math.min((p - (p % 2)) + 2, maxEven), 0, n);
+  /* 下一个同奇偶下标 = 下一跨页的左页；夹到 <= 页数，绝不插出「跨搭配对」 */
+  const maxLeft = n % 2 === par ? n : n - 1;
+  const next = p + (p % 2 === par ? 2 : 1);
+  return clamp(Math.min(next, maxLeft), par, n);
 }
 /* 选一张横图 → 裁左右两页 → 插进去 → 跳到那一跨页 */
 async function addSpreadImage(file, refPid) {
@@ -379,7 +382,7 @@ async function addSpreadImage(file, refPid) {
     j.pages.splice(at, 0, pgs[0], pgs[1]);
     save();
     const last = Math.max(j.pages.length - 1, 0);
-    if (state.mode === 'spread') state.spread = clamp(Math.floor(at / 2), 0, Math.max(Math.ceil(j.pages.length / 2) - 1, 0));
+    if (state.mode === 'spread') state.spread = clamp(spreadIndexOfPage(at), 0, spreadCount(j.pages.length) - 1);
     else state.page = clamp(at, 0, last);
     if (typeof addPageIdx !== 'undefined') addPageIdx = clamp(at, 0, last);
     renderReader(); renderHome();

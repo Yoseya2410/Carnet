@@ -4,9 +4,10 @@
  * ① 单页 / 双页摊开判定 isSpread、书的尺寸与中缝布局 layoutBook
  * ② 封面页与内页渲染 coverPageHTML / pageHTML（图片与文字按 z 合排 pageObjs）
  * ③ 对象的公共外壳：工具条 objBarHTML、旋转 rotStyle、四角与旋转手柄 rotHandleHTML
- * ④ renderReader 总渲染、currentIndices 当前左右页下标
+ * ④ renderReader 总渲染、currentIndices 当前左右页下标、跨页页序换算（分活页 / 无环两套）
  *
- * 对外接口：renderReader, layoutBook, pageHTML, objBarHTML, rotStyle, isSpread, isCoverView, currentIndices
+ * 对外接口：renderReader, layoutBook, pageHTML, objBarHTML, rotStyle, isSpread, isCoverView,
+ *           currentIndices, spreadIndices, spreadIndexOfPage, spreadCount, spreadHasInsideCover
  *
  * 依赖模块：core, visuals, state（media / text-sticker 后置，只在运行时调用）
  *
@@ -16,48 +17,159 @@
 function isSpread() {
   return window.innerWidth >= 620 && window.innerWidth > window.innerHeight * 1.12;
 }
+/* 活页的尺寸关系：内页之外还压着一层封面内侧，四周露出 --bleed（左右）与上下 --bu-*；
+   两页之间还有活页夹的机构缝 --ggap（单页态只占它的一半）。
+   ⚠️ padX / padY / gap 三个系数来自 visuals.js 的 BOOK_STYLES，也必须和 CSS
+      （reader.css 的 --bleed / --bu-t / --bu-b / --ggap）一致 —— 差一个，
+      封面就会跟封面内侧差一圈。 */
 function layoutBook() {
   const stage = $('#stage'), book = $('#book');
   const availW = stage.clientWidth;
   /* 文字编辑面板占住下半截时，书只在上面那一段里排版（__sheetCov 由 sheetLayout() 量出来） */
   const availH = Math.max(140, stage.clientHeight - (window.__sheetCov || 0));
   const spread = state.mode === 'spread';
-  /* 纸张比例：方形画册是方开本、内页跟着变方（见 visuals.js 的 pageRatioOf），
-     其余一律 3:4.05 —— 与封面（.cover）同比例，
-     这样阅读器里铺满整页的封面和主页显示的封面完全一样 */
-  const RATIO = 1 / pageRatioOf(cur());         // 页宽 ÷ 页高（pageRatioOf 给的是页高 ÷ 页宽）
+  const cover = isCoverView();
+  const st = bookStyleOf(cur());
+  const ringed = !!st.rings;
+  const bx = ringed ? (st.padX || 0) : 0;
+  const by = ringed ? (st.padY || 0) : 0;
+  const gf = ringed ? (st.gap || 0) : 0;
+  /* 封面与内页分别取比例：笔记本 A5、画册方页、活页内页 95×170（封面比例把露边也算进去）。 */
+  const RATIO = 1 / (cover ? coverRatioOf(cur()) : pageRatioOf(cur())); // 页宽 ÷ 页高
+  const hScale = cover ? 1 : pageHeightScaleOf(cur());
+  /* 这一屏真正要装下的横向宽度：封面态 = 一张封面（双页骨架下是两张）；
+     活页摊开 = 内页 + 两侧封面露边 + 中缝；活页单页 = 内页 + 外侧封面露边 + 半道中缝。 */
+  const wRatio = cover ? (spread ? 2 : 1)
+    : (spread ? 2 * (1 + bx) + gf : 1 + bx + gf / 2);
   let pageH, pageW;
   if (spread) {
-    pageH = Math.min(availH * 0.9, (availW * 0.94) / (2 * RATIO));
+    pageH = Math.min(availH * 0.9 * hScale, (availW * 0.94) / (wRatio * RATIO));
     pageW = pageH * RATIO;
   } else {
-    pageW = Math.min(availW * 0.94, availH * 0.94 * RATIO);
+    pageW = Math.min((availW * 0.94) / wRatio, availH * 0.94 * hScale * RATIO);
     pageH = pageW / RATIO;
   }
   pageH = Math.max(pageH, 180);
-  book.style.setProperty('--pw', pageW + 'px');
-  book.style.setProperty('--ph', pageH + 'px');
+  /* 活页摊开 / 单页翻到内页：那道机构缝（金属条从这里伸出、环从条上跨过去）按页宽走，
+     写成 px 交给 --ggap；封面态是 0。算完再按实际缝宽收一次宽度，免得缝被 clamp 放大后顶出屏幕 */
+  let ggap = (ringed && !cover) ? clamp(pageW * gf, 12, 30) : 0;
+  if (ringed && !cover && pageW > 0) {
+    const maxW = (availW * 0.94 - (spread ? ggap : ggap / 2)) / (spread ? 2 * (1 + bx) : 1 + bx);
+    if (pageW > maxW) { pageW = Math.max(maxW, 120); pageH = pageW / RATIO; }
+  }
+  book.style.setProperty('--pw', pageW.toFixed(1) + 'px');
+  book.style.setProperty('--ph', pageH.toFixed(1) + 'px');
+  book.style.setProperty('--ggap', ggap.toFixed(1) + 'px');
+  /* 封面硬壳那张板（封面内侧 = 它的背面）在**内页坐标系**里的尺寸与偏移 ——
+     宽 = 内页 + 外侧露边 + 半道中缝，高 = 内页 + 上下露边；
+     板的左上角相对「左页 / 单页那一格」= -(外侧露边 or 半道缝, 上露边)。
+     封面内侧照这张板来画，图案贴片才能跟封面正面一格不差（见 coverBoardHTML）。
+     非活页 / 封面态三个系数都是 1 / 0，板正好铺满那一格，行为不变。 */
+  const inner = ringed && !cover;
+  const cw = pageW * (inner ? 1 + bx + gf / 2 : 1);
+  const ch = pageH * (inner ? 1 + by * 2 : 1);
+  book.style.setProperty('--cbrd-w', cw.toFixed(1) + 'px');
+  book.style.setProperty('--cbrd-h', ch.toFixed(1) + 'px');
+  book.style.setProperty('--cbrd-x', (inner ? -(spread ? bx : gf / 2) * pageW : 0).toFixed(1) + 'px');
+  book.style.setProperty('--cbrd-y', (inner ? -by * pageH : 0).toFixed(1) + 'px');
   state.pw = pageW;          // page-flip.js 翻页时按半页宽做位移，字号换算也用它（见 state 的注释）
 }
+/* 页号约定：-1 = 封面正面（合着的书），-2 = 封面内侧（翻开后左半边那张皮），0 起是正文。
+   ⚠️ 活页的第一跨页是「封面内侧 + 第 1 页」，不是「第 1 页 + 第 2 页」 ——
+      真本子翻开就是这样，环的左边挂着的是封面内侧，不是另一张纸。 */
+const PAGE_INSIDE_COVER = -2;
 /* 封面页：不属于正文页，-1 表示“封面” */
 function coverPageHTML() {
   const j = cur();
   return `<div class="paper coverpage">${coverHTML(j)}</div>`;
 }
-/* 活页手帐的中缝金属环：一双摊开的两页是穿在同一组环上的，
-   所以双页摊开时中缝必须从封面那排环延伸过来 —— 少了它，翻开的内页跟封面不像同一本。
-   环数直接读 BOOK_STYLES.rings（跟封面同源）；不是活页装帧返回空串，中缝只剩折痕 */
+/* 封面硬壳那**一张板**（封面内侧就是它的背面：同一张皮、同一个图案）。
+   ⚠️ 板要按**封面的真实尺寸**铺（--cbrd-w × --cbrd-h，见 layoutBook），再按板的偏移摆好 ——
+      图案贴片是 .cover 上的百分比背景，只有盒子跟封面同尺寸、同比例，贴片的大小 / 疏密
+      才跟封面正面一模一样；直接把背景铺在「内页那一格」上，贴片会被放大 1.21 倍（活页封面的
+      宽倍率），看着就是「封面和封面内侧是两个图案」。
+   ⚠️ 不画光泽（.gloss）也不画装订（.spine）：背面是哑光的、也没有书脊沟；
+      压深与那层柔光交给宿主（.paper.cover-inside::after / .book-under::after）。 */
+function coverBoardHTML(j, extra) {
+  const st = bookStyleOf(j);
+  const bg = j.cover.img
+    ? `background-image:url('${j.cover.img}');background-size:cover;background-position:center;`
+    : `background:${j.cover.value};`;
+  /* 上传了封面图片就不叠图案（跟封面正面同一个取舍：图案压在照片上只会糊成一片） */
+  const pat = j.cover.img ? '' : patternStyle(j.cover.pattern, j.cover);
+  return `<div class="cover s-${st.k} cover-board${extra ? ' ' + extra : ''}" style="${bg}">`
+    + `<div class="pattern" data-pat="${j.cover.img ? 'none' : (j.cover.pattern || 'none')}" style="${pat}"></div>`
+    + `</div>`;
+}
+/* 封面内侧：就是封面的背面，翻开后躺在左边（用同一张封面色 / 封面图 / 封面图案） */
+function insideCoverPageHTML() {
+  return `<div class="paper cover-inside">${coverBoardHTML(cur())}</div>`;
+}
+/* 内页底下那层「封面内侧」：摊开 = 前、后两张封面板各占一半（右半那张是后封面，左右镜像）；
+   单页 = 一整张。压深与受光交给 .book-under::after（见 reader.css） */
+function coverUnderBoardsHTML() {
+  const j = cur();
+  return state.mode === 'spread'
+    ? coverBoardHTML(j, 'cbrd-l') + coverBoardHTML(j, 'cbrd-r')
+    : coverBoardHTML(j, 'cbrd-l');
+}
+/* 环的纵向位置（% 页高）：实物活页夹的环**分上下两组**，中段那截是机构面板本身、没有环，
+   所以不能把 n 根环均匀铺满 —— 均匀铺看着像一把串起来的铁丝，不像活页夹。
+   孔（pageHolesHTML）与环（gutterRingsHTML）共用这一组数，两端才对得上 */
+function ringTops(n) {
+  if (n <= 1) return [50];
+  const up = Math.ceil(n / 2);          // 上组的根数（总数奇数时上组多一根）
+  const step = 13, first = 12, gap = 24;
+  const out = [];
+  for (let i = 0; i < up; i++) out.push(first + i * step);
+  const base = first + (up - 1) * step + gap;
+  for (let i = 0; i < n - up; i++) out.push(base + i * step);
+  return out;
+}
+/* 活页手帐的金属环：每根都是横跨左右孔心的一根钢丝，端点与 pageHolesHTML 共用 ringTops；
+   CSS 再用 ggap + 2 × hole-x 保证横向也对准。
+   ⚠️ 钢丝是**平直**的，只在中间留一丝几乎看不出的拱起（弧顶比两端高 3.7/100 个盒高 ≈ .1 环径）：
+      实物活页本摊平后，环是从纸面穿过去、贴着纸走的一根杆，不是拱成半圆的钥匙圈
+      （原来那版弧顶抬到盒高的一半，六根环看着像一排衣架，明显过了）。
+      四层描边依次为接触影、深色轮廓、银色圆柱明暗和细高光，环压在机构条与孔洞之上。 */
 function gutterRingsHTML() {
   const st = bookStyleOf(cur());
   if (!st.rings) return '';
-  const n = st.rings, gap = 92 / n;
-  return Array.from({ length: n },
-    (_, i) => `<i style="top:${(4 + i * gap).toFixed(2)}%"></i>`).join('');
+  const tops = ringTops(st.rings);
+  const ARC = 'M0 50 C70 45 130 45 200 50';
+  return tops.map((t, i) => {
+    const gid = `ring-metal-${i}`;
+    return `<i class="ring" style="top:${t.toFixed(2)}%">`
+      + `<svg class="wire" viewBox="0 0 200 100" preserveAspectRatio="none" aria-hidden="true">`
+      + `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">`
+      + `<stop offset="0" stop-color="#747c79"/><stop offset=".14" stop-color="#f8faf8"/>`
+      + `<stop offset=".30" stop-color="#ffffff"/><stop offset=".48" stop-color="#c7ceca"/>`
+      + `<stop offset=".66" stop-color="#777f7b"/><stop offset=".84" stop-color="#e9eeea"/>`
+      + `<stop offset="1" stop-color="#fafcf9"/></linearGradient></defs>`
+      + `<g fill="none" stroke-linecap="round">`
+      + `<path class="ring-cast" d="${ARC}" transform="translate(0 2)" vector-effect="non-scaling-stroke"/>`
+      + `<path class="ring-rim" d="${ARC}" transform="translate(0 0.7)" vector-effect="non-scaling-stroke"/>`
+      + `<path class="ring-body" d="${ARC}" stroke="url(#${gid})" vector-effect="non-scaling-stroke"/>`
+      + `<path class="ring-glint" d="${ARC}" transform="translate(0 -1.4)" vector-effect="non-scaling-stroke"/>`
+      + `</g></svg></i>`;
+  }).join('');
+}
+/* 每一页自己的打孔：孔洞必须跟着纸张走，不能只挂在中缝上。
+   否则翻页叶片盖住中缝后，正在翻起的那一页就会看起来「没有孔」。
+   左页的装订边在右，右页 / 单页的装订边在左；环由中缝的 .grings 绘制。
+   位置与环共用 ringTops —— 各算一套的话环压不到孔上。 */
+function pageHolesHTML(j, side) {
+  const st = bookStyleOf(j);
+  if (!st.rings) return '';
+  const bind = side === 'left' ? 'bind-right' : 'bind-left';
+  return `<div class="page-holes ${bind}" aria-hidden="true">`
+    + ringTops(st.rings).map(t => `<i class="page-hole" style="top:${t.toFixed(2)}%"></i>`).join('')
+    + `</div>`;
 }
 /* 选中对象时浮在它上方的那条工具条（形状在 style/text.css 的 .objbar 里）。
    直接挂进对象内部：拖动 / 拉伸 / 重绘都自动跟着走，不用另算坐标。
-   kind='text' 第三颗是「编辑文字」，kind='image' 换成「铺满整页 / 还原原比例」，
-   并且多一颗「换图」（只有图片有：文字贴换不了图） */
+   共用「完成 / 复制 / 编辑 / 删除」四颗：图片那颗编辑是「铺满整页 ⇄ 还原」，
+   文字贴那颗是「编辑文字」；图片另多「换图 / 边框」，文字贴另多「字随框缩放」。 */
 function objBarHTML(kind, o) {
   const mid = kind === 'image'
     ? { t: o && o.fill ? '还原原比例' : '铺满整页', svg: o && o.fill ? RESTORE_SVG : FILL_SVG, cls: o && o.fill ? ' on' : '' }
@@ -68,11 +180,19 @@ function objBarHTML(kind, o) {
      已经加了边框就把这颗点亮，一眼看得出这张图是带框的 */
   const frame = kind === 'image'
     ? `<button class="ob${hasFrame(o) ? ' on' : ''}" data-ob="frame" title="图片边框">${OB_FRAME_SVG}</button>` : '';
+  /* 文字贴专属的「字随框缩放」开关：默认点亮（拖四角时字号一起等比缩放）。
+     点灭就回到老的自由拉伸（字号不动）；桌面临时按住 Alt 拖也是这个效果。
+     状态存在文字贴自己的 fsLink 上，整页重绘后按钮还是对的。 */
+  const fsOn = !(o && o.fsLink === false);
+  const fslink = kind === 'text'
+    ? `<button class="ob${fsOn ? ' on' : ''}" data-ob="fslink" title="${fsOn ? '字随框缩放：开 · 点一下改成只改框' : '字随框缩放：关 · 点一下让字跟着框变大变小'}">${OB_FSLINK_SVG}</button>`
+    : '';
   return `<div class="objbar">
       <button class="ob" data-ob="close" title="完成">${OB_OK_SVG}</button>
       <button class="ob" data-ob="copy" title="复制一份">${OB_COPY_SVG}</button>
       ${swap}
       ${frame}
+      ${fslink}
       <button class="ob${mid.cls}" data-ob="edit" title="${mid.t}">${mid.svg}</button>
       <button class="ob ob-del" data-ob="del" title="删除">${OB_DEL_SVG}</button>
     </div>`;
@@ -139,6 +259,7 @@ function pageHTML(i, side) {
   const j = cur();
   const n = j.pages.length;
   if (i === -1) return coverPageHTML();
+  if (i === PAGE_INSIDE_COVER) return insideCoverPageHTML();
   if (i < 0 || i >= n) return `<div class="paper endpaper"></div>`;
   const pg = j.pages[i];
   const inner = pageObjs(pg).map(o => o.k === 'img' ? imgWrapHTML(o.o, i) : textWrapHTML(o.o, i)).join('');
@@ -148,14 +269,43 @@ function pageHTML(i, side) {
      按了「完成」才真写进 pg.bg（没按就是预览，关掉面板纸面自己会回去） */
   const shown = pageBgShown(pg, j, i);
   const dark = pageBgDarkShown(pg, j, i) ? ' dark' : '';    // 深色纸：页码改浅色才看得见
-  return `<div class="paper t-${j.template}${dark}" style="${kraft}${shown ? 'background:' + shown + ';' : ''}">
+  /* 活页：打孔那一列是**每页自己的纸**上的东西（孔跟着纸走，翻页时叶片上就有孔），
+     并且这一列不铺内页模板（bind-left / right 让 .tplbg 在那一侧被遮掉，见 reader.css） */
+  const ringed = !!bookStyleOf(j).rings;
+  const bind = side === 'left' ? 'right' : 'left';
+  return `<div class="paper t-${j.template}${dark}${ringed ? ' ringed bind-' + bind : ''}" style="${kraft}${shown ? 'background:' + shown + ';' : ''}">
     <div class="tplbg" style="${tplStyle(j.template)}"></div>
+    ${pageHolesHTML(j, side)}
     <div class="pcontent">${inner}</div>
     <div class="pnum">${i + 1}</div>
   </div>`;
 }
+/* 双页摊开的页序 —— **活页**与「笔记本 / 方形画册」是两套，别合并：
+     活页（有环）：环的左边挂着的是封面内侧，不是另一张纸 ——
+        0 = 封面内侧 + 第 1 页；1 = 第 2 页 + 第 3 页；以此类推。
+        「第 N 页在第几跨」= floor((N+1)/2)，全书 ceil((页数+1)/2) 跨（封面内侧也占一格）。
+     笔记本 / 画册（胶装、无环）：打开就是正文，左半边是第 1 页 ——
+        0 = 第 1 页 + 第 2 页；1 = 第 3 页 + 第 4 页。
+        「第 N 页在第几跨」= floor(N/2)，全书 ceil(页数/2) 跨。
+   ⚠️ 这两套页序只在下面三个函数里换算，别处一律调用它们 —— 写死 *2 / ÷2 会错开一页，
+      而且会给没有封面内侧那格的装帧凭空造出一张「封面内侧」（合书动画里它就露在左边）。 */
+/* 这一本摊开后左半边是不是「封面内侧」：只有活页是（环上挂的那张皮），笔记本 / 画册不是 */
+function spreadHasInsideCover() { return !!bookStyleOf(cur()).rings; }
+function spreadIndices(s) {
+  if (s < 0) return [-1, -1];
+  if (spreadHasInsideCover()) return [s === 0 ? PAGE_INSIDE_COVER : s * 2 - 1, s * 2];
+  return [s * 2, s * 2 + 1];
+}
+function spreadIndexOfPage(p) {
+  if (p < 0) return -1;
+  return Math.floor((p + (spreadHasInsideCover() ? 1 : 0)) / 2);
+}
+function spreadCount(n) {
+  if (n <= 0) return 1;
+  return Math.ceil((n + (spreadHasInsideCover() ? 1 : 0)) / 2);
+}
 function currentIndices() {
-  if (state.mode === 'spread') return [state.spread * 2, state.spread * 2 + 1];
+  if (state.mode === 'spread') return spreadIndices(state.spread);
   return [state.page];
 }
 function isCoverView() {
@@ -173,9 +323,19 @@ function renderReader() {
   book.classList.toggle('cover-only', cov && state.mode === 'spread');
   /* 活页手帐：双页摊开时中缝那一列要画出金属环（环数跟封面一致，见 BOOK_STYLES.rings）——
      没环的两档（笔记本 / 方形画册）清空，中缝只剩原来的折痕 */
-  book.classList.toggle('ringed', !!bookStyleOf(cur()).rings);
+  const ringed = !!bookStyleOf(cur()).rings;
+  book.classList.toggle('ringed', ringed);
+  /* 第一跨页：只有活页的左半边是封面内侧（不是正文页），整格不铺纸、圆角也跟封面一致；
+     笔记本 / 画册打开就是第 1 页，那一格照正文页来铺 */
+  book.classList.toggle('first-spread', state.mode === 'spread' && !cov && state.spread === 0 && ringed);
   const grings = $('#gutterRings');
   if (grings) grings.innerHTML = gutterRingsHTML();
+  /* 内页底下那层封面内侧：活页翻开后内页是压在封面上的，封面比内页大一圈、四周露一条边。
+     封面态（整页就是封面）不需要 —— 那就成了「封面压封面」 */
+  const under = !cov && ringed;
+  book.classList.toggle('has-under', under);
+  const bu = $('#bookUnder');
+  if (bu) bu.innerHTML = under ? coverUnderBoardsHTML() : '';
   const n = pageCount();
   const [a, b] = currentIndices();
   // 重建前先摘掉文字贴挂在 document 上的监听，避免节点被换掉后残留
@@ -206,13 +366,14 @@ function renderReader() {
   } else if (state.mode === 'spread') {
     const l = a, r = b;
     let txt = '';
-    if (r < n) txt = `${l + 1}–${r + 1} / ${n}`;
+    if (l < 0) txt = `${r + 1} / ${n}`;          // 封面内侧不算页，只报右页
+    else if (r < n) txt = `${l + 1}–${r + 1} / ${n}`;
     else txt = `${l + 1} / ${n}`;
     pager.textContent = txt;
     pager.classList.add('jumpable');
     pager.title = '长按拖动选页';
     $('#prevBtn').disabled = false;
-    $('#nextBtn').disabled = state.spread >= Math.ceil(n / 2) - 1;
+    $('#nextBtn').disabled = state.spread >= spreadCount(n) - 1;
   } else {
     pager.textContent = `${state.page + 1} / ${n}`;
     pager.classList.add('jumpable');

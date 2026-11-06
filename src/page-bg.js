@@ -138,9 +138,7 @@ function closeBgSheet() {
   if (sheet) { sheet.hidden = true; sheet.style.transform = ''; sheet.style.maxHeight = ''; }
   /* 记一下收面板的时刻：紧接着那一下点击只是「关面板」，不该顺手把页翻过去 */
   markFlipSuppressed();
-  window.__sheetCov = 0;
-  const reader = $('#reader');
-  if (reader) reader.style.setProperty('--stage-shift', '0px');
+  resetSheetSpace();
   updateEflow();
   if (dirty && typeof renderReader === 'function') renderReader();
   if (typeof layoutBook === 'function') layoutBook();

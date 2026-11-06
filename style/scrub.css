@@ -66,19 +66,24 @@
 }
 
 /* 封面页：整页铺满，不留白 */
-.paper.coverpage{display:block;padding:0}
+.paper.coverpage{display:block;padding:0;--patw:var(--pw)}
 .paper.coverpage .cover{
   width:100%;height:100%;max-height:none;aspect-ratio:auto;border-radius:0;box-shadow:none
 }
-/* 铺满时封面比例随纸张变化，图案贴片改按「封面宽度」取尺寸（--pw），
-   形状不会跟着纸张比例变形，疏密也与主页 3:4.05 封面完全一致 */
-.paper.coverpage .pattern[data-pat="dots"]{background-size:calc(var(--pw,340px)*.094) calc(var(--pw,340px)*.094)!important}
-.paper.coverpage .pattern[data-pat="grid"]{background-size:calc(var(--pw,340px)*.141) calc(var(--pw,340px)*.141),calc(var(--pw,340px)*.141) calc(var(--pw,340px)*.141)!important}
-.paper.coverpage .pattern[data-pat="circle"]{background-size:calc(var(--pw,340px)*.33) calc(var(--pw,340px)*.5716)!important}
-.paper.coverpage .pattern[data-pat="triangle"]{background-size:calc(var(--pw,340px)*.4) calc(var(--pw,340px)*.3464)!important}
-.paper.coverpage .pattern[data-pat="star"],.paper.coverpage .pattern[data-pat="leaf"]{background-size:calc(var(--pw,340px)*.271) calc(var(--pw,340px)*.271)!important}
-.paper.coverpage .pattern[data-pat="heart"]{background-size:calc(var(--pw,340px)*.2) calc(var(--pw,340px)*.2)!important}
-.paper.coverpage .pattern[data-pat="check"]{background-size:calc(var(--pw,340px)*.235) calc(var(--pw,340px)*.235)!important}
-/* 小花贴片不是正方形（64×110.85 的三角网格），两维都得按 --pw 折算，否则会被纸张比例拉变形 */
-.paper.coverpage .pattern[data-pat="flower"]{background-size:calc(var(--pw,340px)*.27) calc(var(--pw,340px)*.4677)!important}
+/* 铺满时封面比例随纸张变化，图案贴片改按「封面宽度」取尺寸（--patw），
+   形状不会跟着纸张比例变形，疏密也与主页（A5 148:210）封面完全一致。
+   ⚠️ --patw 是「贴片尺寸按谁的宽度算」：
+      封面页 = --pw（封面态 --pw 就是封面宽）；
+      封面内侧 / 封面底那张板 = --cbrd-w（板的真实宽，见 reader.css 的 .cover-board）——
+      板跟封面页一样大，所以两处的图案贴片**一格不差**，不会出现「封面和封面内侧两个图案」 */
+.paper.coverpage .pattern[data-pat="dots"],.paper.cover-inside .pattern[data-pat="dots"],.book-under .pattern[data-pat="dots"]{background-size:calc(var(--patw,340px)*.094) calc(var(--patw,340px)*.094)!important}
+.paper.coverpage .pattern[data-pat="grid"],.paper.cover-inside .pattern[data-pat="grid"],.book-under .pattern[data-pat="grid"]{background-size:calc(var(--patw,340px)*.141) calc(var(--patw,340px)*.141),calc(var(--patw,340px)*.141) calc(var(--patw,340px)*.141)!important}
+.paper.coverpage .pattern[data-pat="circle"],.paper.cover-inside .pattern[data-pat="circle"],.book-under .pattern[data-pat="circle"]{background-size:calc(var(--patw,340px)*.33) calc(var(--patw,340px)*.5716)!important}
+.paper.coverpage .pattern[data-pat="triangle"],.paper.cover-inside .pattern[data-pat="triangle"],.book-under .pattern[data-pat="triangle"]{background-size:calc(var(--patw,340px)*.4) calc(var(--patw,340px)*.3464)!important}
+.paper.coverpage .pattern[data-pat="star"],.paper.cover-inside .pattern[data-pat="star"],.book-under .pattern[data-pat="star"],
+.paper.coverpage .pattern[data-pat="leaf"],.paper.cover-inside .pattern[data-pat="leaf"],.book-under .pattern[data-pat="leaf"]{background-size:calc(var(--patw,340px)*.271) calc(var(--patw,340px)*.271)!important}
+.paper.coverpage .pattern[data-pat="heart"],.paper.cover-inside .pattern[data-pat="heart"],.book-under .pattern[data-pat="heart"]{background-size:calc(var(--patw,340px)*.2) calc(var(--patw,340px)*.2)!important}
+.paper.coverpage .pattern[data-pat="check"],.paper.cover-inside .pattern[data-pat="check"],.book-under .pattern[data-pat="check"]{background-size:calc(var(--patw,340px)*.235) calc(var(--patw,340px)*.235)!important}
+/* 小花贴片不是正方形（64×110.85 的三角网格），两维都得按 --patw 折算，否则会被纸张比例拉变形 */
+.paper.coverpage .pattern[data-pat="flower"],.paper.cover-inside .pattern[data-pat="flower"],.book-under .pattern[data-pat="flower"]{background-size:calc(var(--patw,340px)*.27) calc(var(--patw,340px)*.4677)!important}
 

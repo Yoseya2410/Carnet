@@ -101,7 +101,7 @@
 .ep-btn.ok:hover{filter:brightness(1.1)}
 .pat-grid,.tpl-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
 .pat,.tpl{
-  aspect-ratio:3/4.05;border-radius:12px;border:2px solid rgba(255,255,255,.18);overflow:hidden;
+  aspect-ratio:148/210;border-radius:12px;border:2px solid rgba(255,255,255,.18);overflow:hidden;
   position:relative;background:#eee;transition:transform .15s,border-color .2s
 }
 .pat:hover,.tpl:hover{transform:translateY(-2px)}
@@ -126,9 +126,9 @@
   padding:2px 0;background:rgba(0,0,0,.34);letter-spacing:.04em;z-index:3}
 .tpl{aspect-ratio:3/4;border-radius:8px}
 .editor-preview{display:flex;justify-content:center;margin-bottom:4px}
-/* ⚠️ 用高度当基准（不是宽度）：四种装帧开本宽窄不同，统一高度才摆得下、也才对得上「一样高」。
-   常规 3:4.05 → 宽 = 176 × 3/4.05 ≈ 130px（跟原来的 130px 一致）；方形画册自动变 176px 宽 */
-/* ⚠️ 只设 --cover-w，别直接写 width —— 方形画册要按它把宽放大 1.35 倍才能跟别的本子一样高 */
+/* ⚠️ 用高度当基准（不是宽度）：几种装帧开本宽窄不同，统一高度才摆得下、也才对得上「一样高」。
+   常规 A5 148:210 → 宽 = 182 × 148/210 ≈ 128px（跟原来的 130px 基本一致）；方形画册自动变 182px 宽 */
+/* ⚠️ 只设 --cover-w，别直接写 width —— 方形画册要按它把宽放大 210/148 倍才能跟别的本子一样高 */
 .editor-preview .cover{--cover-w:130px;box-shadow:0 18px 32px -14px rgba(0,0,0,.65)}
 /* 操作按钮吸底：滚动内容时也一直贴在弹窗底部 */
 .modal-actions{

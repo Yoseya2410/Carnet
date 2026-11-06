@@ -2,7 +2,7 @@
  * Carnet · 阅读器交互 · 开合书动画与增删页   （脚本 24 / 27）
  * ---------------------------------------------------------------------
  * ① 打开：封面飞入放大成书 flyCover / openReader
- * ② 关闭：合书、连翻回封面、书缩回主页封面 closeReader
+ * ② 关闭：合上书（只合一次，不再先连翻回封面）、书缩回主页封面 closeReader
  * ③ 阅读器内的手势与「添加」菜单联动
  * ④ 加页 addPageAfter / 删页 deleteCurrentPage
  *
@@ -17,9 +17,7 @@
 const FLY_MS = 560;
 const FLY_OUT_MS = 600;                          // 关闭：慢慢缩回主页
 const FLY_EASE = 'cubic-bezier(.22,1,.28,1)';   // 收尾更绵长，落地不生硬
-const FOLD_MS = 400;                             // 合书：右页沿书脊翻到左侧
-const FLIP_BACK_STEP = 160;                      // 回封面：连续快翻的节奏（比原来更急）
-const FLIP_BACK_BUDGET = 720;                    // 回封面总预算，翻太久就直接落到封面
+const FOLD_MS = 400;                             // 合书：左半边沿书脊翻到右侧（统一从左往右）
 let flyBusy = false;
 function coverRect() {
   /* 书架里一眼能看到好几本，必须认准当前那一本，动画才不会从别的位置飞出去 */
@@ -43,7 +41,7 @@ function coverPageRect() {
 }
 /* 飞行的封面。
    ⚠️ 这里**绝不能用非等比 scale 直接把起点撑成终点**：单层书架的起点是一根书脊
-      （约 42×384），终点是 3:4.05 的封面（约 200×270），scale 的横纵比差 6 倍以上，
+      （约 42×384），终点是 A5 封面（约 190×270），scale 的横纵比差 6 倍以上，
       封面内容会被先压扁再拉回来 —— 全程都是扭曲的。
    改成「窗口展开 + 内容等比填充」：
      ① ghost 本身是个**窗口**，用 width/height 从起点矩形过渡到终点矩形（尺寸变化不用 scale，
@@ -70,7 +68,11 @@ function flyCover(from, to, reverse) {
      套用封面的 13px 大圆角会在细条上糊成一团 */
   const spineStart = (state.prefs && state.prefs.view) === 'spine';
   const rStart = spineStart ? '1.5px 2.5px 2px 1.5px' : '5px 13px 13px 5px';
-  const rEnd = '5px 13px 13px 5px';
+  /* 落地那一下的圆角照**这一本真实封面**的来：活页封面的圆角比其它档大
+     （见 book-style.css 的 .cover.s-personal），写死一组值的话活页落地时会被"削尖"一下 */
+  const cvEl = $(`#carousel .book-item[data-i="${state.sel}"] .cover`)
+    || $(`#shelfWrap .book-item[data-i="${state.sel}"] .cover`) || $('.book-item .cover');
+  const rEnd = (cvEl && getComputedStyle(cvEl).borderRadius) || '5px 13px 13px 5px';
   ghost.style.width = a.width + 'px';
   ghost.style.height = a.height + 'px';
   ghost.style.borderRadius = reverse ? rEnd : rStart;
@@ -111,7 +113,7 @@ function openReader() {
   if (!from || reduced) {
     reader.classList.add('show');
     home.classList.remove('book-returning');
-    book.classList.remove('book-in', 'book-out', 'gone', 'folded');
+    book.classList.remove('book-in', 'book-out', 'gone', 'folded', 'folding', 'cover-flip');
     renderReader();
     return;
   }
@@ -120,7 +122,7 @@ function openReader() {
   home.classList.add('book-opening');
   reader.classList.add('book-opening');
   reader.classList.add('show');
-  book.classList.remove('book-out', 'gone', 'folded');
+  book.classList.remove('book-out', 'gone', 'folded', 'folding', 'cover-flip');
   renderReader();
   /* 量封面那一页本身，而不是整本书 —— 封面单独成页时书比封面宽一倍 */
   const to = coverPageRect();
@@ -133,49 +135,80 @@ function openReader() {
   }, FLY_MS + 40);
 }
 /* 是否停在封面：统一用 reader-view.js 的 isCoverView()，这里不再留第二份判定 */
-/* ① 无论停在第几页，先连续快翻回封面 */
-function flipBackToCover() {
+/* ① 合上书：一次动画，不再先「哗哗翻回封面」。
+   ⚠️ 以前是 flipBackToCover() 翻回封面（它最后一翻本身就把书合上了，而且只播 160ms 就被掐断，
+      是个半截的「小合上」），完了再走 foldBook() —— 合上看着演了两遍，第一遍还只演了一半。
+      现在合上**只留一次**：当前这一跨直接合。 */
+function closeBookOnce() {
+  /* 单页模式本来就「合着」（一次只有一张纸），不补合书动画，直接回封面 */
+  if (state.mode !== 'spread') { state.page = -1; renderReader(); return Promise.resolve(); }
+  /* 第一跨页（封面内侧 + 第 1 页）：走翻页那套 —— 封面摊开 / 合拢的那段横移在里面。
+     ⚠️ 它是「从左往右」合上的（叶片从 -180° 转到 0°），下面的 foldBook 必须同向 */
+  if (state.spread === 0) return flipDone(-1);
+  /* 其它跨页：右页沿书脊翻到左边，封面朝外 */
+  return foldBook();
+}
+/* 翻一次页并等到它播完：flip 是逐帧驱动的、没有完成回调，这里盯着 flipA 判结束
+   （flip 因边界守卫没启动时会立刻 resolve） */
+function flipDone(dir) {
   return new Promise(done => {
-    let budget = FLIP_BACK_BUDGET;
-    const tick = () => {
-      if (!$('#reader').classList.contains('show') || !cur()) { done(); return; }
-      if (flipA) endFlip();                     // 先让上一页落定，否则 flip 的边界守卫会用到滞后的页码，翻过头
-      if (isCoverView()) {
-        if (state.spread <= -1) state.page = -1;
-        done(); return;
-      }
-      if (budget <= 0) {                       // 页数太多就别磨蹭，直接落到封面
-        state.page = -1; state.spread = -1; renderReader(); done(); return;
-      }
-      budget -= FLIP_BACK_STEP;
-      flip(-1);                                // 上一页没翻完会被立刻落定，形成"哗哗翻"的快翻手感
-      setTimeout(tick, FLIP_BACK_STEP);
-    };
-    tick();
+    flip(dir);
+    (function wait() { if (flipA) requestAnimationFrame(wait); else done(); })();
   });
 }
-/* ② 合上书：把右页沿书脊翻到左侧，封面朝外，再把书收拢成一本 */
+/* ② 合上书：**一律从左往右** —— 把左半边抬起来，沿书脊翻到右边盖上，落定后朝外的是封面。
+   ⚠️ 方向跟「第一跨页合回封面」那一翻（closeBookOnce 里的 flip(-1)）必须是同一个：
+      以前第二跨往后是反着来（把右页往左掀），同一个「返回」一会儿左合一会儿右合，
+      看着像两套本子 —— 现在两处都是「从左往右」。
+   ⚠️ 起步那一格（-180°，正盖住左槽）放的是**当前左页**：整格内容原样搬进叶背，
+      画面从静止接得上，不会在第一帧跳一下；
+      落那一格（0°，盖住右槽）放封面 —— 合上之后朝外的自然是它。
+      ⚠️ 落点必须是 slotR（不是 slotL）：封面单独成页时 `.cover-only` 会把左槽收起来，
+         放在左槽里它是 display:none，量出来的位置是 0×0，
+         紧接着飞回主页那张 ghost 就会从屏幕左上角那么一个「无」里长出来。 */
 function foldBook() {
-  const END = '<div class="paper endpaper"></div>';
   return new Promise(done => {
     const book = $('#book'), leaf = $('#leaf'), lf = $('#leafF'), lb = $('#leafB');
-    lf.innerHTML = $('#slotR').innerHTML;        // 正面：当前摊着的右页，原样搬走，视觉不断
-    lb.innerHTML = coverPageHTML();              // 背面：翻过去之后朝外的就是封面
-    $('#slotR').innerHTML = END;                 // 右页被"掀"起来，底下露出衬页
+    /* 换掉左槽前先把文字贴挂在 document 上的监听摘掉（跟 renderReader 同一套做法），
+       不然这些节点被冲掉之后监听会残留 */
+    $$('#slotL .ptext-wrap').forEach(x => {
+      if (x.__outDown) { document.removeEventListener('pointerdown', x.__outDown, true); x.__outDown = null; }
+    });
+    /* 活页合上的是**整本左半边**，封面比内页大一圈：
+       ① 叶片换到「整张封面板」那套几何（.book.cover-flip，见 reader.css）—— 沿用内页尺寸的话，
+          落地那张封面是内页大小，看着就是「一张纸合上了」，不是外面那张封面合上了；
+       ② 背上那一面（起点，还躺在左边）照摊开的样子摆：板（封面内侧）+ 压在板上的那张内页
+          （.leaf-page-inset 让出四周的露边），这样第一帧和静止时一模一样，不会跳一下。
+       胶装本封面与内页同大、也没有封面内侧那层皮，照老样子把纸铺满整格即可。 */
+    const ringed = !!bookStyleOf(cur()).rings;
+    const leftHTML = $('#slotL').innerHTML;
+    lb.innerHTML = ringed
+      ? insideCoverPageHTML() + `<div class="leaf-page-inset">${leftHTML}</div>`
+      : leftHTML;                             // 背面：当前左页（起点那一面）
+    lf.innerHTML = coverPageHTML();           // 正面：封面（落地那一面）
+    /* 左页被"掀"起来带走：**整格一起收掉**（.book.folding，见 book-anim.css）——
+       空槽自己垫的那层纸色看着就是「一张白纸停在左边」，而合上的是整本左半边，
+       纸和封面都跟着翻过去了，那一格合书期间本来就该什么都没有 */
+    $('#slotL').innerHTML = '';
+    book.classList.add('folding');
+    if (ringed) book.classList.add('cover-flip');
     leaf.classList.add('show', 'turning');
     leaf.style.transition = 'none';
-    leaf.style.transform = 'rotateY(0deg)';
-    /* 直接用翻页引擎合书：一次完整的翻页，手感跟平时翻页一模一样。
-       不自己写 CSS transition —— leaf 刚从隐藏变可见时首帧起点容易丢，动画会被吞掉 */
+    leaf.style.transform = 'rotateY(-180deg)';
     flipA = {
-      dir: -1, from: 0, to: -180, dur: FOLD_MS, raf: 0, t0: performance.now(),
+      dir: -1, from: -180, to: 0, dur: FOLD_MS, raf: 0, t0: performance.now(),
       onEnd: () => {
-        $('#slotL').innerHTML = coverPageHTML();    // 交接给左边槽位，封面位置纹丝不动
+        $('#slotR').innerHTML = coverPageHTML();    // 交接给右槽：封面就停在自己落地的位置
         leaf.classList.remove('show', 'turning');
         leaf.style.transition = 'none';
         leaf.style.transform = 'none';
         state.page = -1; state.spread = -1;         // 书已合上，状态回到封面（不重绘，免得合拢形态被冲掉）
         $('#pager').textContent = '封面';            // 底栏页码跟上（整体重绘会破坏合拢形态，这里只改文字）
+        /* 形态改到「封面单独成页」再按封面态重算尺寸：活页封面比内页大一圈
+           （--pw 从内页宽变成封面宽），不重算的话收拢出来的是内页大小的一张封面 */
+        book.classList.remove('spread', 'first-spread', 'has-under', 'folding', 'cover-flip');
+        book.classList.add('cover-only');
+        layoutBook();
         book.classList.add('folded');              // 收成一本合着的书
         done();
       }
@@ -193,23 +226,21 @@ function endClose() {
   const leaf = $('#leaf');
   if (leaf) { leaf.classList.remove('show', 'turning'); leaf.style.transition = 'none'; leaf.style.transform = 'none'; }
   $('#reader').classList.remove('show', 'closing');
-  $('#book').classList.remove('book-out', 'gone', 'folded');
+  $('#book').classList.remove('book-out', 'gone', 'folded', 'folding', 'cover-flip');
   $('#book').style.transform = '';
   $('#home').classList.remove('book-returning');
 }
-/* 退场：先翻回封面 → 合上书 → 缩小回主页 */
+/* 退场：合上书（一次动画） → 缩小回主页 */
 async function runCloseSequence(to) {
   const reader = $('#reader'), book = $('#book');
   const alive = () => reader.classList.contains('show') && !!cur();
-  await flipBackToCover();
-  if (!alive()) { endClose(); return; }
-  /* 单页模式本来就「合着」，停在封面时也只有一张封面，都不用再合一次 */
-  if (state.mode === 'spread' && !isCoverView()) {
-    await foldBook();
+  /* 停在封面就不用再合；否则**合一次**就够（见 closeBookOnce 的注释） */
+  if (!isCoverView()) {
+    await closeBookOnce();
     if (!alive()) { endClose(); return; }
   }
   const from = coverPageRect();                 // 封面那一页的位置（可能是左槽也可能是右槽）
-  state.page = -1; state.spread = -1;          // 单页模式没经过合书，这里统一归位到封面态
+  state.page = -1; state.spread = -1;          // 统一归位到封面态
   flyCover(to, from, true);
   /* 封面交给 ghost 去飞回主页：这里立刻隐藏，不留淡出 */
   book.classList.add('gone');
@@ -245,7 +276,7 @@ function closeReader() {
   if (!to || reduced) {
     reader.classList.remove('show');
     home.classList.remove('book-returning');
-    book.classList.remove('book-in', 'book-out', 'gone', 'folded');
+    book.classList.remove('book-in', 'book-out', 'gone', 'folded', 'folding', 'cover-flip');
     $$('#spineRow .spine-item.pulling,#spineRow .spine-item.gone')
       .forEach(el => el.classList.remove('pulling', 'gone'));
     return;
@@ -313,7 +344,7 @@ function addPageAfter() {
     const at = (t === b && j.pages[b]) ? b + 1 : a + 1;
     j.pages.splice(at, 0, mkPage());
     save();
-    state.spread = clamp(Math.floor(at / 2), 0, Math.max(Math.ceil(j.pages.length / 2) - 1, 0));
+    state.spread = clamp(spreadIndexOfPage(at), 0, spreadCount(j.pages.length) - 1);
     setAddTarget(at);              // 新页直接成为下一个添加目标
     renderReader();
     toast('已在第 ' + at + ' 页后加一页');
@@ -340,7 +371,7 @@ function deleteCurrentPage() {
     j.pages.splice(p, 1);
     /* 删完把视图拉回合法范围，别停在已经不存在的页上 */
     if (state.mode === 'spread') {
-      state.spread = clamp(state.spread, 0, Math.max(Math.ceil(j.pages.length / 2) - 1, 0));
+      state.spread = clamp(state.spread, 0, spreadCount(j.pages.length) - 1);
     } else {
       state.page = clamp(state.page, 0, j.pages.length - 1);
     }

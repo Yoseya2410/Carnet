@@ -31,16 +31,62 @@
   perspective:2400px;perspective-origin:50% 50%;
   transition:transform .24s cubic-bezier(.32,.86,.3,1)}
 .book{
-  position:relative;height:var(--ph);width:calc(var(--pw) * 2);
+  position:relative;
+  /* ⚠️ 活页摊开时整本比两页宽出一道缝（--ggap）：两页不是贴着折的，环从缝里穿过去。
+     非活页 / 单页 / 封面态 --ggap 都是 0，等于原来的 2×--pw（见 layoutBook 里那个 clamp）。
+  ⚠️ 上下左右还各有 --bu-t / --bu-b / --bleed：活页的内页是**坐在封面内侧上的**，封面比内页大一圈、
+     四周露一条边，所以 .book 这个盒子本身就是「封面」的外框，内页整体往里缩。
+     非活页 / 封面态两者都是 0，盒子尺寸跟原来一模一样，行为不变。 */
+  height:calc(var(--ph) + var(--bu-t,0px) + var(--bu-b,0px));
+  width:calc(var(--pw) * 2 + var(--ggap,0px) + var(--bleed,0px) * 2);
   transform-style:preserve-3d;
   filter:drop-shadow(0 30px 40px rgba(0,0,0,.5))
 }
-.book.single{width:var(--pw);overflow:hidden;border-radius:3px 10px 10px 3px}
-.page-slot{position:absolute;top:0;height:var(--ph);width:var(--pw);overflow:hidden;background:var(--paper)}
-.page-slot.left{left:0;border-radius:3px 0 0 3px}
-.page-slot.right{left:var(--pw);border-radius:0 10px 10px 0}
-.book.single .page-slot.right{left:0;border-radius:3px 10px 10px 3px}
+/* ⚠️ 圆角跟里面的纸**同一档**（装订侧 3px / 翻口 10px）：单页态书的外框就是纸的外框，
+   弧度小一档的话 overflow:hidden 会把纸那两个翻口圆角削掉一小块。 */
+.book.single{width:calc(var(--pw) + var(--bleed,0px) + var(--mech-w,0px));overflow:hidden;
+  border-radius:var(--spine-r) var(--cover-r) var(--cover-r) var(--spine-r)}
+.page-slot{position:absolute;top:var(--bu-t,0px);height:var(--ph);width:var(--pw);overflow:hidden;background:var(--paper)}
+.page-slot.left{left:var(--bleed,0px);border-radius:var(--spine-r) 0 0 var(--spine-r)}
+.page-slot.right{left:calc(var(--pw) + var(--ggap,0px) + var(--bleed,0px));border-radius:0 var(--cover-r) var(--cover-r) 0}
+/* 活页：内页跟着大一档 —— 外面那张封面是圆角、里头的纸却是小圆角的话，一翻开就看出来 */
+.book.ringed .page-slot.left{border-radius:var(--cover-r) 0 0 var(--cover-r)}
+.book.ringed .page-slot.right{border-radius:0 var(--cover-r) var(--cover-r) 0}
+/* 单页态：纸的左边压在机构条右沿上，右边外侧才是封面露出的那条边 */
+.book.single .page-slot.right{left:var(--mech-w,0px);border-radius:var(--spine-r) var(--cover-r) var(--cover-r) var(--spine-r)}
 .book.single .page-slot.left{display:none}
+/* ---- 内页底下那层「封面内侧」 ----
+   活页本翻开后，内页是压在封面内侧上的：封面比内页大一圈，四周（尤其翻口那侧和上下）
+   露出一条边。少了这一层，内页就像悬空的散纸，看不出「这是一本带封面的本子」。
+   ⚠️ 只给活页装帧：胶装本翻开时封面被书脊挡住，露不出这一圈。
+   ⚠️ 元素挂在 .book 的第一个子节点（见 index.html）：后写的 .page-slot / .leaf 自然盖在它上面，
+      不用再压 z-index，翻页叶片（z-index 20）也照样在它之上 */
+.book-under{display:none}
+.book.has-under .book-under{
+  display:block;position:absolute;inset:0;      /* = 整本 .book 的外框（已含四周露边） */
+  z-index:0;pointer-events:none;overflow:hidden;
+  --patw:var(--cbrd-w,var(--pw));               /* 板上的图案贴片按板的真实宽算（见 scrub.css） */
+  border-radius:25px;                 /* 与封面 / 内页同一个弧度（见 .book 的 --cover-r） */
+  box-shadow:
+    /* ⚠️ 压一道**暗**描边而不是亮描边：浅色封面（米白 / 浅灰）本来就接近纸色，
+       只有内侧这一圈压暗，封面和内页才分得开（亮描边在浅封面上等于没有） */
+    inset 0 0 0 1px rgba(20,16,10,.34),
+    inset 0 0 26px -8px rgba(0,0,0,.55),
+    inset 0 14px 22px -18px rgba(255,255,255,.26),
+    0 14px 30px -16px rgba(0,0,0,.55)
+}
+/* 封面内侧比正面沉一点（背光、压不出高光），并带一层柔和的中央受光 —— 像皮革衬里。
+   底色就是本子自己的封面色 / 封面图，由 coverUnderStyle() 写成内联 background */
+.book-under::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:
+    linear-gradient(180deg,rgba(0,0,0,.22),rgba(0,0,0,.40)),
+    radial-gradient(130% 78% at 50% 4%,rgba(255,255,255,.12),rgba(255,255,255,0) 62%)
+}
+/* 内页压在封面上，纸边要有一道落在封面上的接触影 —— 没有它就分不出上下两层 */
+.book.ringed.single .page-slot{
+  box-shadow:0 2px 9px -2px rgba(34,29,20,.46),inset 0 0 0 1px rgba(112,101,80,.055)
+}
 /* 双页模式下点「+」时：两页都描边，实线更亮的那页 = 新内容会加到的页，点另一页即可切换 */
 .book.picking .page-slot{outline:none}
 .book.picking .page-slot::before{
@@ -57,17 +103,69 @@
   background:rgba(24,26,48,.6);color:#fff;box-shadow:0 3px 10px rgba(0,0,0,.3)
 }
 .leaf{
-  position:absolute;top:0;left:var(--pw);width:var(--pw);height:var(--ph);
+  position:absolute;top:var(--bu-t,0px);left:calc(var(--pw) + var(--ggap,0px) + var(--bleed,0px));width:var(--pw);height:var(--ph);
   transform-origin:left center;transform-style:preserve-3d;z-index:20;display:none;
   will-change:transform
 }
-.book.single .leaf{left:0}
+/* 单页模式：叶片也从机构条右沿起步（翻过去时正好停在封面外沿，不会飘到本子外面） */
+.book.single .leaf{left:var(--mech-w,0px)}
+/* ---- 封面 ↔ 第一跨页：翻的必须是**整张封面板** ----
+   活页的封面比内页大一圈（宽 = 内页 + 外侧露边 + 半道缝，高 = 内页 + 上下露边），
+   叶片沿用内页尺寸的话，合上时翻的就是一张纸（落地瞬间还要跳成封面大小），
+   看着就是「纸张合上」而不是「外面那张封面合上」。
+   ⚠️ 叶片左沿必须落在**中缝正中**（= 露边 + 内页 + 半道缝），转动轴才在书脊上：
+      转 -180° 后正好盖住左半边（[0, 板宽]），0° 时盖住右半边（[板宽, 2×板宽]）——
+      也就是合上之后封面该在的位置，落地不用再跳一次尺寸。 */
+.book.cover-flip .leaf{
+  left:calc(var(--bleed,0px) + var(--pw) + var(--ggap,0px) / 2);
+  width:var(--cbrd-w,var(--pw));height:var(--cbrd-h,var(--ph));top:0
+}
+/* 叶片自己就是那张板了，里面的封面内侧板不再往外偏（偏移是相对「内页那一格」算的） */
+.book.cover-flip .leaf-face .paper.cover-inside .cover-board{left:0;top:0}
+/* ---- 单页模式（手机竖屏）翻封面：叶片同样是整张封面板 ----
+   单页态整本 .book 的外框**就是**那张封面板（宽 = 内页 + 外侧露边 + 半道机构缝），
+   所以叶片从本子最左沿（left:0，转轴 = 书脊）铺到最右沿，尺寸直接取 --cbrd-w / --cbrd-h：
+   0° 时正好盖住整本（= 合上后封面该在的位置），-180° 时整片躺到本子左边、
+   被 .book.single 的 overflow:hidden 裁掉（= 封面敞开着）。
+   ⚠️ 上面那条 .book.cover-flip .leaf 是按**双页**算的（转轴在中缝正中、左边还有一整页），
+      单页态照它算会落在「露边 + 内页 + 半道缝」处 —— 整片飘到本子外面，必须覆盖掉。
+   ⚠️ 圆角跟封面正面同一组：左边是装订侧（小圆角）、右边是翻口（大圆角）。 */
+.book.single.cover-flip .leaf{left:0;top:0;width:var(--cbrd-w,var(--pw));height:var(--cbrd-h,var(--ph))}
+.book.single.cover-flip .leaf-face.front{
+  border-radius:var(--spine-r,3px) var(--cover-r,10px) var(--cover-r,10px) var(--spine-r,3px)
+}
+/* ---- 活页从第二跨往后合书：背上那一面是「板 + 板上那张内页」 ----
+   摊开时左半边本来就是封面内侧的板、板上再压一张内页（板比纸大一圈、四周露一条边），
+   叶片要跟静止那一帧长得一样，纸就不能铺满整张板。
+   ⚠️ 叶背是 rotateY(180) 之后看的：CSS 的 left 落在**翻口**那一侧、right 落在书脊那一侧，
+      所以纸从左边让出 --bleed（外侧露边）、从右边让出半道缝（--ggap/2）——
+      正好等于板上那张纸的位置（板宽 = 内页 + 露边 + 半道缝，见 layoutBook 的 --cbrd-w）。
+      纵向没有翻转，上下直接让出 --bu-t / --bu-b。
+   ⚠️ 圆角只在翻口那两个角（跟左槽那张纸同一组值），装订侧是直角 —— 板自己有圆角，
+      纸跟着板一起圆的话，两者就糊成一张皮了。 */
+.book.cover-flip .leaf-face.back .leaf-page-inset{
+  position:absolute;left:var(--bleed,0px);right:calc(var(--ggap,0px) / 2);
+  top:var(--bu-t,0px);bottom:var(--bu-b,0px);
+  border-radius:var(--cover-r,10px) 0 0 var(--cover-r,10px);overflow:hidden
+}
 .leaf.show{display:block}
 .book.spread{box-shadow:-9px 0 0 -4px rgba(255,252,244,.42),9px 0 0 -4px rgba(255,252,244,.42)}
+/* 活页摊开时 .book 的外沿已经是封面了，那道「纸叠厚度」的白边改由 .book-under 自己画 */
+.book.ringed.spread{box-shadow:none}
+/* 活页纸不是两张平面色块：纸边有厚度，装订侧留一点柔和的接触阴影。 */
+.book.ringed.spread .page-slot{
+  box-shadow:0 1px 1px rgba(69,60,45,.14),0 7px 12px -9px rgba(34,29,20,.58),
+             inset 0 0 0 1px rgba(112,101,80,.055)
+}
+.book.ringed.spread .page-slot.left{box-shadow:inset -13px 0 20px -20px rgba(35,30,22,.72),
+  0 1px 1px rgba(69,60,45,.14),0 7px 12px -9px rgba(34,29,20,.58),inset 0 0 0 1px rgba(112,101,80,.055)}
+.book.ringed.spread .page-slot.right{box-shadow:inset 13px 0 20px -20px rgba(35,30,22,.72),
+  0 1px 1px rgba(69,60,45,.14),0 7px 12px -9px rgba(34,29,20,.58),inset 0 0 0 1px rgba(112,101,80,.055)}
 /* 中缝折痕：中间一道细暗线 + 两侧向内的柔和压暗，模拟纸张凹进书脊 */
 .gutter{
-  position:absolute;left:50%;top:0;bottom:0;width:calc(var(--pw) * .21);
+  position:absolute;left:50%;top:var(--bu-t,0px);bottom:var(--bu-b,0px);width:calc(var(--pw) * .21);
   transform:translateX(-50%);pointer-events:none;z-index:15;display:none;
+  opacity:1;transition:opacity .18s ease;   /* 摊开封面那一翻的淡入（见 page-flip.js 的 gutterHold） */
   background:linear-gradient(90deg,
     rgba(26,22,48,0) 0%,
     rgba(26,22,48,.05) 13%,
@@ -81,39 +179,226 @@
     rgba(26,22,48,.05) 87%,
     rgba(26,22,48,0) 100%)
 }
-/* 只在双页摊开时显示；封面单独成页 / 合上的书 / 单页模式都没有中缝 */
-.book.spread:not(.cover-only):not(.folded) .gutter{display:block}
+/* 只在双页摊开时显示；封面单独成页 / 合上的书都没有中缝。
+   ⚠️ 合书动画（.folding）也要关：书正在合上，中间不该还留着摊开的折痕。
+   ⚠️ 单页模式**也要**显示：那一页的装订边就压在机构条上（参考图就是这么一张单页），
+      没有这一条，纸上就只剩 6 个孤零零的黑孔、看不出是活页本 */
+.book.spread:not(.cover-only):not(.folded):not(.folding) .gutter,
+.book.ringed.single.has-under .gutter{display:block}
+/* 活页摊开第一页那一翻：中缝机构（连同环）先按住不露 —— 由 JS 在动画走到 60% 时摘掉
+   .gutter-hold 才淡入（见 page-flip.js 的 gutterHold）。
+   ⚠️ 只压 opacity、不动 display：display 一断就没有过渡，淡入无从谈起；
+      而且环是从机构条前面跨出去的，两者必须同一时刻出现，所以压在整条 .gutter 上。 */
+.book.gutter-hold .gutter{opacity:0}
+/* 单页态：整条机构挪到**这一页装订边的外侧**，它的中心正好落在纸的左沿上
+   （环就从这个中心向左右跨出去；右半截压在纸上，左半截落在封面内侧那一格） */
+.book.ringed.single .gutter{left:var(--mech-w,0px);width:var(--mech-w,0px);transform:translateX(-50%)}
+/* ⚠️ 活页那道折痕要**窄得多**：胶装本的两页是整片凹进书脊的（所以折痕铺到页宽的 21%），
+   活页纸是平的、只在打孔那一列被环拽着，边上只要一道薄影。
+   沿用 21% 的话中间会糊成一条深色柱子，两页看着像隔了十万八千里 */
+.book.ringed.spread .gutter{width:calc(var(--ggap,0px) + var(--pw) * .075)}
 /* 折痕旁的一道纸光，让凹陷有厚度 */
 .gutter::before{
   content:"";position:absolute;top:0;bottom:0;left:calc(50% + 1.5px);width:1.5px;
   background:linear-gradient(180deg,rgba(255,255,255,.20),rgba(255,255,255,.10))
 }
-/* ---- 活页手帐的中缝金属环 ----
-   环是**横向跨过中缝**的一小截钢丝：左右两头搭在两页纸上，中间悬在书脊的凹槽上。
-   所以它得比中缝窄一点、并且左右各探出去一截 —— 只画在缝里看着是一排竖着的亮片，不像环。
-   z-index 要压过翻页叶片（20）：纸是绕着环翻过去的，环始终在最上层 */
+/* 活页夹脊背中央的装配接缝：一条暗缝配一线反光，不像平涂色带。
+   ⚠️ z-index 25：压在机构金属条（24）之上、环（30）之下 —— 接缝画在金属条上，
+      但环是从条前面跨过去的，接缝不能把环切断 */
+.book.ringed.spread .gutter::before,
+.book.ringed.single .gutter::before{
+  left:50%;width:2px;transform:translateX(-50%);z-index:25;
+  background:linear-gradient(90deg,rgba(30,34,32,.72),rgba(239,243,237,.58) 58%,rgba(45,49,46,.38));
+  box-shadow:0 0 2px rgba(20,23,21,.28);opacity:.72
+}
+/* 活页：两页中间露出活页夹的**机构金属条**（环就是从这条上伸出来的）。
+   横向多段明暗模拟圆润的银色金属，细密拉丝只作辅助，两端各一颗铆钉把它拧在脊背上。
+    ⚠️ z-index 28 必须**高于**环（26）：环脚要被这条金属盖住，才像从机构里长出来的，
+      不然就是一根横跨中缝的铁丝（环脚戳在外面，怎么看都不像活页夹）。
+   上下两端那两颗铆钉画在背景最上层 —— 位置用百分比（相对整条），页高变了自动跟着走。
+   ⚠️ 径向渐变**收尾那一段必须是透明**：超出圆的部分会被最后一站的颜色填满，
+      不透明的话上面那层会把整条金属（连同下面那颗铆钉）全糊掉 —— 只剩一颗铆钉。 */
+.book.ringed.spread .gutter::after,
+.book.ringed.single .gutter::after{
+  content:"";position:absolute;top:0;bottom:0;left:50%;width:var(--mech-w,0px);z-index:24;
+  transform:translateX(-50%);border-radius:calc(var(--mech-w,0px) * .3);
+  background:
+    radial-gradient(circle calc(var(--mech-w,0px) * .23) at 50% 5.5%,
+      #fbfcf9 0 13%,#e2e7e0 32%,#a7aea8 58%,#626963 82%,#3b403c 95%,rgba(59,64,60,0) 100%),
+    radial-gradient(circle calc(var(--mech-w,0px) * .23) at 50% 94.5%,
+      #fbfcf9 0 13%,#e2e7e0 32%,#a7aea8 58%,#626963 82%,#3b403c 95%,rgba(59,64,60,0) 100%),
+    radial-gradient(circle calc(var(--mech-w,0px) * .34) at 50% 5.5%,
+      rgba(14,18,15,.52) 0 56%,rgba(14,18,15,.20) 74%,rgba(14,18,15,0) 86%),
+    radial-gradient(circle calc(var(--mech-w,0px) * .34) at 50% 94.5%,
+      rgba(14,18,15,.52) 0 56%,rgba(14,18,15,.20) 74%,rgba(14,18,15,0) 86%),
+    linear-gradient(180deg,rgba(0,0,0,.38) 0,rgba(0,0,0,0) 6%,
+                          rgba(0,0,0,0) 94%,rgba(0,0,0,.32) 100%),
+    repeating-linear-gradient(90deg,rgba(255,255,255,.055) 0 1px,
+                                   rgba(20,24,22,.025) 1px 2px,transparent 2px 4px),
+    linear-gradient(180deg,rgba(255,255,255,.18),rgba(0,0,0,.13) 55%,rgba(0,0,0,.04)),
+    linear-gradient(90deg,#383d3a 0,#737a75 9%,#b8beb8 22%,#e4e8e1 38%,
+                          #f2f4ed 48%,#c5cbc4 61%,#929a94 76%,#5a615c 90%,#303532 100%);
+  box-shadow:-1px 0 0 rgba(255,255,255,.34),1px 0 0 rgba(255,255,255,.34),
+             inset 3px 0 6px -2px rgba(0,0,0,.54),inset -3px 0 6px -2px rgba(0,0,0,.54)
+}
+/* ---- 活页手帐：纸上的孔 + 中缝那道钢丝 ----
+   ⚠️ 孔画在**每一页自己的纸面上**（.page-hole，见 pageHTML 里的 pageHolesHTML），
+      不是只挂在中缝那一层 —— 中缝的环被翻页叶片盖住时，正在翻起的那一页要是
+      没有自己的孔，看上去就成了「这张纸没打过孔」（根因就是这个）。
+   ⚠️ 孔心与钢丝的两个端点必须由**同一组数**算出来，两端才落在孔上：
+      --hole-x 是孔心离装订边的距离，环的宽度就是 ggap + 2×--hole-x。 */
+/* ⚠️ 这三个尺寸写在 .book 上而不是 .paper 上：中缝那道钢丝（.gutter .grings i）不在纸里，
+   拿不到 .paper 上的变量；写在 .book 上，纸上的孔和缝里的钢丝才能共用同一组数 */
+.book{
+  --hole-x:calc(var(--pw) * .055);     /* 孔心离装订边的距离（环拱出去的横向距离就是它） */
+  --hole-d:calc(var(--pw) * .072);     /* 孔径（≈ 页宽的 7.2%，B6 上约 7mm —— 环要比孔大一圈） */
+  --hole-col:calc(var(--pw) * .106);   /* 打孔那一列的宽度：模板图案在这一列里被遮掉
+                                          ⚠️ 必须比 hole-x + hole-d/2 还宽，不然孔会啃出这一列 */
+  --ring-d:calc(var(--pw) * .12);      /* 环径（略大于孔，看得清是环从孔上跨过去） */
+  --mech-w:0px;                        /* 机构金属条的宽度：双页态就是那道缝，单页态只占半道缝 */
+  /* 圆角只分两档：翻口（外沿）--cover-r、装订侧 --spine-r。
+     封面 / 封面内侧 / 内页 / 翻页叶片全都共用这一组（见 .page-slot / .leaf-face），
+     主页封面（book-style.css 的 .cover）也是这一组 —— 改一处要几处一起改。
+     活页那一档比这里大一档（见下面 .book.ringed）。 */
+  --spine-r:3px;
+  --cover-r:10px
+}
+/* 活页：整本（封面 + 封面内侧 + 内页 + 叶片）的圆角都比其它装帧**大一档** ——
+   实物活页本的纸是四角倒圆的、封面也是一整张皮包出来的圆角，
+   跟硬壳本「翻口小圆角 + 装订侧近乎直角」不是一个度数。
+   ⚠️ 三处必须同一组值：这里、book-style.css 的 .cover.s-personal、home.css 的 .cover，
+      差一档的话翻开 / 合上封面那一刻圆角会跳。 */
+.book.ringed{--spine-r:6px;--cover-r:16px}
+/* ⚠️ 单页态没有「两页之间的缝」，--ggap 那一半留给机构条（纸的装订边就压在它右侧），
+   实物里环同样是从封面内侧那一侧的机构上伸出来的。
+   双页态整道缝都是机构条，所以条上的铆钉大小在两种模式下一模一样 */
+.book.ringed.spread:not(.cover-only){--mech-w:var(--ggap,0px)}
+.book.ringed.single.has-under{--mech-w:calc(var(--ggap,0px) / 2)}
+/* ---- 活页：内页底下那层封面露出的边 ----
+   --bleed 横向（左右各一条），--bu-t / --bu-b 纵向（上下各一条，下沿比上沿略宽 ——
+   实物就是这样：本子往书桌上摊着，视线略高，下沿那截露得多一点）。
+   三者只在活页 + 翻开的内页态非零：封面态 / 合上的书 / 非活页一律是 0，
+   这样 --bleed 直接参与 width / left 的计算也不会动到别的东西。 */
+.book{--bleed:0px;--bu-t:0px;--bu-b:0px}
+/* ⚠️ has-under 由 renderReader 打开：活页 **且** 已经翻到内页（封面态不垫 —— 那就是封面压封面）。
+   合书动画（.folded）里也关掉：那会儿整本要按「合上的书」算尺寸，多一圈露边会跳一下 */
+.book.has-under{
+  --bleed:calc(var(--pw) * .18);       /* 左右各露出约页宽的 5%（≈ B6 的 5mm） */
+  --bu-t:calc(var(--ph) * .025);       /* 上沿露出约页高的 3.5% */
+  --bu-b:calc(var(--ph) * .025)        /* 下沿露出约页高的 5.5%，比上沿厚一档 */
+}
+.book.folded{--bleed:0px;--bu-t:0px;--bu-b:0px;--mech-w:0px}
+.book.folded .book-under{display:none}
+/* ---- 第一跨页：左半边是封面内侧，不是正文纸 ----
+   这一格不再垫纸色 / 不画纸边厚度，圆角跟封面一致；皮面本身由 .cover-inside 铺出来 */
+.book.first-spread .page-slot.left{
+  background:transparent;box-shadow:none;border-radius:var(--cover-r) 0 0 var(--cover-r)
+}
+/* 封面单独成页 / 单页：整本外框的弧度（跟封面内侧、内页外沿一致）
+   ⚠️ 活页封面只有翻口那侧（右）是圆角，装订侧（左）是直角 —— 见 book-style.css 的 .s-personal */
+.book.ringed.single{border-radius:var(--spine-r) var(--cover-r) var(--cover-r) var(--spine-r)}
+/* 封面单独成页：整张封面用同一个弧度（跟封面内侧、内页外沿一致）。
+   ⚠️ 叶片正反两面都按「左=装订侧直角、右=翻口圆角」来：
+      正面（封面正面）左是装订侧；背面（封面内侧）经过 rotateY(180) 后左右互换，
+      所以**正反两面写的是同一组值** —— 翻过去以后圆角仍落在翻口那一侧 */
+.book.ringed.cover-only .page-slot.right,
+.book.ringed.cover-only .leaf-face.front,
+.book.ringed.cover-only .leaf-face.back{border-radius:var(--spine-r) var(--cover-r) var(--cover-r) var(--spine-r)}
+/* 单页态那张纸：装订侧（左）跟整本外框同一个度数 */
+.book.ringed.single .page-slot.right{border-radius:var(--spine-r) var(--cover-r) var(--cover-r) var(--spine-r)}
+/* 翻页叶片：翻口那两个角跟内页同一档（活页自动跟着 .book.ringed 那组值） */
+.book.ringed .leaf-face.front{border-radius:0 var(--cover-r) var(--cover-r) 0}
+.book.ringed .leaf-face.back{border-radius:var(--spine-r) 0 0 var(--spine-r)}
+/* 封面内侧：跟封面同一张皮、同一个图案，只是压深一点、中央留一层柔光。
+   ⚠️ 皮面本身由里面的 .cover-board 铺（按封面的真实尺寸），这一格只负责压深与柔光 ——
+      两个盒子比例不同却各自铺一次背景的话，图案会被裁成两种比例（见 coverBoardHTML）。 */
+/* ⚠️ 这一格自己**不垫纸色**：.paper 自带 background:var(--paper)，垫了就挡住底下那层皮。 */
+.paper.cover-inside{background:none;border-radius:inherit;--patw:var(--cbrd-w,var(--pw))}
+/* ---- 封面硬壳那张板 ----
+   尺寸 / 偏移由 layoutBook 写成 --cbrd-* 交给这里：盒子跟封面同尺寸同比例，
+   .cover 上那套百分比图案贴片才算出来跟封面正面一格不差。
+   ⚠️ 板比「内页那一格」大一圈、而且是从左上角往外偏的（负值），
+      靠宿主的 overflow:hidden 裁出该露的那一块 —— 别给板加圆角，圆角在宿主上。 */
+.book-under .cover-board,.paper.cover-inside .cover-board{
+  position:absolute;left:var(--cbrd-x,0px);
+  width:var(--cbrd-w,100%);height:var(--cbrd-h,100%);x
+  aspect-ratio:auto;border-radius:0;box-shadow:none
+}
+/* 摊开时右半那张是后封面的内侧：整张板左移一格的宽度后左右镜像（前后面是照着镜子长的） */
+.book-under .cover-board.cbrd-r{left:var(--cbrd-w,100%);transform:scaleX(-1)}
+.book-under .cover-board.cbrd-l{left:0;top:0}
+/* ⚠️ 第一跨页（.has-under）这一格**不再自己铺一张皮**：底下 .book-under 铺的已经是
+   同一张封面（整张封面内侧），只是盒子比它大一圈（四周露出那道边）。
+   两个盒子比例不同却都用 background-size:cover —— 同一张封面图会被裁成两种比例、
+   同一块底色也会被 ::after 多压一层暗，中间那块就跟四周露出的边对不上，
+   看着像在封面内侧上贴了一块补丁。让这一格透明，整张皮才是连续的一张。
+   ⚠️ 只摘 #slotL 里那一格：翻页叶片上的封面内侧（.leaf-face 里）是单独一片纸，
+      底下没有 .book-under，必须自己画（板 + ::after 都要留着）。 */
+.book.has-under #slotL .paper.cover-inside::after{display:none}
+.book.has-under #slotL .paper.cover-inside .cover-board{display:none}
+.paper.cover-inside::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:
+    linear-gradient(180deg,rgba(0,0,0,.22),rgba(0,0,0,.40)),
+    radial-gradient(130% 78% at 50% 4%,rgba(255,255,255,.12),rgba(255,255,255,0) 62%)
+}
+/* 单页态的机构条靠左摆：它的右沿正好贴着纸的装订边 */
+.book.ringed.single .gutter::after{left:100%;transform:translateX(-100%)}
+/* 打孔那一列不铺内页模板：环把纸拽住的这一列是空白纸边，网格 / 点阵 / 横线都不该压过来。
+   ⚠️ 模板层本身还带一圈页边留白（--pmx，见 image-tools.css 的 .tplbg），
+      所以这里遮的是「纸边留白之后」剩下的那一截打孔列 —— 两处留白要各算各的，
+      直接拿 --hole-col 去遮会多遮一个 --pmx 的宽度，图案起始线跑偏 */
+.paper{
+  --hole-col-in:max(0px,calc(var(--hole-col,0px) - var(--pmx,0px)))
+}
+.paper.ringed.bind-left .tplbg{
+  -webkit-mask-image:linear-gradient(90deg,transparent 0 var(--hole-col-in),#000 var(--hole-col-in));
+  mask-image:linear-gradient(90deg,transparent 0 var(--hole-col-in),#000 var(--hole-col-in))
+}
+.paper.ringed.bind-right .tplbg{
+  -webkit-mask-image:linear-gradient(270deg,transparent 0 var(--hole-col-in),#000 var(--hole-col-in));
+  mask-image:linear-gradient(270deg,transparent 0 var(--hole-col-in),#000 var(--hole-col-in))
+}
+.page-holes{position:absolute;top:0;bottom:0;width:var(--hole-col);z-index:15;pointer-events:none}
+.page-holes.bind-left{left:0}
+.page-holes.bind-right{right:0}
+/* 横线模板那条红边线也属于「模板图案」，同样不能压在打孔列上（活页纸本来就没有这条线） */
+.paper.ringed.t-lined::before{display:none}
+/* 镂空的孔：上沿有纸壁投影，下沿露出一线纸张厚度；孔沿不画金属边 */
+.page-hole{
+  position:absolute;left:var(--hole-x);width:var(--hole-d);height:var(--hole-d);
+  transform:translate(-50%,-50%);border-radius:50%;
+  background:radial-gradient(circle at 50% 32%,
+    rgba(10,12,10,.94) 0 27%,rgba(24,27,22,.90) 55%,rgba(44,47,38,.80) 79%,
+    rgba(66,66,54,.56) 100%);
+  box-shadow:0 .6px 1.4px rgba(32,28,20,.24),0 0 0 .6px rgba(46,42,35,.30),
+             inset 0 2px 2px rgba(0,0,0,.58),inset 0 -1.2px 0 rgba(255,255,255,.26)
+}
+.page-holes.bind-right .page-hole{left:auto;right:var(--hole-x);transform:translate(50%,-50%)}
+/* 中缝的活页环：一根完整弧线从左侧孔心跨到右侧孔心，弧身位于孔线上方。
+   宽 = 中缝 + 两侧孔心距，SVG 的 x=0 / x=200 因而正好落在两个孔心；
+   高按路径实际拱高换算，端点始终在元素纵向中线上。 */
 .gutter .grings{display:none}
-.book.ringed.spread:not(.cover-only) .gutter .grings{display:block}
+.book.ringed.spread:not(.cover-only) .gutter .grings,
+.book.ringed.single.has-under .gutter .grings{display:block}
 .gutter .grings i{
-  position:absolute;left:50%;transform:translateX(-50%);
-  width:calc(var(--pw) * .175);height:calc(var(--ph) * .026);border-radius:999px;
-  background:linear-gradient(180deg,#fff 0,#e8ebf3 12%,#9aa0b4 40%,#4e5364 64%,#7f8598 82%,#dfe3ee 100%);
-  box-shadow:0 3px 6px -1px rgba(8,10,24,.62),inset 0 0 0 .5px rgba(255,255,255,.6),
-             inset 0 -1px 1px rgba(0,0,0,.4),0 0 0 1px rgba(255,255,255,.06);
-  z-index:26
+  position:absolute;left:50%;width:calc(var(--ggap,0px) + var(--hole-x) * 2);
+  height:calc(var(--ring-d) / .375);transform:translate(-50%,-50%);
+  z-index:30;pointer-events:none
 }
-/* 环两端的「穿孔」：活页纸上是打过孔的，钢丝从孔里钻进去 ——
-   少了这两个孔，环看着只是搭在纸面上的两截亮片，不像穿在纸上。
-   一层圆形暗影（孔里的黑洞）+ 一圈更淡的外扩（孔边被压皱的纸），两层叠出打孔的感觉 */
-.gutter .grings i::before,.gutter .grings i::after{
-  content:"";position:absolute;top:50%;width:13%;aspect-ratio:1;
-  transform:translateY(-50%);border-radius:50%;
-  background:radial-gradient(circle at 50% 42%,
-    rgba(6,8,20,.72) 0%,rgba(6,8,20,.52) 42%,rgba(6,8,20,.26) 70%,rgba(6,8,20,.10) 88%,rgba(6,8,20,0) 100%);
-  box-shadow:0 0 0 1px rgba(6,8,20,.20),0 0 4px 1px rgba(6,8,20,.18)
+/* 单页只保留朝纸面伸出的右半环，宽度仍由孔心位置决定。 */
+.book.ringed.single .grings i{width:calc(var(--hole-x) * 2)}
+.book.ringed.single .grings i .wire{clip-path:inset(0 0 0 50%)}
+.gutter .grings i .wire{
+  position:absolute;inset:0;width:100%;height:100%;overflow:visible;z-index:1;
+  filter:drop-shadow(0 1.5px 1.2px rgba(18,22,19,.30))
 }
-.gutter .grings i::before{left:2%}
-.gutter .grings i::after{right:2%}
+/* 加粗的银色环丝：深色轮廓包住圆柱明暗，顶缘再留一道窄高光。
+   ⚠️ 线径要跟环径成比例：细一档看着像一根弯铁丝，粗一档又糊成铝条 */
+.gutter .grings i .wire .ring-cast{stroke:rgba(16,20,17,.34);stroke-width:calc(var(--pw) * .033)}
+.gutter .grings i .wire .ring-rim{stroke:#3f4642;stroke-width:calc(var(--pw) * .030);opacity:.95}
+.gutter .grings i .wire .ring-body{stroke-width:calc(var(--pw) * .026)}
+.gutter .grings i .wire .ring-glint{stroke:rgba(255,255,252,.96);stroke-width:calc(var(--pw) * .0072)}
 /* 翻页时，叶片靠书脊的一侧也压暗，翻动过程中折痕不会消失 */
 .leaf-face::before{
   content:"";position:absolute;inset:0;pointer-events:none;z-index:5;

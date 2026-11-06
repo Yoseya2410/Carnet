@@ -58,6 +58,8 @@
 .addmenu .am-t{font-weight:800;font-family:Georgia,"Times New Roman",serif;width:15px;text-align:center}
 .addmenu .am-p{font-size:11px;opacity:.6;margin-left:5px;letter-spacing:.02em}
 .addmenu .am-p:empty{display:none}
+/* 菜单里的分组线：一口气放五项以上时，把「对本子做的事」和「设置 / 帮助」分开 */
+.addmenu .am-sep{height:1px;margin:5px 8px;background:rgba(255,255,255,.14);flex:none}
 /* 双页模式下选「加到哪一页」 */
 .addmenu .am-row{display:flex;gap:4px;padding:3px;margin-bottom:3px;border-radius:10px;background:rgba(255,255,255,.07)}
 .addmenu .am-row.hide{display:none}
@@ -226,6 +228,36 @@
   }
   .ts-grab{display:none}
   .eflow-top{left:24px;top:24px}
+}
+/* ===== 横屏：面板挂右侧一竖条，书左移让位（不再缩小） =====
+   竖屏是「面板贴底、书往上抬」；横屏卡的恰恰是高度，贴底那一大块会把纸压成一条，
+   所以横屏反过来：面板从顶到底占住右侧一条，.stage 右边让出同样的宽度，
+   书在自己那一半里居中 —— 书的宽高比本来就是竖的，让出横屏富余的宽度基本不掉尺寸。
+   ⚠️ 这段的媒体查询必须跟 src/text-sticker.js 的 SIDE_SHEET_MQ 一字不差。
+   ⚠️ 用 #reader 提权：.bsheet / .frsheet / .stsheet 各自的 max-height 写在后面的
+      page-bg.css / decor.css 里，同权重靠加载顺序赢不了它们。 */
+@media (orientation:landscape) and (min-width:620px){
+  #reader .tsheet{
+    left:auto;right:calc(14px + env(safe-area-inset-right));top:14px;
+    bottom:calc(14px + var(--sheet-kb,0px) + env(safe-area-inset-bottom));
+    width:min(352px,34vw);max-height:none;
+    padding:14px 16px;border-radius:20px;
+    border:1px solid rgba(255,255,255,.14);border-top:1px solid rgba(255,255,255,.14);
+    box-shadow:0 26px 60px -24px rgba(2,4,12,.95);
+    animation:tsRight .28s cubic-bezier(.22,1,.3,1);
+    transition:bottom .2s ease           /* 输入法弹起：下沿跟着键盘上沿走 */
+  }
+  @keyframes tsRight{from{opacity:0;transform:translateX(22px)}to{opacity:1;transform:none}}
+  #reader .tsheet .ts-grab{display:none}
+  /* 底色 / 边框两张里面没有 .ts-panes（不能靠它内部滚动），塞不下这一竖条就让整块自己滚 */
+  #reader .bsheet,#reader .frsheet{overflow-y:auto;overscroll-behavior:contain}
+  /* 书：右边让出面板那一竖条（--sheet-side 由 sheetLayout() 量出来写在 #reader 上）。
+     .stage 是 grid + place-items:center，收窄后格子自己就把书摆到剩下那半的正中间，
+     所以只是「往左挪」，不是缩放 */
+  #reader.eflow .stage{
+    margin-right:var(--sheet-side,0px);
+    transition:transform .24s cubic-bezier(.32,.86,.3,1),margin-right .26s cubic-bezier(.32,.86,.3,1)
+  }
 }
 @media (max-width:480px){
   .ts-tabs{gap:17px}

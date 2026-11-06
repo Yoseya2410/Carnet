@@ -4,13 +4,14 @@
  * ① 封面与纸面的 SVG 图案：三角、圆、星、心、小花、叶
  * ② 封面明暗 coverLum、图案层 patternLayers / faceLayers、模板纸面 tplStyle
  * ③ 色板 COLORS / GRADS / RIBBONS / PAT_COLORS、内页模板 TEMPLATES
- * ④ 文字贴字体 TEXT_FONTS / EN_FONTS 与字族解析 textFontStack（字族名一律单引号，多一个引号整条作废）
+ * ④ 文字贴字体 TEXT_FONTS / EN_FONTS 与字族解析 textFontStack（字族名一律单引号，多一个引号整条作废；
+ *    EN_FONTS 后四档是项目自带的 woff2，face 字段供导出内嵌用）
  * ⑤ 内页底色色阶 PAPER_RAMPS、三级取值 pageBgOf，以及面板预览用的 pageBgShown
  * ⑥ 全项目共用的尺寸与阈值：PAGE_RATIO / PAGE_W_DEFAULT / LUM_DARK
  * ⑦ 装帧样式 BOOK_STYLES（精装 / 活页 / Personal 活页 / 方形画册）与内页比例 pageRatioOf
  * ⑧ 图片边框 FRAMES：边框盒样式 frameBoxStyle / 图片样式 frameImgStyle（屏幕与导出共用）
  *
- * 对外接口：patternLayers, patternStyle, faceLayers, coverLum, TEMPLATES, TEXT_FONTS, normFont, textFontStack, PAPER_RAMPS, pageBgOf, pageBgShown, OB_*_SVG, ROT_SVG, BOOK_STYLES, bookStyleOf, pageRatioOf, FRAMES, frameBoxStyle, frameImgStyle
+ * 对外接口：patternLayers, patternStyle, faceLayers, coverLum, TEMPLATES, TEXT_FONTS, EN_FONTS, normFont, textFontVar, textFontStack, normEnFont, textEnVar, textEnStack, PAPER_RAMPS, pageBgOf, pageBgShown, OB_*_SVG, ROT_SVG, BOOK_STYLES, bookStyleOf, pageRatioOf, FRAMES, frameBoxStyle, frameImgStyle
  *
  * 依赖模块：core
  *
@@ -18,8 +19,8 @@
  * ===================================================================== */
 /* ==================== 全项目共用的尺寸与阈值 ====================
    这里的几个值在渲染、排版、导出三处都要用到，集中放一处，改的时候不会漏 */
-/* 纸张统一 3 : 4.05（和封面 .cover 同比例），阅读器排版、导出、封面渲染都按它 */
-const PAGE_RATIO = 4.05 / 3;         // 页高 ÷ 页宽
+/* 默认笔记本采用 A5：148mm × 210mm；不同装帧的封面 / 内页尺寸在 BOOK_STYLES 中单独声明。 */
+const PAGE_RATIO = 210 / 148;        // 默认内页高 ÷ 宽（A5）
 const PAGE_W_DEFAULT = 340;          // 一页的基准宽（px）：模板纹理缩放、字号换算都按这个宽
 const LUM_DARK = 0.55;               // 亮度低于它算「深色」：封面图案转金色、深色纸的页码转浅色
 
@@ -127,6 +128,12 @@ const OB_FRAME_SVG =
   '<svg fill="none" height="16" stroke="currentColor" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24" width="16">'
   + '<rect height="16" rx="2.4" width="16" x="4" y="4"/>'
   + '<rect height="8" rx="1.2" width="8" x="8" y="8"/></svg>';
+/* 文字贴工具条上的「字随框缩放」：一个 A 加一支指向右下的放大箭头。
+   点亮 = 拖四角时字号跟着等比缩放；点灭 = 只改框、字号不动 */
+const OB_FSLINK_SVG =
+  '<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16">'
+  + '<path d="M3.2 18.6L8.6 5.4l5.4 13.2"/><path d="M5.2 14.2h6.8"/>'
+  + '<path d="M15.6 15.6l4.5 4.5"/><path d="M20.1 15.6v4.5h-4.5"/></svg>';
 /* 旋转手柄上的图标：一个转圈的箭头，让人一眼看出这颗管的是转 */
 const ROT_SVG =
   '<svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.3" viewBox="0 0 24 24" width="13">'
@@ -152,12 +159,30 @@ const TEXT_FONTS = [
 const FONT_ALIAS = { hei: 'plain' };
 /* 英文字体：排在中文前面，拉丁字走它、汉字自动落到后面的中文字体。
    ⚠️ 这里一档都不能带通用族（serif / monospace / cursive 之类）——通用族能匹配所有字符，
-   写在前面会把中文字体整条截胡，汉字全变成默认字体。收尾的通用族留给中文字体那条栈。 */
+   写在前面会把中文字体整条截胡，汉字全变成默认字体。收尾的通用族留给中文字体那条栈。
+   前四档用系统字体；后四档是项目自带的 woff2（@font-face 见 style/base.css 顶部）。
+   · face：{ family, file }，导出时 io-doc.js 把 woff2 转 base64 内嵌进 XHTML，
+     独立文档才认得这个字族。family 必须与 base.css 里的字族名一字不差。
+   · fallback：内嵌拿不到字体时（file:// 下 fetch 被禁、文件被删）的近似系统字体链，
+     只写具体字体名、不写通用族，免得截胡中文。
+   · hint：面板按钮的悬浮说明，写着原字体名，比两字中文名好认。 */
 const EN_FONTS = [
   { k: '',       n: '跟随中文', css: '' },
   { k: 'serif',  n: '衬线',    css: "'Georgia','Times New Roman',Cambria" },
   { k: 'mono',   n: '等宽',    css: "'Consolas','Menlo','Courier New'" },
-  { k: 'script', n: '手写',    css: "'Segoe Script','Bradley Hand','Lucida Handwriting'" }
+  { k: 'script', n: '手写',    css: "'Segoe Script','Bradley Hand','Lucida Handwriting'" },
+  { k: 'courier', n: '打字机', hint: 'Courier Prime · 打字机等宽',
+    css: "'CarnetCourierPrime'", fallback: "'Courier New','Courier'",
+    face: { family: 'CarnetCourierPrime', file: 'CourierPrime-Regular.woff2' } },
+  { k: 'cutive', n: '复古等宽', hint: 'Cutive Mono · 复古打字机',
+    css: "'CarnetCutiveMono'", fallback: "'Courier New','Courier'",
+    face: { family: 'CarnetCutiveMono', file: 'CutiveMono-Regular.woff2' } },
+  { k: 'pixel', n: '像素', hint: 'Pixelify Sans · 像素风',
+    css: "'CarnetPixelifySans'", fallback: "'Consolas','Courier New'",
+    face: { family: 'CarnetPixelifySans', file: 'PixelifySans-Regular.woff2' } },
+  { k: 'elite', n: '旧打字机', hint: 'Special Elite · 做旧打字机',
+    css: "'CarnetSpecialElite'", fallback: "'Courier New','Courier'",
+    face: { family: 'CarnetSpecialElite', file: 'SpecialElite-Regular.woff2' } }
 ];
 function normFont(k) {
   const key = FONT_ALIAS[k] || k;
@@ -178,8 +203,12 @@ function textFontStack(k) {
   const s = (v || '').trim() || (f.k === 'kai' ? '"KaiTi","楷体",serif' : 'cursive');
   return s.replace(/"/g, "'");
 }
+/* 导出用：自带字体那几档后面再接一条近似系统字体链。内嵌成功时第一个字族就把拉丁字吃掉了，
+   fallback 用不上；内嵌失败（file:// 下 fetch 被禁、字体文件被删）时也不会整条落到中文字体上去。
+   前四档没有 fallback，输出跟以前一字不差。 */
 function textEnStack(k) {
-  return ((EN_FONTS.find(f => f.k === normEnFont(k)) || EN_FONTS[0]).css || '').replace(/"/g, "'");
+  const f = EN_FONTS.find(x => x.k === normEnFont(k)) || EN_FONTS[0];
+  return [f.css, f.fallback].filter(Boolean).join(',').replace(/"/g, "'");
 }
 const PATTERNS = [
   { k: 'none', n: '无' },
@@ -228,30 +257,32 @@ function patternLayers(k, cover) {
   /* 三角用蓝、圆用橙；深底上提亮、浅底上压深，保证两种封面都看得清 */
   const blue = pc ? c : (dark ? 'rgba(138,186,232,.92)' : 'rgba(58,110,181,.85)');
   const orange = pc ? c : (dark ? 'rgba(246,170,96,.92)' : 'rgba(226,113,28,.85)');
-  /* 平铺尺寸用百分比（宽相对封面宽、高相对封面高，宿主都是 3:4.05 的封面），
-     图案随封面等比缩放——主页、阅读器、搜索缩略图里的疏密完全一致（以 238px 宽为基准） */
+  /* 平铺尺寸用百分比（宽相对封面宽、高相对封面高，宿主默认按 A5 封面 148:210 折算），
+     图案随封面等比缩放——主页、阅读器、搜索缩略图里的疏密完全一致（以 238px 宽为基准）。
+     ⚠️ 高百分比 = 宽百分比 × (1 ÷ 封面高宽比 210/148)：换封面比例时这两维要一起改，
+        否则贴片会被拉扁 / 拉长（方形画册是 1:1，疏密差一档，属于已知取舍） */
   switch (k) {
-    case 'dots': return { img: `radial-gradient(${c} 1.7px,transparent 1.9px)`, size: '9.4% 6.96%', pos: '0 0', rep: 'repeat' };
-    case 'grid': return { img: `linear-gradient(${c2} 1px,transparent 1px),linear-gradient(90deg,${c2} 1px,transparent 1px)`, size: '14.1% 10.44%,14.1% 10.44%', pos: '0 0,0 0', rep: 'repeat,repeat' };
+    case 'dots': return { img: `radial-gradient(${c} 1.7px,transparent 1.9px)`, size: '9.4% 6.62%', pos: '0 0', rep: 'repeat' };
+    case 'grid': return { img: `linear-gradient(${c2} 1px,transparent 1px),linear-gradient(90deg,${c2} 1px,transparent 1px)`, size: '14.1% 9.93%,14.1% 9.93%', pos: '0 0,0 0', rep: 'repeat,repeat' };
     /* 斜纹：色标沿 45° 渐变线取百分比（渐变线长度 = (宽+高)×sin45°，同比例封面下随宽度等比缩放），
        主页小封面 / 阅读器大封面 / 导出大图疏密一致 —— 写死 px 会两头不一样（2.02%≈238px 封面上的 8px） */
     case 'lines': return { img: `repeating-linear-gradient(45deg,${c2} 0,${c2} 2.02%,transparent 2.02%,transparent 5.56%)`, size: 'auto', pos: '0 0', rep: 'repeat' };
     /* 竖纹：条纹宽度用百分比（相对封面宽），主页小封面与阅读器大封面疏密一致 */
     case 'stripe': return { img: `repeating-linear-gradient(90deg,${c} 0 11%,transparent 11% 18.5%)`, size: 'auto', pos: '0 0', rep: 'repeat' };
-    /* 菱格：旋转 45° 的棋盘格，深浅两色相间；贴片必须保持正方形（宽高按 3:4.05 折算）菱形才不变形 */
-    case 'check': return { img: `conic-gradient(from 45deg,${c} 25%,transparent 0 50%,${c} 0 75%,transparent 0)`, size: '23.5% 17.4%', pos: '0 0', rep: 'repeat' };
-    case 'circle': return { img: `url('${circleTile(orange)}')`, size: '33% 42.3%', pos: '0 0', rep: 'repeat' };
-    /* 三角形：48×41.57 的贴片（边长 24 的等边三角），高度按贴片比例折算（÷1.35 = 封面的高宽比 4.05/3）
+    /* 菱格：旋转 45° 的棋盘格，深浅两色相间；贴片必须保持正方形（宽高按 A5 封面 210/148 折算）菱形才不变形 */
+    case 'check': return { img: `conic-gradient(from 45deg,${c} 25%,transparent 0 50%,${c} 0 75%,transparent 0)`, size: '23.5% 16.55%', pos: '0 0', rep: 'repeat' };
+    case 'circle': return { img: `url('${circleTile(orange)}')`, size: '33% 40.25%', pos: '0 0', rep: 'repeat' };
+    /* 三角形：48×41.57 的贴片（边长 24 的等边三角），高度按贴片比例折算（÷1.419 = A5 封面的高宽比 210/148）
        横向 40% —— 一个贴片横着放两个三角，所以单个三角约占封面宽的 20%
        只画朝上的三角，朝下的那三块留空（完全透明），透出封面底色 */
-    case 'triangle': return { img: `url('${triangleTile(blue)}')`, size: '40% 25.66%', pos: '0 0', rep: 'repeat' };
-    case 'star': return { img: `url('${starURL(gold)}')`, size: '27.1% 20.1%', pos: '0 0', rep: 'repeat' };
-    case 'heart': return { img: `url('${heartURL(pink)}')`, size: '20% 14.8%', pos: '0 0', rep: 'repeat' };
-    /* 小花：贴片 64×110.85（三角网格），size 两维按「宽 27% / 高 34.64%」折算
-       （34.64% × 1.35 ÷ 27% = 1.732 = 贴片的高宽比）才不会被拉变形；
+    case 'triangle': return { img: `url('${triangleTile(blue)}')`, size: '40% 24.41%', pos: '0 0', rep: 'repeat' };
+    case 'star': return { img: `url('${starURL(gold)}')`, size: '27.1% 19.12%', pos: '0 0', rep: 'repeat' };
+    case 'heart': return { img: `url('${heartURL(pink)}')`, size: '20% 14.08%', pos: '0 0', rep: 'repeat' };
+    /* 小花：贴片 64×110.85（三角网格），size 两维按「宽 27% / 高 32.96%」折算
+       （32.96% × 1.419 ÷ 27% = 1.732 = 贴片的高宽比）才不会被拉变形；
        一朵花约占封面宽的 21%（原来 15.9%），花心间距 27%，缝只剩 5.6% */
-    case 'flower': return { img: `url('${flowerTile(pink, c2)}')`, size: '27% 34.64%', pos: '0 0', rep: 'repeat' };
-    case 'leaf': return { img: `url('${leafURL()}')`, size: '27.1% 20.1%', pos: '0 0', rep: 'repeat' };
+    case 'flower': return { img: `url('${flowerTile(pink, c2)}')`, size: '27% 32.96%', pos: '0 0', rep: 'repeat' };
+    case 'leaf': return { img: `url('${leafURL()}')`, size: '27.1% 19.12%', pos: '0 0', rep: 'repeat' };
     default: return null;
   }
 }
@@ -282,15 +313,24 @@ function faceLayers(cover, patKey) {
 /* ==================== 装帧样式 ====================
    一本手帐本长什么样由 j.style 决定（缺字段 / 非法值一律按 'classic' 笔记本处理）。
    asp    = 封面「宽 ÷ 高」
-   rings  = 左侧活页环的颗数（0 表示没有环，走硬壳书脊）
+   rings  = 活页环的颗数（0 表示不是活页）。⚠️ 环**只画在翻开的内页中缝**上
+            （reader-view.js 的 gutterRingsHTML）：封面不画环 —— 真活页本的环在里侧，
+            封面是一张干净硬壳。有环的那一档，内页双页摊开时两页之间还会留出一道缝
    ribbon = 这一档**有没有封面彩带**：只有笔记本有，活页 / 画册都不画，
             编辑器里对应那排颜色也跟着藏起来（见 editor.js 的 syncEditor）
    ⚠️ 方形画册 square 的 asp 是 1，内页也跟着变成方的（见 pageRatioOf）——
       封面比例、阅读器排版、导出三处都按它，缺一处就会歪。 */
 const BOOK_STYLES = [
-  { k: 'classic',  n: '笔记本',   d: '硬壳 · 书脊彩带',  asp: 3 / 4.05, rings: 0, ribbon: true },
-  { k: 'personal', n: '活页手帐', d: '六孔金属环 · 可换页', asp: 3 / 4.05, rings: 6, ribbon: false },
-  { k: 'square',   n: '方形画册', d: '方开本 · 硬壳',    asp: 1,        rings: 0, ribbon: false }
+  /* asp = 封面宽÷高；pageAsp = 内页宽÷高；pageHScale = 同比例展示时内页相对封面的高度。
+     笔记本：A5 148×210；画册：方页；活页内页：95×170。
+   ⚠️ 活页的封面比例**不是另写一个 B6**：它是「内页 + 封面内侧露边 + 半道中缝」算出来的
+     （95×(1+padX+gap/2) : 170×(1+2×padY)），所以封面与封面内侧永远一样大。
+     padX / padY / gap 三个系数同时供 reader-view.js 的 layoutBook 与 reader.css 的露边使用。 */
+  { k: 'classic',  n: '笔记本',   d: '硬壳 · 书脊彩带',  asp: 148 / 210, pageAsp: 148 / 210, pageHScale: 1, padX: 0, padY: 0, gap: 0, rings: 0, ribbon: true },
+  { k: 'personal', n: '活页手帐', d: '六孔金属环 · 可换页',
+    asp: (95 * (1 + .18 + .06 / 2)) / (170 * (1 + 2 * .025)),
+    pageAsp: 95 / 170, pageHScale: 1 / (1 + 2 * .025), padX: .18, padY: .025, gap: .06, rings: 6, ribbon: false },
+  { k: 'square',   n: '方形画册', d: '方开本 · 硬壳',    asp: 1,        pageAsp: 1,        pageHScale: 1, padX: 0, padY: 0, gap: 0, rings: 0, ribbon: false }
 ];
 const BOOK_STYLE_DEFAULT = 'classic';
 /* 已下线的档位：老数据里存的这个值要转成现在的某一档，不能直接落回 classic
@@ -305,10 +345,15 @@ function bookStyleOf(j) { return BOOK_STYLES.find(x => x.k === normBookStyle(j &
 function isRingStyle(k) { return !!bookStyleOf({ style: k }).rings; }
 /* 这一档有没有封面彩带（只有笔记本有） */
 function bookHasRibbon(j) { return !!bookStyleOf(j).ribbon; }
-/* 内页比例（高 ÷ 宽）：方形画册是 1（方页），其余统一 3:4.05 */
-function pageRatioOf(j) { return bookStyleOf(j).k === 'square' ? 1 : PAGE_RATIO; }
-/* 封面比例（高 ÷ 宽），给导出 / 预览用：封面与内页同比例，铺满整页的封面图才对得上 */
-function coverRatioOf(j) { return 1 / (bookStyleOf(j).asp || (3 / 4.05)); }
+/* 内页比例（高 ÷ 宽）：笔记本 A5、活页内页 95×170、画册方页。 */
+function pageRatioOf(j) {
+  const st = bookStyleOf(j);
+  return 1 / (st.pageAsp || st.asp || (148 / 210));
+}
+/* 封面比例（高 ÷ 宽）：封面与内页可以不同，尤其是 B6 活页封面。 */
+function coverRatioOf(j) { return 1 / (bookStyleOf(j).asp || (148 / 210)); }
+/* 活页内页比封面短 6mm；其它装帧内页与封面等高。 */
+function pageHeightScaleOf(j) { return bookStyleOf(j).pageHScale || 1; }
 
 /* ==================== 图片边框 ====================
    边框挂在图片盒子上（.pframe），不动画源：换框 / 换色 / 拖粗细都是改一个字段的事。

@@ -25,11 +25,18 @@ window.addEventListener('resize', () => {
        输入法弹起只改高度，这时候重绘会把正在编辑的文本框重建掉，输入法就被收走了。 */
     if (!widthChanged || pageBusy()) return;
     if ($('#reader').classList.contains('show')) {
+      /* 面板让出的那一块要重量：竖屏是底部一段高度、横屏是右侧一条宽度。
+         转屏会让这两档互换，不重量书就按旧尺寸排（横屏下最明显：面板换了边，书还缩着） */
+      if (typeof sheetLayout === 'function') sheetLayout();
       const wasSpread = state.mode === 'spread';
       const nowSpread = isSpread();
-      if (wasSpread && !nowSpread) state.page = Math.max(state.spread * 2, -1);   // 停在封面时转单页仍然是封面
-      else if (!wasSpread && nowSpread) state.spread = Math.floor(state.page / 2);
+      /* 双页 → 单页：落回当前跨页的右页（第一跨页就是第 1 页）；停在封面仍然是封面 */
+      if (wasSpread && !nowSpread) state.page = Math.max(spreadIndices(state.spread)[1], -1);
+      /* 单页 → 双页：第 1 页属于第一跨页（封面内侧 + 第 1 页），所以是 (page+1)/2 */
+      else if (!wasSpread && nowSpread) state.spread = spreadIndexOfPage(state.page);
       renderReader();
+      /* margin-right 有 .26s 过渡，同步量到的是动画起点的旧宽度 —— 走完再量一次 */
+      setTimeout(() => { if (typeof sheetLayout === 'function') sheetLayout(); layoutBook(); }, 340);
     }
   }, 160);
 });

@@ -141,7 +141,7 @@ function applyBox(w, im) {
    盒子比例 ≠ 图片比例，所以 .pimg 必须 object-fit: fill（拉满盒子），见 image-tools.css。
    ratio 是「高 ÷ 宽」（跟 imgRatio 一致），返回的全是占页比例。
    ⚠️ 纸张比例用 PAGE_RATIO 常量而不是量 DOM：一键成书时阅读器还没打开、量不到 .paper，
-      量出来的值还可能被最小页高顶偏；纸的模样全项目统一是 3:4.05，跟导出也是同一套 */
+      量出来的值还可能被最小页高顶偏；纸的模样按装帧走（默认 A5），跟导出也是同一套 */
 const FILL_STRETCH = .3;      // 最多拉 30%（往填满的那一维拉）。想更满调大，想更保真调小
 const FILL_GEOM_V = 2;        // 几何版本号：fillGeom 的算法一改就 +1，老数据按新规矩重算一次
 function fillGeom(ratio, pa) {
@@ -156,7 +156,7 @@ function fillGeom(ratio, pa) {
   return { x: (1 - w) / 2, y: (1 - h) / 2, w: clamp(w, .02, 1), h: clamp(h, .02, 1) };
 }
 /* 按图片的真实比例把上面这套几何写进 im（异步：得先解码图片才量得到比例）。
-   j 不传就按当前这本 —— 方形画册的纸是方的，铺满的几何跟 3:4.05 不一样 */
+   j 不传就按当前这本 —— 方形画册的纸是方的，活页内页是 95×170，铺满的几何跟默认 A5 不一样 */
 async function applyFillGeom(im, j) {
   const r = await imgRatio(im.src);
   const jj = j || cur();
@@ -274,7 +274,9 @@ $('#swapFile').addEventListener('change', e => {
 });
 $('#filePicker').addEventListener('change', async e => {
   const f = e.target.files[0]; if (!f) return;
-  const pid = state.pendingPage ?? (state.mode === 'spread' ? state.spread * 2 : state.page);
+  /* 双页态下没指定目标页时，落在当前跨页的右页（第一跨页就是第 1 页） */
+  const pid = state.pendingPage
+    ?? (state.mode === 'spread' ? Math.max(spreadIndices(state.spread)[1], 0) : state.page);
   const src = await readFileDataURL(f);
   e.target.value = '';
   if (!src) return;

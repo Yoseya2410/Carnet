@@ -213,9 +213,7 @@ function closeFrameSheet() {
   const sheet = $('#frsheet');
   if (sheet) { sheet.hidden = true; sheet.style.transform = ''; sheet.style.maxHeight = ''; }
   markFlipSuppressed();
-  window.__sheetCov = 0;
-  const reader = $('#reader');
-  if (reader) reader.style.setProperty('--stage-shift', '0px');
+  resetSheetSpace();
   updateEflow();
   if (typeof layoutBook === 'function') layoutBook();
 }

@@ -23,17 +23,63 @@ $('#carousel').addEventListener('click', e => {
   if (i !== state.sel) selectJournal(i);
   else openReader();
 });
-/* 书架模式：鼠标停在哪本上 = 选中哪本（抬起动画在 shelf.css）。
-   ⚠️ 用 shelfPick 而不是 selectJournal —— 后者会 scrollIntoView 把那一排滚到屏幕中间，
+/* ⚠️ 选中用 shelfPick 而不是 selectJournal —— 后者会 scrollIntoView 把那一排滚到屏幕中间，
       鼠标只是路过就整页滑动，非常晕。
    ⚠️ 只在真有悬停能力的设备上生效：手机上 tap 会补发一次 mouseover，
       那样「点一下先选中、再点一下翻开」的两段式会被吞掉 */
+/* ==================== 书架模式：悬停即选中，离开即取消 ====================
+   书架不像左右滑动那样必须停在某本上：鼠标停在封面上，「当前手帐本」就是这一本
+   （抬起 + 露出页数与编辑按钮）；鼠标一离开这本书就取消选中，把它放回架上。
+   ⚠️ 取消的只是**画出来的选中态**：state.sel 照旧跟着鼠标更新 —— 翻开 / 搜索跳转 /
+      导出都要有一个目标，把它置空会连这些一起打空。
+   ⚠️ shelfHoverAt 记的是「这一刻 DOM 里到底谁挂着 .active」，不能用 state.sel 代替：
+      搜索跳转、排序落位、开了书再回来都会单独动 state.sel，DOM 却不一定跟着抬起 */
+let shelfHoverAt = -1;
+/* 鼠标最后的位置（两种书架共用）：书架整块重画后不会再有 mouseover / pointerover
+   （鼠标没动），靠这个坐标把选中态补回鼠标底下那一本
+   （见 renderShelf 末尾的 shelfHoverRestore、renderSpineShelf 末尾的 spineHoverRestore） */
+const pointerXY = { x: 0, y: 0, has: false, hover: false };
+function shelfHoverLive() {
+  /* 多选勾选时不参与：那一屏看到的就是勾选痕迹，再多一层「选中」会混成两套记号 */
+  return state.prefs.view === 'shelf' && !state.picking && !shelfSort && spineCanHover();
+}
+/* 撤掉画出来的选中态 —— 抬起的那一本自己放回去 */
+function shelfUnpick() {
+  shelfHoverAt = -1;
+  $$('#shelfWrap .book-item.active').forEach(el => el.classList.remove('active'));
+}
+/* 书架 DOM 整块重建时同步记账：新节点上一个 .active 都没有 */
+function shelfHoverReset() { shelfHoverAt = -1; }
+/* 重画之后按鼠标此刻的位置把选中态补回去（鼠标没动时浏览器不再派发 mouseover） */
+function shelfHoverRestore() {
+  if (!shelfHoverLive() || !pointerXY.has || !pointerXY.hover) return;
+  const el = document.elementFromPoint(pointerXY.x, pointerXY.y);
+  const item = el && el.closest ? el.closest('#shelfWrap .book-item') : null;
+  if (item) { const i = +item.dataset.i; if (Number.isFinite(i)) shelfPick(i); return; }
+  shelfHoverAt = -1;      // 鼠标不在任何一本书上
+}
 $('#shelfWrap').addEventListener('mouseover', e => {
-  if (!spineCanHover() || shelfSort || shelfHold.el) return;
-  const item = e.target.closest('.book-item');
+  if (!spineCanHover() || state.picking || shelfSort || shelfHold.el) return;
+  const item = e.target.closest && e.target.closest('.book-item');
   if (!item) return;
   const i = +item.dataset.i;
-  if (Number.isFinite(i) && i !== state.sel) shelfPick(i);
+  if (Number.isFinite(i) && i !== shelfHoverAt) shelfPick(i);
+});
+/* 鼠标离开这一本 = 取消选中：书架上不必非得留着一本被抬起的书 */
+$('#shelfWrap').addEventListener('mouseout', e => {
+  if (!spineCanHover() || state.picking || shelfSort) return;
+  const item = e.target.closest && e.target.closest('.book-item');
+  if (!item) return;
+  /* 还在同一本书的范围内挪（比如移到它的编辑按钮上）就不算离开 */
+  const to = e.relatedTarget;
+  if (to && to.closest && to.closest('.book-item') === item) return;
+  shelfUnpick();
+});
+/* 鼠标移出窗口时也要放手：这最后一下 mouseout / pointerout 有时会被系统吞掉 */
+document.addEventListener('mouseleave', () => {
+  pointerXY.has = false;
+  shelfUnpick();
+  if (state.prefs.view === 'spine') spineSetHover(-1);
 });
 /* 书架模式：点一下直接翻开；长按进入拖动排序，
    长按后原地不动就松手则只是把编辑按钮唤出来 */
@@ -45,8 +91,16 @@ function shelfClearTouched(except) {
 function shelfPick(i) {
   state.sel = clamp(i, 0, Math.max(state.journals.length - 1, 0));
   $$('#shelfWrap .book-item').forEach(el => el.classList.toggle('active', +el.dataset.i === state.sel));
+  shelfHoverAt = Number.isFinite(i) ? state.sel : -1;
   syncHomeHead();
 }
+/* 鼠标位置记账（两种书架共用）：整块重画后靠它把选中态补回鼠标底下那一本 / 那一根。
+   触摸设备记着也没用 —— 那边从来不产生悬停，restore 先看 hover 标记再动 */
+window.addEventListener('pointermove', e => {
+  pointerXY.x = e.clientX; pointerXY.y = e.clientY;
+  pointerXY.has = true;
+  pointerXY.hover = !e.pointerType || e.pointerType === 'mouse' || e.pointerType === 'pen';
+}, { passive: true });
 /* 把某一本标记为「被碰过」，露出编辑按钮和页数，同时选中它 */
 function shelfTouched(i) {
   const el = $('#shelfWrap .book-item[data-i="' + i + '"]');
@@ -294,7 +348,12 @@ $('#shelfWrap').addEventListener('pointermove', e => {
     clearTimeout(shelfHold.timer);
   }
 }, { passive: true });
-$('#shelfWrap').addEventListener('pointerup', () => clearTimeout(shelfHold.timer));
+$('#shelfWrap').addEventListener('pointerup', () => {
+  clearTimeout(shelfHold.timer);
+  /* 松手就得把这一次按压忘掉：不清的话鼠标只要点过一本书，
+     mouseover 里那条 shelfHold.el 判断会一直拦着，悬停选中就再也不灵了 */
+  shelfHold.el = null;
+});
 $('#shelfWrap').addEventListener('pointercancel', () => { clearTimeout(shelfHold.timer); shelfHold.el = null; });
 window.addEventListener('pointermove', e => {
   if (spineSort) {                       // 单层书架：拖动时别让书排跟着滚
@@ -348,12 +407,22 @@ $('#shelfWrap').addEventListener('click', e => {
   shelfPick(i);
   openReader();
 });
-/* ==================== 单层书架：悬停预览 ====================
-   鼠标停在哪根书脊上，下方就显示哪本的封面；移开书脊预览整块淡出。
+/* ==================== 单层书架：悬停即选中 ====================
+   鼠标停在哪根书脊上，那一根就是「当前手帐本」：抬起一截、描一圈白边，
+   下方预览框显出它的封面；鼠标一离开书脊全部复原 —— 落回架上、预览收起。
+   默认一根都不选中（见 home-view 的 spineItemHTML / renderSpineShelf）。
    用 pointerover / pointerout 挂在容器上做委托 —— 整排书会整块重画，
-   逐个监听节点会跟着一起没掉。触摸设备没有悬停，那边由「选中」驱动预览 */
+   逐个监听节点会跟着一起没掉。触摸设备没有悬停，那边没有预览，点一下直接翻开 */
 const HOVER_POINTERS = { mouse: 1, pen: 1 };
 function spineIsHoverPointer(e) { return !e.pointerType || HOVER_POINTERS[e.pointerType]; }
+function spineCanRestore() { return state.prefs.view === 'spine' && !spineSort && spineCanHover(); }
+/* 整排重画后浏览器不会再派发 pointerover（鼠标没动），照最后记录的坐标把选中态补回去 */
+function spineHoverRestore() {
+  if (!spineCanRestore() || !pointerXY.has || !pointerXY.hover) return;
+  const el = document.elementFromPoint(pointerXY.x, pointerXY.y);
+  const it = el && el.closest ? el.closest('#spineRow .spine-item') : null;
+  spineSetHover(it ? +it.dataset.i : -1);
+}
 $('#spineWrap').addEventListener('pointerover', e => {
   if (spineSort || !spineIsHoverPointer(e)) return;
   const it = e.target.closest && e.target.closest('.spine-item');
@@ -601,8 +670,9 @@ function spineOpen(i) {
     else el.classList.remove('pulling');
   }, SPINE_PULL_MS + 70);
 }
-/* 单层书架：鼠标点书脊只选中（下方预览已经跟着鼠标走了），再点一次才翻开；
-   手机没有悬停也没有预览，点一下就是「翻开这一本」 */
+/* 单层书架：鼠标已经悬停在这一根上 = 它已经是选中的，点一下就是翻开
+   （没鼠标的场景 —— 键盘 Tab、手机 —— 仍保留「先选中、再点一次翻开」的两段式：
+   那里选中的才是刚跳到的那一根，不该一下就开到别的书去） */
 $('#spineWrap').addEventListener('click', e => {
   if (spineHold.fired) { spineHold.fired = false; return; }   // 长按的抬手被吞掉
   const item = e.target.closest('.spine-item');
@@ -629,6 +699,18 @@ $('#spineWrap').addEventListener('keydown', e => {
   e.preventDefault();
   openReader();
 });
+/* 书排横滑时下方预览要跟着那根书脊走（偏移量是照着实时位置算的）。
+   ⚠️ 滑动中临时关掉对位过渡：否者预览会比书脊慢半拍，快速一甩能看到它在后面追 */
+let spineShiftTimer = 0;
+$('#spineScroll').addEventListener('scroll', () => {
+  const d = $('#spineDetail');
+  if (d) {
+    d.classList.add('sliding');
+    clearTimeout(spineShiftTimer);
+    spineShiftTimer = setTimeout(() => d.classList.remove('sliding'), 160);
+  }
+  spineDetailShift();
+}, { passive: true });
 /* 鼠标竖滚轮也能带动超出屏幕的单排书，手机上则直接横向滑 */
 $('#spineScroll').addEventListener('wheel', e => {
   const sc = $('#spineScroll');
@@ -738,8 +820,6 @@ document.addEventListener('pointerdown', e => {
 $$('.actionbar .icon-btn').forEach(b => b.onclick = () => {
   const a = b.dataset.act;
   if (a === 'new') { openEditor(null); }
-  /* 「更多」：原来这颗三点按钮直接开背景设置，现在它是一份菜单 */
-  else if (a === 'more') { toggleMenu($('#moreMenu')); }
   else if (a === 'del') {
     /* 书架模式下一眼能看好几本，删除前先进多选勾要删哪几本；轮播模式本来就只删当前这本 */
     if (state.prefs.view === 'shelf') { enterPickMode('del'); return; }
@@ -805,19 +885,16 @@ function toggleMenu(el) {
   closeMenus();
   if (open) el.classList.add('show');
 }
+/* 右上角「菜单」：导入 / 一键成书 / 导入 PDF / 背景设置 / 帮助与反馈。
+   后三项原先挂在底栏那颗「更多」上，现在一并收在这里（底栏只留 分享 · 删除 · 新建） */
 $$('#homeMenu button').forEach(b => b.onclick = () => {
   closeMenus();
   const a = b.dataset.menuact;
   if (a === 'import') pickImportFile();
-  else if (a === 'help') openHelpMail();
-});
-/* 底栏「更多」：一键成书（多张图片一图一页做成一本）、PDF 导入（一页 PDF 一页纸）、背景设置 */
-$$('#moreMenu button').forEach(b => b.onclick = () => {
-  closeMenus();
-  const a = b.dataset.moreact;
-  if (a === 'book') pickBookImages();
+  else if (a === 'book') pickBookImages();
   else if (a === 'pdf') pickBookPDF();
   else if (a === 'bg') openBgPanel();
+  else if (a === 'help') openHelpMail();
 });
 /* 分享菜单：备份 / PDF / 长图 */
 $$('#shareMenu button').forEach(b => b.onclick = async () => {

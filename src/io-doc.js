@@ -5,8 +5,10 @@
  * ② 纯前端拼 PDF：JPEG 转字节流、写 PDF 对象表 buildPdf
  * ③ 竖向拼接生成 SVG 矢量长图 exportJournalSVG
  * ④ 导出字体探测 exportFontStack：导出文档吃不到本页的 @font-face，只能退到系统字体
+ * ⑤ 项目自带的四款英文字体：按本子实际用到的档位转 base64 内嵌进 SVG，PDF / SVG 都能用真字体
  *
- * 对外接口：pageExportHTML, pageExportXHTML, buildPdf, exportJournalPDF, exportJournalSVG
+ * 对外接口：pageExportHTML, pageExportXHTML, buildPdf, exportJournalPDF, exportJournalSVG,
+ *            probeExportFont, prepareExportEnFaces, exportPages, renderExportCanvas, canvasBytes
  *
  * 依赖模块：core, visuals
  *
@@ -57,6 +59,47 @@ async function probeExportFont() {
   } catch (e) { __expHand = true; }
   return __expHand;
 }
+/* ==================== 导出用的项目自带英文字体 ====================
+   手写体太大（2.55MB）且系统里没有，导出只能探测后退化成楷体；四款英文字体不一样，
+   加起来不到 140KB，可以把 woff2 直接转成 base64 写进 SVG 根级的 <style> 里。
+   已实测：SVG-as-image 的「安全静态模式」允许 data: 的 @font-face，栅格化出来的像素
+   跟回退字体明显不同；而且根级 <style> 一处定义，所有 foreignObject 都能吃到。
+   ⚠️ 只内嵌这一本真正用到的档位 —— 没用到时 <style> 为空，老导出结果一个字节都不变。
+   ⚠️ font-display:block 不能省：导出是「Image 一 load 就画」，swap 会先把回退字画进画布。
+   fetch 在 file:// 下会被浏览器拦掉，那时静默返回空串，textEnStack() 里还有近似系统字体
+   链接着（见 visuals.js 的 EN_FONTS.fallback），不至于整条 font-family 作废。 */
+const EN_FACE_BASE = new URL('assets/font/en/', document.baseURI).href;
+let __expEnFaces = '';                 // 本次导出插进 SVG 根的 <style>，没用到自带字体时是空串
+const __enFaceCache = {};             // 档位 k → @font-face 规则；整会话只取一次文件
+async function readEnFace(k) {
+  if (k in __enFaceCache) return __enFaceCache[k];
+  const f = (EN_FONTS.find(x => x.k === k) || {}).face;
+  if (!f) return (__enFaceCache[k] = '');
+  try {
+    const r = await fetch(EN_FACE_BASE + f.file);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const bytes = new Uint8Array(await r.arrayBuffer());
+    /* btoa 的参数表一次塞不下 60KB，按 32KB 分块拼成二进制串再编码 */
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 0x8000)
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return (__enFaceCache[k] = `@font-face{font-family:'${f.family}';`
+      + `src:url(data:font/woff2;base64,${btoa(bin)}) format('woff2');`
+      + `font-display:block;font-weight:400;font-style:normal;}`);
+  } catch (e) {
+    console.warn('[Carnet] 导出内嵌英文字体失败，改走系统近似字体：', f.file, e);
+    return (__enFaceCache[k] = '');
+  }
+}
+async function prepareExportEnFaces(j) {
+  const used = new Set();
+  (j && j.pages ? j.pages : []).forEach(pg => (pg.texts || []).forEach(t => {
+    const f = EN_FONTS.find(x => x.k === t.fontEn);
+    if (f && f.face) used.add(f.k);
+  }));
+  const css = (await Promise.all([...used].map(readEnFace))).filter(Boolean).join('');
+  __expEnFaces = css ? `<style type="text/css">${css}</style>` : '';
+}
 /* 导出用的字族串：手写体不可用时整段换楷体（含行高也跟着走） */
 function exportFontStack(k) {
   const nk = normFont(k);
@@ -77,24 +120,17 @@ function pageExportHTML(j, idx, W, H) {
     const bg = cv.img ? `background-image:url('${cv.img}');background-size:cover;background-position:center;` : `background:${cv.value || '#ddd'};`;
     const pat = (cv.pattern && cv.pattern !== 'none' && !cv.img) ? patternStyle(cv.pattern, cv) : '';
     const st = bookStyleOf(j);
-    /* 装订那一列：活页画金属环（环数据 BOOK_STYLES.rings）；
-       ⚠️ 彩带只有笔记本这一档有（st.ribbon），跟屏幕上的取舍保持一致 */
-    let bind = '';
-    if (st.rings) {
-      const n = st.rings, gap = 92 / n, hh = 3.1;
-      bind = `<div style="position:absolute;left:0;top:0;bottom:0;width:3.6%;background:linear-gradient(90deg,rgba(0,0,0,.42),rgba(0,0,0,.1))"></div>`
-        + Array.from({ length: n }, (_, i) =>
-          `<div style="position:absolute;left:1.4%;top:${(4 + i * gap).toFixed(2)}%;width:4.2%;height:${hh}%;border-radius:999px;`
-          + `background:linear-gradient(180deg,#fdfdff,#e6e9f1 16%,#a6acc0 46%,#5c6274 70%,#cfd3e0);`
-          + `box-shadow:0 1px 2px rgba(10,12,26,.6)"></div>`).join('');
-    } else {
-      const spine = st.ribbon ? ribbonSpine(j.ribbon) : '';
-      const w = st.k === 'square' ? 6 : 8.5;
-      bind = spine
-        ? `<div style="position:absolute;left:0;top:0;bottom:0;width:${w}%;background:${spine}"></div>`
-        /* 无彩带：只留装订压痕阴影，不画颜色带 */
-        : `<div style="position:absolute;left:0;top:0;bottom:0;width:${w}%;box-shadow:2px 0 7px rgba(0,0,0,.24),inset -1px 0 0 rgba(255,255,255,.15)"></div>`;
-    }
+    /* 装订那一列：
+       ⚠️ 活页（st.rings）封面上既**不画环**也**不留装订压痕** —— 环在里侧、封面是一张干净硬壳，
+          跟屏幕上的取舍保持一致（屏幕上也是只在翻开的内页中缝画环，见 reader.css 的 .grings）；
+       ⚠️ 彩带只有笔记本这一档有（st.ribbon） */
+    const spine = st.ribbon ? ribbonSpine(j.ribbon) : '';
+    const w = st.k === 'square' ? 6 : 8.5;
+    const bind = spine
+      ? `<div style="position:absolute;left:0;top:0;bottom:0;width:${w}%;background:${spine}"></div>`
+      : st.rings ? ''      /* 活页：整张封面干净，连压痕都没有 */
+      /* 方形画册：无彩带，只留装订压痕阴影 */
+      : `<div style="position:absolute;left:0;top:0;bottom:0;width:${w}%;box-shadow:2px 0 7px rgba(0,0,0,.24),inset -1px 0 0 rgba(255,255,255,.15)"></div>`;
     return `<div style="position:relative;width:${W}px;height:${H}px;overflow:hidden;${bg}">`
       + `<div style="position:absolute;inset:0;${pat}"></div>`
       + `<div style="position:absolute;inset:0;background:linear-gradient(112deg,rgba(255,255,255,.28) 0%,rgba(255,255,255,0) 34%,rgba(255,255,255,0) 68%,rgba(255,255,255,.12) 100%)"></div>`
@@ -108,7 +144,10 @@ function pageExportHTML(j, idx, W, H) {
   const bg = pbg ? 'background:' + pbg + ';'
     : (kraft ? 'background:linear-gradient(160deg,#ecdec4,#e0cfae);' : 'background:#fffdf8;');
   const tpl = String(tplStyle(j.template) || '').replace(/(\d+(?:\.\d+)?)px/g, (m, n) => (n * k).toFixed(2) + 'px');
-  const lined = j.template === 'lined' ? `<div style="position:absolute;left:${(34 * k).toFixed(1)}px;top:0;bottom:0;width:1px;background:#eab7c2;opacity:.8"></div>` : '';
+  /* ⚠️ 模板只铺在「版心」里、四周留一圈空白纸边 —— 跟屏幕上 .tplbg 的 --pmx / --pmy 同一套比例
+     （见 image-tools.css）：两边不一样的话，导出的图跟屏幕上看到的就不是同一张纸 */
+  const mx = (W * .055).toFixed(1), my = (H * .032).toFixed(1);
+  const lined = j.template === 'lined' ? `<div style="position:absolute;left:${(W * .055 + 12 * k).toFixed(1)}px;top:0;bottom:0;width:1px;background:#eab7c2;opacity:.8"></div>` : '';
   const imgHTML = im => {
     const hw = im.h || clamp(im.w / 0.68, .04, IMG_MAX);
     /* 「铺满」的盒子由 fillGeom 算好（可能有限度地拉过），一律不裁：
@@ -157,7 +196,7 @@ function pageExportHTML(j, idx, W, H) {
   objs.sort((a, b) => (a.o.z || 0) - (b.o.z || 0));
   const body = objs.map(o => o.k === 'img' ? imgHTML(o.o) : txtHTML(o.o)).join('');
   return `<div style="position:relative;width:${W}px;height:${H}px;overflow:hidden;${bg}">`
-    + `<div style="position:absolute;inset:0;${tpl}"></div>${lined}`
+    + `<div style="position:absolute;left:${mx}px;right:${mx}px;top:${my}px;bottom:${my}px;${tpl}"></div>${lined}`
     + `<div style="position:absolute;inset:0">${body}</div>`
     + `<div style="position:absolute;right:${(W * .045).toFixed(0)}px;bottom:${(H * .02).toFixed(0)}px;font-size:${(W * .033).toFixed(1)}px;color:#9aa1b5;letter-spacing:.1em">${idx + 1}</div>`
     + `</div>`;
@@ -171,7 +210,8 @@ function pageExportXHTML(j, idx, W, H) {
 async function renderExportCanvas(j, idx, W) {
   const H = Math.round(W * pageRatioOf(j));
   const root = pageExportXHTML(j, idx, W, H);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><foreignObject width="100%" height="100%">${root}</foreignObject></svg>`;
+  /* 根级 <style>：一页一份（PDF 每页是独立 SVG）。__expEnFaces 由 prepareExportEnFaces 备好 */
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">${__expEnFaces}<foreignObject width="100%" height="100%">${root}</foreignObject></svg>`;
   const img = await new Promise((res, rej) => {
     const im = new Image();
     im.onload = () => res(im);
@@ -236,6 +276,7 @@ function buildPdf(jpegs, pw, ph) {
 async function exportJournalPDF(j) {
   if (!j) return;
   await probeExportFont();
+  await prepareExportEnFaces(j);        // 把这本用到的自带英文字体备进 SVG 根
   const pages = exportPages(j);
   const name = exportBaseName(j) + '.pdf';
   toast(`正在准备导出…（含封面共 ${pages.length} 页）`);
@@ -263,6 +304,7 @@ async function exportJournalPDF(j) {
 async function exportJournalSVG(j) {
   if (!j) return;
   await probeExportFont();
+  await prepareExportEnFaces(j);        // 把这本用到的自带英文字体备进 SVG 根
   const pages = exportPages(j);
   const name = exportBaseName(j) + '.svg';
   toast(`正在准备导出…（含封面共 ${pages.length} 页）`);
@@ -278,7 +320,7 @@ async function exportJournalSVG(j) {
     ).join('');
     const svg = '<?xml version="1.0" encoding="UTF-8"?>\n'
       + `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${totalH}" viewBox="0 0 ${W} ${totalH}">`
-      + `<rect width="${W}" height="${totalH}" fill="#fffdf8"/>` + body + `</svg>`;
+      + `<rect width="${W}" height="${totalH}" fill="#fffdf8"/>` + __expEnFaces + body + `</svg>`;
     const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
     await deliverBlob(target, name, blob, 'image/svg+xml', `已导出《${j.name}》SVG · ${pages.length} 页`);
   } catch (e) {

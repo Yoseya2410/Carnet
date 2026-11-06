@@ -6,7 +6,7 @@
  * ③ 书架多选模式 enterPickMode / exitPickMode / togglePick 与选择条 syncPickBar
  * ④ 主页总渲染 renderHome、三种展示模式切换 syncViewToggle / setView
  *
- * 对外接口：renderHome, renderShelf, renderSpineShelf, renderSpineDetail, spineSetHover, syncSpineSelection, coverHTML, bookItemHTML, enterPickMode, exitPickMode, togglePick, setView
+ * 对外接口：renderHome, renderShelf, renderSpineShelf, renderSpineDetail, spineDetailShift, spineSetHover, syncSpineSelection, coverHTML, bookItemHTML, enterPickMode, exitPickMode, togglePick, setView
  *
  * 依赖模块：core, visuals, state, storage（carousel 后置，只在运行时调用）
  *
@@ -14,34 +14,25 @@
  * ===================================================================== */
 /* ==================== 封面渲染 ====================
    封面按 j.style 分成三种装帧（见 visuals.js 的 BOOK_STYLES）：
-     笔记本 / 方形画册 —— 左侧硬壳书脊（笔记本才有彩带）
-     活页手帐 —— 左侧一排金属活页环（6 颗）
+     笔记本 —— 左侧硬壳书脊 + 彩带
+     活页手帐 / 方形画册 —— 左侧只留装订压痕（活页 / 画册都没有彩带）
    共同的那几层（由下往上）：底色 → 图案 → 光泽 → 装订。
-   ⚠️ 活页那档要把 .cover 的 overflow 放开（环要探出左边一点才像真的环），
-      放开的代价是里面每一层都得自己按封面圆角裁（见 book-style.css 的 border-radius:inherit） */
+   ⚠️ 活页那档**封面上不画金属环**：真活页本的环在里侧，封面就是干净的一张硬壳。
+      环的舞台在翻开的内页中缝（reader-view.js 的 gutterRingsHTML + reader.css 的 .grings），
+      那里才画得像「一根钢丝穿过左右两页的孔」。 */
 function coverHTML(j) {
   const st = bookStyleOf(j);
   const bg = j.cover.img ? `background-image:url('${j.cover.img}');background-size:cover;background-position:center;` : `background:${j.cover.value};`;
   /* 上传了封面图片就不叠图案（图案是按底色深浅配色的，压在照片上只会糊成一片） */
   const pat = j.cover.img ? '' : patternStyle(j.cover.pattern, j.cover);
   /* ---- 装订那一列 ----
-     ⚠️ 彩带只有笔记本这一档有（bookHasRibbon）：活页有金属环、画册是方开本，
-        都不画那条竖带，编辑器里那排颜色也一并藏了（见 editor.js 的 syncEditor） */
-  let bind = '';
-  if (st.rings) {
-    const n = st.rings, gap = 92 / n;
-    bind = `<div class="rings n${n}">`
-      + Array.from({ length: n }, (_, i) => `<i style="top:${(4 + i * gap).toFixed(2)}%"></i>`).join('')
-      + `</div>`;
-  } else if (st.ribbon) {
-    const spine = ribbonSpine(j.ribbon);               // 彩带选「透明」时为空
-    /* 透明彩带：颜色带不画，但保留装订处那道压暗阴影 + 内侧高光，封面才不像一张平卡 */
-    bind = spine ? `<div class="spine" style="background:${spine}"></div>`
-                 : `<div class="spine ghost"></div>`;
-  } else {
-    /* 硬壳但不带彩带（方形画册）：只留装订压痕，避免封面看着像一张平卡 */
-    bind = `<div class="spine ghost"></div>`;
-  }
+     ⚠️ 彩带只有笔记本这一档有（bookHasRibbon）：活页 / 画册都不画那条竖带，
+        编辑器里那排颜色也一并藏了（见 editor.js 的 syncEditor）。
+     ⚠️ 活页连那道**装订压痕都不画**：它不像精装本那样有一条凹进去的书脊沟，
+        封面就是一张干干净净的硬壳（画册那档仍留压痕，避免看着像一张平卡） */
+  const spine = bookHasRibbon(j) ? ribbonSpine(j.ribbon) : '';   // 彩带选「透明」时为空
+  const bind = spine ? `<div class="spine" style="background:${spine}"></div>`
+    : isRingStyle(j.style) ? '' : `<div class="spine ghost"></div>`;
   return `<div class="cover s-${st.k}" style="${bg}">
     <div class="pattern" data-pat="${j.cover.img ? 'none' : (j.cover.pattern || 'none')}" style="${pat}"></div>
     <div class="gloss"></div>
@@ -52,7 +43,7 @@ function coverHTML(j) {
 /* ==================== 主页渲染 ==================== */
 /* 单本书的 HTML，轮播和书架共用（书架里不带 gear，用长按/点击区分） */
 function bookItemHTML(j, i, sel) {
-  const s = (sel == null ? state.sel : sel);
+  const s = (sel == null ? SHELF_NO_SEL : sel);
   const on = state.picking && state.picked.has(j.id);
   return `
     <div class="book-item${i === s ? ' active' : ''}${on ? ' picked' : ''}" data-i="${i}" data-id="${j.id || ''}">
@@ -71,17 +62,26 @@ function syncHomeHead() {
   $('#homeName').textContent = has ? j.name : '还没有手帐本';
   $('#homePages').innerHTML = has ? `<span>▤</span><span>${j.pages.length} 页</span>` : `<span>▤</span><span>点右下角 ＋ 新建</span>`;
   $('#countPill').textContent = has ? `${state.sel + 1} / ${state.journals.length}` : '0 / 0';
-  $$('.actionbar .icon-btn[data-act="del"],.actionbar .icon-btn[data-act="share"],.actionbar .icon-btn[data-act="more"]').forEach(b => b.disabled = !has);
+  /* 「更多」那颗已撤掉（它的三项并进右上角菜单），底栏只剩分享 / 删除 / 新建 */
+  $$('.actionbar .icon-btn[data-act="del"],.actionbar .icon-btn[data-act="share"]').forEach(b => b.disabled = !has);
 }
 /* 书架模式：一行能放几本、每本多宽，全部按屏幕宽度的比例算，
    屏幕越宽书越大、每行放得越多，跟手机上的书架 App 一个思路 */
 /* order / sel 只在拖动排序过程中传入：用临时的排列渲染，不动 state */
 /* ⚠️「一行固定放 per 本」这个算法不能用 —— 它按**常规书宽** bw 算容量，
-   可方形画册比常规本宽 4.05/3 ≈ 1.35 倍（见 book-style.css 的 .cover.s-square），
+   可方形画册比常规本宽 210/148 ≈ 1.42 倍（见 book-style.css 的 .cover.s-square），
    一排里只要混进一本画册，整排书的宽度就超过搁板、甚至戳出屏幕
    （书架容器是 overflow-x:hidden，超出去的那本会被直接裁掉）。
    所以改成**逐本试放**：累加这一排的真实宽度，下一本放不下就换行。 */
-const SHELF_SQ_K = 4.05 / 3;        // 方形画册相对常规本的宽度倍数，与 CSS 的 .s-square 保持一致
+const SHELF_SQ_K = 210 / 148;       // 方形画册相对常规本的宽度倍数，与 CSS 的 .s-square 保持一致
+/* ⚠️ 书架模式里「选中」不再常住 —— 它跟着鼠标走：鼠标停在封面上即选中、
+   离开这本书即取消（见 home-events 的 mouseover / mouseout）。
+   所以**渲染**这一步默认不画 .active（sel 取 SHELF_NO_SEL）：
+   否则每重绘一次（保存、增删、排序、切模式、改窗口大小）都会有一本永久停在抬起的样子，
+   而鼠标早就挪开了。
+   ⚠️ 撤掉的只是画出来的选中态：state.sel 照旧跟着鼠标更新，翻开 / 搜索 / 导出都要有一个目标。
+   真要画选中态时由调用方显式传 sel（拖动排序的临时排列走的就是这条路）。 */
+const SHELF_NO_SEL = -1;
 function renderShelf(order, sel) {
   const wrap = $('#shelfWrap');
   if (!wrap) return;
@@ -89,6 +89,7 @@ function renderShelf(order, sel) {
   wrap.dataset.per = '';
   if (!js.length) {
     wrap.innerHTML = '<div class="shelf-empty">书架还空着，点右下角 ＋ 新建一本吧</div>';
+    if (typeof shelfHoverReset === 'function') shelfHoverReset();
     return;
   }
   /* 可用宽度要扣掉左右内边距，否则搁板会算得比容器还宽、超出屏幕 */
@@ -141,6 +142,11 @@ function renderShelf(order, sel) {
     s += row.length;
   }
   wrap.innerHTML = html;
+  /* DOM 整块换掉，.active 也随之没了 —— 记账清零，再由下一帧照鼠标位置补回去 */
+  if (typeof shelfHoverReset === 'function') shelfHoverReset();
+  /* 整块重画后不会再有 mouseover（鼠标没动），按它此刻的位置把选中态补回去；
+     这一帧之后才有正确的布局坐标，所以要放到 requestAnimationFrame 里 */
+  if (typeof shelfHoverRestore === 'function') requestAnimationFrame(shelfHoverRestore);
 }
 
 /* ==================== 单层书架：书脊与下方预览 ====================
@@ -150,48 +156,94 @@ function renderShelf(order, sel) {
    1 页和 64 页之间才拉开 [最窄, 最宽] 这一小段，再往后加页也几乎看不出变化，
    免得一本厚的把整排书挤歪。最窄宽度写在 CSS 里（--spine-min-w），薄本也有下限。 */
 const SPINE_PAGES_FULL = 64;     // 到这个页数，书脊宽到头
+/* 书脊的「高矮」与「几何装饰」只能由**这一本自身**算出来，绝不能掺进下标 i。
+   ⚠️ 掺了下标的后果：拖动排序 / 插到最前 / 删掉一本都会让下标整体挪位，
+      于是同一本书换个位置就换一副长相 —— 松手瞬间整排的高矮重新洗牌、装饰也换一种，
+      看着像排序把书换了一批（而不是把原来那几本挪了个位置）。
+   老数据可能没有 id，退回 created，再退回书名；都撞了才会出现两本一样高。 */
+function spineSeed(j) {
+  const key = String((j && (j.id || j.created || j.name)) || '');
+  let s = 2166136261;                       // FNV-1a：同一个 key 永远同一个 seed
+  for (let k = 0; k < key.length; k++) { s ^= key.charCodeAt(k); s = Math.imul(s, 16777619) >>> 0; }
+  return s >>> 0;
+}
+/* 高矮档位：0.64~0.96 之间错落，乘 CSS 的 --spine-max-h 得到实际长度 */
+const SPINE_HEIGHTS = [0.72, 0.88, 0.64, 0.96, 0.80, 0.69, 0.92, 0.76, 0.86];
 function spineWidthRatio(j) {
   const p = Math.max(1, (j && j.pages) ? j.pages.length : 1);
   /* log2 让「页数翻一倍」只换来等量的宽度增量，而不是跟着页数线性变胖 */
   return clamp(Math.log2(1 + p) / Math.log2(1 + SPINE_PAGES_FULL), 0, 1).toFixed(3);
 }
 function spineItemHTML(j, i) {
-  const text = String(j.id || j.name || i);
-  let seed = (i + 1) * 37;
-  for (let k = 0; k < text.length; k++) seed = ((seed * 33) + text.charCodeAt(k)) >>> 0;
-  const heights = [0.72, 0.88, 0.64, 0.96, 0.80, 0.69, 0.92, 0.76, 0.86];
-  const h = heights[(seed >>> 3) % heights.length];
+  const seed = spineSeed(j);                 // 只认这一本，不认它排在第几位
+  const h = SPINE_HEIGHTS[(seed >>> 3) % SPINE_HEIGHTS.length];
   const bg = j.cover.img
     ? `background-image:url('${j.cover.img}');background-size:cover;background-position:center;`
     : `background:${j.cover.value};`;
   const ink = coverLum(j.cover) > 0.58 ? '#28241f' : '#fffaf2';
   const pat = j.cover.img ? '' : patternStyle(j.cover.pattern, j.cover);
   const name = esc(j.name);
-  return `<button type="button" class="spine-item${i === state.sel ? ' active' : ''}"
+  /* ⚠️ 渲染一律不带选中态 —— 单层书架默认谁都不选中：
+     抬高 + 下方预览只由鼠标悬停驱动（见 spineSetHover 与 home-events 的 pointerover / pointerout），
+     写死在这里的话，每重绘一次（保存、增删、排序、切模式）都会有一根永久抬在那儿 */
+  return `<button type="button" class="spine-item"
     data-i="${i}" data-id="${j.id || ''}" title="${name}" aria-label="${name}，${j.pages.length} 页"
-    aria-pressed="${i === state.sel}" style="--spine-p:${spineWidthRatio(j)};--spine-h:${h};--spine-ink:${ink};${bg}">
+    aria-pressed="false" style="--spine-p:${spineWidthRatio(j)};--spine-h:${h};--spine-ink:${ink};${bg}">
     <span class="spine-pattern" style="${pat}"></span>
     <span class="spine-art deco-${seed % 6}" aria-hidden="true"><i></i><i></i><i></i></span>
     <span class="spine-title">${name}</span>
     <span class="spine-foot" aria-hidden="true"></span>
   </button>`;
 }
-/* 下方那块是「预览图」：鼠标停在哪根书脊上就显示哪一本的封面，移开书脊整块淡出。
+/* 下方那块是「预览图」：鼠标停在书脊上才显示那一本的封面，鼠标一离开就收起。
+   ⚠️ 默认谁都不选中（跟多层书架一个规矩）：不必非得有一本书被抬起 ——
+      抬高、预览、state.sel 这三样由 spineSetHover 一起动，绑在鼠标上。
    ⚠️ 只有能悬停的设备（鼠标）才有预览：手机上没有悬停这一说，
       而且屏幕就那么大 —— 预览框白占一截高度，不如把空间还给书脊（见 .no-preview）。
-   ⚠️ 预览归预览，选中归选中：预览只是跟着鼠标走，不影响 state.sel */
+   ⚠️ state.sel 照样跟着抬起的那根走：点一下书脊要抽出来的就是它，
+      把它置空会让翻书动画找不到起飞的那根书脊 */
 let spineHover = -1;
 function spineCanHover() {
   return !!(window.matchMedia && window.matchMedia('(hover:hover)').matches);
 }
+/* 预览只认鼠标此刻停在哪根书脊上 —— 不再退回「选中的那一本」：
+   没有悬停就是没有预览（悬停本来就等于选中，两者是同一件事） */
 function spinePreviewIdx() {
   return (spineHover >= 0 && spineHover < state.journals.length) ? spineHover : -1;
 }
+/* 单层书架的「选中」跟着鼠标走：停在哪根书脊上，哪根就抬起 + 描白边 + 下方显出封面；
+   离开就全部复原（书脊落回架上、预览收起）。i < 0 = 取消选中。
+   ⚠️ 取消的只是感知状态：state.sel 留着最后抬起过的那一根，
+      翻书动画、导出、删除都要一个目标 */
 function spineSetHover(i) {
-  const n = Number.isFinite(i) ? i : -1;
-  if (spineHover === n) return;
+  const n = (Number.isFinite(i) && i >= 0 && i < state.journals.length) ? i : -1;
+  if (n === spineHover && (n < 0 || n === state.sel)) return;
   spineHover = n;
+  if (n >= 0) state.sel = n;
+  $$('#spineRow .spine-item').forEach(el => {
+    const on = n >= 0 && +el.dataset.i === n;
+    el.classList.toggle('active', on);
+    el.setAttribute('aria-pressed', String(on));
+  });
   renderSpineDetail();
+  syncHomeHead();
+}
+/* 预览要**对着那根书脊**：书排窄/长不一，预览固定摆在整排的正中间时，
+   视线得从书脊横向跳到屏幕中间才能对上号（书一多更是完全看不出是哪一本）。
+   这里量出目标书脊的中心，换算成「相对预览框中心的偏移」写进 --px（见 spine-shelf.css）。
+   ⚠️ 偏移量要夹在框内：书排能横向滚动，目标那本滚出屏幕时预览贴着边就行，不能跟着飞出去 */
+function spineDetailShift() {
+  const wrap = $('#spineWrap'), detail = $('#spineDetail');
+  if (!wrap || !detail || wrap.classList.contains('no-preview')) return;
+  const i = spinePreviewIdx();
+  const el = i >= 0 ? $(`#spineRow .spine-item[data-i="${i}"]`) : null;
+  const dr = detail.getBoundingClientRect();
+  if (!el || !dr.width) { detail.style.setProperty('--px', '0px'); return; }
+  const er = el.getBoundingClientRect();
+  const half = (detail.firstElementChild ? detail.firstElementChild.offsetWidth : er.width) / 2 + 4;
+  const lim = Math.max(0, dr.width / 2 - half);
+  const dx = clamp((er.left + er.width / 2) - (dr.left + dr.width / 2), -lim, lim);
+  detail.style.setProperty('--px', dx.toFixed(1) + 'px');
 }
 function renderSpineDetail() {
   const detail = $('#spineDetail');
@@ -199,6 +251,11 @@ function renderSpineDetail() {
   const i = spinePreviewIdx();
   const j = state.journals[i];
   detail.classList.toggle('empty', !j);
+  /* ⚠️ 封面要**直接出现在它对着的那根书脊正下方**，不能带着上一本的偏移滑过来：
+     --px 挂在 detail 上是旧值，新封面一进 DOM 就带着它起步，再叠上那条 .26s 的
+     transform 过渡，看着就是封面从上一本底下"走"到这一本。
+     所以这一帧先挂 .jump 掐掉过渡（见 spine-shelf.css），量完新位置再恢复给横滑用 */
+  detail.classList.add('jump');
   /* 只放封面：书名就印在书脊上，页数点开就有，这里不再重复，也不挂编辑按钮
      （改这本走「长按书脊 → 原地松手」） */
   detail.innerHTML = j ? `
@@ -206,15 +263,16 @@ function renderSpineDetail() {
       role="button" tabindex="0" aria-label="翻开${esc(j.name)}">
       ${coverHTML(j)}
     </div>` : '';
+  /* 换完内容立刻对位：尺寸要等封面真正进 DOM 才量得准 */
+  spineDetailShift();
+  requestAnimationFrame(() => detail.classList.remove('jump'));
 }
+/* 显式选中某根书脊（搜索跳转、排序落位、成书后翻开这类没有鼠标的场景）：
+   抬起 + 预览 + state.sel 一次对齐 —— 走的仍是同一条 spineSetHover */
 function syncSpineSelection(animate) {
-  $$('#spineRow .spine-item').forEach(el => {
-    const on = +el.dataset.i === state.sel;
-    el.classList.toggle('active', on);
-    el.setAttribute('aria-pressed', String(on));
-  });
-  renderSpineDetail();
-  syncHomeHead();
+  const to = (state.sel >= 0 && state.sel < state.journals.length) ? state.sel : -1;
+  spineHover = -1;                 // 强制刷一遍：这一刻的 DOM 不一定还带着上一次的选中态
+  spineSetHover(to);
   if (animate) requestAnimationFrame(() => {
     const el = $(`#spineRow .spine-item[data-i="${state.sel}"]`);
     if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
@@ -233,7 +291,13 @@ function renderSpineShelf() {
     return;
   }
   row.innerHTML = state.journals.map((j, i) => spineItemHTML(j, i)).join('');
-  syncSpineSelection(false);
+  /* 默认谁都不选中：预览收起、一根都不抬。
+     ⚠️ 这里不能调 syncSpineSelection —— 它按 state.sel 把某一根扶起来，
+        那就又变成「一进书架就有一本被选中」了。
+        鼠标此刻压在谁身上，由下一帧的 spineHoverRestore 照坐标补回来
+        （DOM 整块换掉后浏览器不会再派发 pointerover） */
+  renderSpineDetail();
+  if (typeof spineHoverRestore === 'function') requestAnimationFrame(spineHoverRestore);
   /* 从其它模式切回来时，当前那本可能排在屏幕外；只横移书排，不动整页 */
   requestAnimationFrame(() => {
     const el = $(`#spineRow .spine-item[data-i="${state.sel}"]`);
@@ -261,6 +325,8 @@ function enterPickMode(purpose) {
   state.picked = new Set();                            // 一本都不预勾，选什么由你决定
   const wrap = $('#shelfWrap');
   wrap.classList.add('picking');
+  /* 进多选就把悬停选中收掉：那一屏只有勾选这一种记号，混着别的看不清 */
+  if (typeof shelfUnpick === 'function') shelfUnpick();
   wrap.querySelectorAll('.book-item').forEach(el => {
     el.classList.toggle('picked', !!el.dataset.id && state.picked.has(el.dataset.id));
   });

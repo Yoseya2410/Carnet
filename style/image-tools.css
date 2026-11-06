@@ -9,14 +9,24 @@
  * ===================================================================== */
 /* 纸张 / 模板 */
 .paper{position:absolute;inset:0;background:var(--paper);overflow:hidden}
+/* ---- 内页四周的空白页边 ----
+   真纸上的格线 / 点阵不会印到纸边：四周留一圈空白，图案只铺在「版心」里。
+   --pmx / --pmy 是留白的宽 / 高，随纸张等比缩放（缩略图、导出都跟着一致）。
+   ⚠️ 留白靠 .tplbg 内缩实现（不是加白边）：纸的底色本来就露在外面，
+      图案层往里一缩，露出来的就是干净纸边 —— 不用额外画一圈白色 */
+.paper{
+  --pmx:calc(var(--pw,340px) * .055);   /* 左右留白 ≈ 页宽的 5.5% */
+  --pmy:calc(var(--ph,460px) * .032)    /* 上下留白 ≈ 页高的 3.2% */
+}
 /* 纸面不再压内侧灰色渐变（去掉后两页之间干干净净，纸张是平的） */
 .paper::after{content:"";position:absolute;inset:0;pointer-events:none;background:none}
-.tplbg{position:absolute;inset:0;background-repeat:repeat;background-position:0 0;pointer-events:none}
+.tplbg{position:absolute;inset:var(--pmy) var(--pmx);background-repeat:repeat;background-position:0 0;pointer-events:none}
 .paper.t-lined .tplbg{
   background-image:repeating-linear-gradient(transparent 0,transparent 27px,#dfe3ee 27px,#dfe3ee 28px);
   background-position:0 34px;
 }
-.paper.t-lined::before{content:"";position:absolute;left:34px;top:0;bottom:0;width:1px;background:#eab7c2;opacity:.8}
+/* 横线模板那条红边线（版心左界）：跟着页边留白一起往里挪，别压在空白边上 */
+.paper.t-lined::before{content:"";position:absolute;left:calc(var(--pmx) + 12px);top:0;bottom:0;width:1px;background:#eab7c2;opacity:.8}
 .paper.t-grid .tplbg{
   background-image:linear-gradient(#e8ebf3 1px,transparent 1px),linear-gradient(90deg,#e8ebf3 1px,transparent 1px);
   background-size:23px 23px;

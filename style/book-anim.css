@@ -55,8 +55,40 @@
    封面就正好落在正中；翻页用的叶子位置与静止时完全重合，翻页动画可以原样沿用 */
 .book.cover-only{transform:translateX(calc(var(--pw) * -.5))}
 .book.cover-only .page-slot.left{display:none}
-.book.cover-only .page-slot.right{border-radius:4px 11px 11px 4px}
-.book.cover-only .leaf-face.front{border-radius:4px 11px 11px 4px}
+.book.cover-only .page-slot.right{border-radius:var(--spine-r,3px) var(--cover-r,10px) var(--cover-r,10px) var(--spine-r,3px)}
+.book.cover-only .leaf-face.front{border-radius:var(--spine-r,3px) var(--cover-r,10px) var(--cover-r,10px) var(--spine-r,3px)}
+/* 合上封面时，右侧内页必须一直留到翻过来的封面真正盖住它。
+   不能提前把右槽透明化：那会让底下的后封面先露出来，看起来像封面还没合到右边、
+   右侧就已经变成封面了。这里的 .cover-closing 只负责裁掉左半张封面板。 */
+/* 把 .book-under 的**左半张**（封面内侧 cbrd-l）整层裁掉 ——
+   它跟正在合上的封面是同一张皮：封面一抬起来，原地就露出一张一模一样的「封面内侧」，
+   看着就是封面没走、又复制出一张。
+   ⚠️ 用 clip-path 裁左边，而不是只给 cbrd-l 加 opacity:0：那一层的压深 / 柔光画在 .book-under::after 上，
+      单把皮藏了会在封面刚离开的地方留下一块半透明深色矩形；连 ::after 一起裁掉才是干净的一条中缝。
+   ⚠️ 左半边正好是书的正中 —— 书脊就在整本一半处（见 .book 的 width 与 layoutBook），
+      所以 inset 从左侧裁 50% 出来的边正好压在中缝上。
+   ⚠️ 不用加过渡：起手那一刻封面叶片把左半边盖得严丝合缝，裁与不裁肉眼完全一样，
+      等封面转开、这一层本该露出来的时候它已经不在了。 */
+.book.cover-closing .book-under{clip-path:inset(0 0 0 50%)}
+/* 打开封面时同样先裁掉左半张封面内侧：叶片尚未落到左边之前，那一格应该空着。
+   若起手就铺好整张 .book-under，封面还在右侧翻动，左边就已提前出现一张封面内侧。
+   endFlip 摘掉 .cover-opening 后才显示左半张，与叶片背面的封面内侧同步交接。 */
+.book.cover-opening .book-under{clip-path:inset(0 0 0 50%)}
+/* 左槽也要整格隐藏，不能只把背景设透明：槽位自身还有纸边、接触影等纸张样式，
+   而且封面打开期间它本就不该承载任何内页。叶片落定、.cover-opening 摘除后再恢复。 */
+.book.cover-opening .page-slot.left{visibility:hidden}
+/* ---- 合书（第二跨往后点返回，见 reader-flow 的 foldBook）：左半边整格收掉 ----
+   叶片把左页「掀」起来带走之后，左槽里已经没有纸了 —— 可 .page-slot 自己垫了一层纸色，
+   空槽看着就是「一张白纸留在左边」，一直停到合完。合上的是整本左半边（纸和封面一起翻过去），
+   那一格在合书期间本来就该什么都没有。
+   ⚠️ 直接收（visibility）而不是淡出：起手那一刻叶片把左槽盖得严丝合缝，收与不收肉眼一样；
+      等叶片转开、这一格本该露出来的时候它已经不在了（跟 .cover-closing 同一个道理）。
+   ⚠️ 活页还得把底下那层封面内侧的左半张一起裁掉：它跟正在合上的封面是同一张皮
+      （跟 .cover-closing 的 .book-under 同一条规则），不裁的话原地会露出一张一模一样的封面内侧。 */
+.book.folding .page-slot.left{visibility:hidden}
+.book.folding .book-under{clip-path:inset(0 0 0 50%)}
+/* 纸叠厚度那道白边只剩右半边：左半边的纸已经翻走了，留一道白边等于还在那儿 */
+.book.spread.folding{box-shadow:9px 0 0 -4px rgba(255,252,244,.42)}
 /* 退出时封面立刻让位给飞回主页的那一张，不做淡出 */
 .book.gone{opacity:0}
 /* 合上后：宽度收成一张封面，位移抵消「居中」带来的偏移，
@@ -66,6 +98,8 @@
 #reader.closing #stage,#reader.closing .rbot{pointer-events:none}
 @media (prefers-reduced-motion:reduce){
   #home,#reader,.book.book-in,.book.book-out{transition:none;animation:none}
+  /* 中缝机构那一道淡入也一起免掉：不给动画就直接到位（压到 60% 才出场的时机仍由 JS 控制） */
+  .gutter{transition:none}
 }
 
 @media (max-width:560px){

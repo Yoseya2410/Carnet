@@ -15,7 +15,12 @@
 /* 造出一本要导出的文件：格式跟单本导出完全一致（源文件仍是单本那套带 checksum 的结构），
    只是不碰文件系统，交给外面决定「写到哪」 */
 async function buildExportFile(j, kind) {
-  if (kind !== 'json') await probeExportFont();    // 渲染前先探明手写体导不导得出，不行就按楷体
+  if (kind !== 'json') {
+    await probeExportFont();          // 渲染前先探明手写体导不导得出，不行就按楷体
+    /* 自带英文字体按这一本用到的档位备好写进 SVG 根。exportMany 是逐本 await 的，
+       这个全局串不会在多本之间串台。 */
+    await prepareExportEnFaces(j);
+  }
   if (kind === 'json') {
     const sum = await checksum(stableStringify(j));
     const text = JSON.stringify({
@@ -35,7 +40,7 @@ async function buildExportFile(j, kind) {
     const total = H * pages.length;
     const svg = '<?xml version="1.0" encoding="UTF-8"?>\n'
       + `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${total}" viewBox="0 0 ${W} ${total}">`
-      + `<rect width="${W}" height="${total}" fill="#fffdf8"/>` + body + `</svg>`;
+      + `<rect width="${W}" height="${total}" fill="#fffdf8"/>` + __expEnFaces + body + `</svg>`;
     return {
       name: exportBaseName(j) + '.svg', mime: 'image/svg+xml',
       blob: new Blob([svg], { type: 'image/svg+xml;charset=utf-8' })

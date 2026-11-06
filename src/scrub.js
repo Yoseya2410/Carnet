@@ -16,7 +16,7 @@ const SCRUB_PAD = 18;            // 轴两端留白，滑块不会顶到边缘
 let scrubOn = false, scrubHideT = null, scrubRaf = 0, scrubJob = null;
 function scrubCount() {
   const n = pageCount();
-  return state.mode === 'spread' ? Math.max(Math.ceil(n / 2), 1) : Math.max(n, 1);
+  return state.mode === 'spread' ? spreadCount(n) : Math.max(n, 1);
 }
 function scrubIndex() {
   return state.mode === 'spread' ? state.spread : state.page;
@@ -38,7 +38,13 @@ function paintScrub() {
   const xs = x.toFixed(1) + 'px';
   const bar = $('#scrubBar'), num = $('#scrubNum');
   if (bar) bar.style.left = xs;
-  if (num) { num.style.left = xs; num.textContent = state.mode === 'spread' ? String(i * 2 + 1) : String(i + 1); }
+  /* 双页：第 0 格是「封面内侧 + 第 1 页」，报右页的页码；往后报左页页码 */
+  if (num) {
+    num.style.left = xs;
+    num.textContent = state.mode === 'spread'
+      ? String(spreadIndices(i)[1] + 1)
+      : String(i + 1);
+  }
   const fill = $('#scrubFill'); if (fill) fill.style.width = xs;
 }
 /* 落位到某一格：页面立刻跟着变，实现“页数随拖动条变化” */

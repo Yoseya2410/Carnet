@@ -2,11 +2,12 @@
  * Carnet · 数据模型 · 运行时状态与构造   （脚本 10 / 27）
  * ---------------------------------------------------------------------
  * ① state / cur() / pageCount()：当前书架与浏览位置
- * ② 手帐本与页面的构造：mkPage / mkPages / newText / newJournal
+ * ② 手帐本与页面的构造：mkPage / mkPages / newText / newJournal；文字贴字号范围 TS_SIZE_*
  * ③ 对象上下层 z：ensureZ / nextZ（图片与文字共用一套 z，越大越上）
  * ④ 老版本预置手帐本的识别 isLegacyDefault（只摘没被动过的）
  *
- * 对外接口：state, cur, pageCount, mkPage, mkPages, newText, newJournal, ensureZ, nextZ
+ * 对外接口：state, cur, pageCount, mkPage, mkPages, newText, newJournal,
+ *           TS_SIZE_MIN / MAX / DEFAULT, TEXT_FIT_V, ensureZ, nextZ
  *
  * 依赖模块：core, visuals
  *
@@ -32,11 +33,19 @@ const cur = () => state.journals[state.sel];
 const pageCount = () => cur() ? cur().pages.length : 0;
 
 /* ==================== 初始数据 ==================== */
+/* 文字贴字号 size = 占纸宽的百分比。范围跟 index.html #tsSize 的 min/max 保持一致，
+   四角等比缩放时也拿它夹住缩放倍数（见 page-edit.js），越界了字就不再跟框同比例 */
+const TS_SIZE_MIN = 2.2, TS_SIZE_MAX = 22, TS_SIZE_DEFAULT = 5.5;
+/* 文字贴「框紧贴内容」的算法版本。数据里存一份（t.fitV）：老本子的框还是早年的大方框，
+   第一次画到纸上时按新算法收紧一次，之后翻页来回重绘不再反复改数据（见 text-sticker.js）。 */
+const TEXT_FIT_V = 1;
 function mkPage() { return { images: [], texts: [] }; }
 function mkPages(n) { return Array.from({ length: n }, mkPage); }
 function pageTexts(pg) { if (!pg.texts) pg.texts = []; return pg.texts; }
 function newText(x, y, t) {
-        /* font 缺省即手写体：老数据没有这个字段，渲染时按 'hand' 处理，所以一改字体全书一起变 */
+        /* font 缺省即手写体：老数据没有这个字段，渲染时按 'hand' 处理，所以一改字体全书一起变。
+           w=.56 是「行宽上限」（文字到这儿才折行），不是最终框宽：第一次画到纸上时
+           fitTextBox 会把框收紧到文字真正占的宽度，并把 .56 记到 t.ww 里（见 text-sticker.js）。 */
         return { id: uid(), text: t || '', x: x ?? .16, y: y ?? .16, w: .56, h: .12,
                 size: 5.5, color: '#2b2f3d', align: 'left', bold: false, font: 'hand' };
 }
