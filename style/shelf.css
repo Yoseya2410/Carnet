@@ -80,13 +80,13 @@
   height:34px;border-radius:9px;
   /* ⚠️ 板身不能太透：全透就只剩上下两条亮边，看不出「板」这块东西在哪，
      书也就无所谓「包进去」了。留 .5 上下、中间 .42，是「透但看得见是一块板」的度 */
-  background:linear-gradient(180deg,
+  background:linear-gradient(181deg,
     rgba(255,255,255,.86) 0%,      /* 顶面：迎光的一条亮边 */
     rgba(255,255,255,.52) 14%,
     rgba(255,255,255,.42) 50%,     /* 板身 */
     rgba(255,255,255,.50) 84%,
     rgba(255,255,255,.72) 100%);   /* 底沿：玻璃收边 */
-  backdrop-filter:blur(1.5px) saturate(140%);
+  backdrop-filter:blur(1px) saturate(140%);
   -webkit-backdrop-filter:blur(1.5px) saturate(140%);
   box-shadow:
     0 12px 22px -12px rgba(30,28,24,.34),      /* 整块往地上投的软影 */

@@ -50,7 +50,7 @@
   background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);color:#fff;outline:none;
   font-variant-numeric:tabular-nums
 }
-.cp-hex:focus{border-color:var(--accent);background:rgba(255,255,255,.13)}
+.cp-hex:focus{border-color:var(--accent-on-dark);background:rgba(255,255,255,.13)}
 /* 吸管入口：跟预览色块、色值框同排 */
 .cp-eye{
   flex:0 0 auto;width:44px;height:44px;border-radius:12px;display:grid;place-items:center;color:#fff;
@@ -97,7 +97,7 @@
   background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);transition:background .18s
 }
 .ep-btn:hover{background:rgba(255,255,255,.2)}
-.ep-btn.ok{background:var(--accent);border-color:transparent}
+.ep-btn.ok{background:var(--accent);border-color:rgba(255,255,255,.32)}
 .ep-btn.ok:hover{filter:brightness(1.1)}
 .pat-grid,.tpl-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
 .pat,.tpl{
@@ -138,7 +138,7 @@
 }
 .btn{flex:1;padding:12px;border-radius:13px;font-size:14.5px;font-weight:600;letter-spacing:.04em;transition:transform .15s,filter .2s}
 .btn:active{transform:scale(.97)}
-.btn.primary{background:linear-gradient(135deg,#ef7ba0,#e0668a);color:#fff;box-shadow:0 10px 22px -10px rgba(224,102,138,.9)}
+.btn.primary{background:linear-gradient(135deg,var(--accent-2),var(--accent));color:#fff;box-shadow:0 10px 22px -10px rgba(17,19,24,.75)}
 .btn.ghost{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18)}
 .btn:hover{filter:brightness(1.06)}
 .upload-row{display:flex;gap:10px;align-items:center}

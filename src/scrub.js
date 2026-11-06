@@ -1,87 +1,95 @@
 /* =====================================================================
  * Carnet · 页数轴 · 拖着页码选页与滑动翻页   （脚本 25 / 27）
  * ---------------------------------------------------------------------
- * ① 长按页码唤出页数轴 openScrub，拖动 / 点选快速跳页
- * ② 左右滑动翻页、点左右半区翻页、键盘左右键翻页
- * ③ 关面板后的短窗口内抑制翻页：统一问 core.js 的 flipSuppressed(ms)
+ * ① 长按页码唤出固定长度的白色胶囊，一根刻度 = 一页，刻度数与页数一一对应
+ * ② 滑块是「加速摇杆」：离中心越远刻度滚得越快，顶到两端最快；松手弹性回中
+ * ③ 左右滑动翻页、点左右半区翻页、键盘左右键翻页
+ * ④ 关面板后的短窗口内抑制翻页：统一问 core.js 的 flipSuppressed(ms)
  *
- * 对外接口：openScrub, closeScrub, buildScrub, queueScrub
+ * 对外接口：openScrub, closeScrub, paintScrub, setScrubIndex
  *
  * 依赖模块：core, state, reader-view（reader-flow / text-sticker 后置，只在运行时调用）
  *
  * 说明：模块间共用全局作用域，加载顺序即依赖顺序（见 index.html 与 README）。
  * ===================================================================== */
-/* ==================== 页数轴：长按页码拖着选页 ==================== */
-const SCRUB_PAD = 18;            // 轴两端留白，滑块不会顶到边缘
-let scrubOn = false, scrubHideT = null, scrubRaf = 0, scrubJob = null;
+/* ==================== 页数轴：每页一根刻度的加速滚轮 ==================== */
+const SCRUB_GAP = 14;            // 每根刻度的间距 = 一页
+const SCRUB_VMAX = .62;          // 滑块顶到两端时每帧最多滚多少页
+let scrubOn = false, scrubHideT = null;
+let scrubPos = 0;                // 浮点页位置，刻度带按它连续滚动
+let scrubDx = 0, scrubMaxX = 48; // 滑块相对中心的位移 / 可移动上限
+let scrubAutoRaf = 0, scrubAutoT = 0;
 function scrubCount() {
   const n = pageCount();
   return state.mode === 'spread' ? spreadCount(n) : Math.max(n, 1);
 }
-function scrubIndex() {
-  return state.mode === 'spread' ? state.spread : state.page;
-}
+function scrubIndex() { return state.mode === 'spread' ? state.spread : state.page; }
+function scrubLast() { return Math.max(scrubCount() - 1, 0); }
+/* 一根刻度 = 一页，页数变了就重建（只在打开页数轴时跑一次） */
 function buildScrub() {
-  const count = scrubCount();
-  const step = count > 40 ? Math.ceil(count / 24) : 1;
+  const box = $('#scrubTicks'); if (!box) return;
+  const n = scrubCount();
   let html = '';
-  for (let i = 0; i < count; i++) html += `<i class="${i % step === 0 ? 'maj' : ''}"></i>`;
-  $('#scrubTicks').innerHTML = html;
+  for (let i = 0; i < n; i++) html += `<i style="left:${((i + .5) * SCRUB_GAP).toFixed(1)}px"></i>`;
+  box.innerHTML = html;
 }
+/* 刻度清晰：全部实心黑，只按离中心的距离改变粗细 / 长短（中间粗两边细），
+   最低不透明度 .72 —— 不做渐隐，两端也看得清。只刷可见的几根，页数再多也不卡。 */
 function paintScrub() {
-  const track = $('#scrubTrack');
-  if (!track) return;
-  const w = track.clientWidth - SCRUB_PAD * 2;
-  const i = clamp(scrubIndex(), 0, Math.max(scrubCount() - 1, 0));
-  const last = Math.max(scrubCount() - 1, 1);
-  const x = SCRUB_PAD + (i / last) * Math.max(w, 1);
-  const xs = x.toFixed(1) + 'px';
-  const bar = $('#scrubBar'), num = $('#scrubNum');
-  if (bar) bar.style.left = xs;
+  const track = $('#scrubTrack'), box = $('#scrubTicks');
+  if (!track || !box) return;
+  if (!scrubOn && Math.round(scrubPos) !== scrubIndex()) scrubPos = scrubIndex();  // 外部翻页后同步
+  const w = track.clientWidth, center = w / 2, last = scrubLast();
+  scrubPos = clamp(scrubPos, 0, last);
+  const shift = center - (scrubPos + .5) * SCRUB_GAP;
+  box.style.transform = `translate3d(${shift.toFixed(2)}px,0,0)`;
+  const idx = clamp(Math.round(scrubPos), 0, last);
+  const num = $('#scrubNum');
   /* 双页：第 0 格是「封面内侧 + 第 1 页」，报右页的页码；往后报左页页码 */
-  if (num) {
-    num.style.left = xs;
-    num.textContent = state.mode === 'spread'
-      ? String(spreadIndices(i)[1] + 1)
-      : String(i + 1);
+  if (num) num.textContent = String(state.mode === 'spread' ? spreadIndices(idx)[1] + 1 : idx + 1);
+  const kids = box.children;
+  const lo = clamp(Math.floor(-shift / SCRUB_GAP) - 2, 0, last);
+  const hi = clamp(Math.ceil((w - shift) / SCRUB_GAP) + 2, 0, last);
+  for (let k = lo; k <= hi; k++) {
+    const el = kids[k]; if (!el) continue;
+    const x = (k + .5) * SCRUB_GAP + shift;
+    const t = Math.max(0, 1 - Math.abs(x - center) / Math.max(center, 1));
+    el.style.width = (3 + 2.5 * t).toFixed(1) + 'px';
+    el.style.height = (12 + 9 * t).toFixed(1) + 'px';
+    el.style.opacity = (.72 + .28 * t).toFixed(2);
   }
-  const fill = $('#scrubFill'); if (fill) fill.style.width = xs;
 }
-/* 落位到某一格：页面立刻跟着变，实现“页数随拖动条变化” */
+/* 拖动中跨页也要把纸面翻过去：手帐本跟着页数轴实时翻页。
+   autoTick 本身跑在 rAF 里、一帧最多跨一次页，所以这里每帧最多重绘一次；
+   renderReader() 内部会调 paintScrub()，刻度带继续按 scrubPos 连续滚动。 */
 function setScrubIndex(idx) {
-  idx = clamp(Math.round(idx), 0, Math.max(scrubCount() - 1, 0));
+  idx = clamp(Math.round(idx), 0, scrubLast());
   if (idx === scrubIndex()) return;
   if (state.mode === 'spread') state.spread = idx; else state.page = idx;
   renderReader();
   if (navigator.vibrate) { try { navigator.vibrate(6); } catch (_) {} }
 }
-/* 手指在轴上：按绝对位置落格 */
-function idxFromAbs(clientX) {
-  const t = $('#scrubTrack'); if (!t) return scrubIndex();
-  const r = t.getBoundingClientRect();
-  const w = Math.max(r.width - SCRUB_PAD * 2, 1);
-  const ratio = clamp((clientX - r.left - SCRUB_PAD) / w, 0, 1);
-  return Math.round(ratio * Math.max(scrubCount() - 1, 0));
+function stopAuto() {
+  if (scrubAutoRaf) { cancelAnimationFrame(scrubAutoRaf); scrubAutoRaf = 0; }
+  scrubAutoT = 0;
 }
-/* 从页码长按出来的：按位移量走，滑块不会跳到手指下方 */
-function idxFromDelta(clientX, startX, startIdx) {
-  const t = $('#scrubTrack'); if (!t) return scrubIndex();
-  const per = Math.max((t.clientWidth - SCRUB_PAD * 2) / Math.max(scrubCount() - 1, 1), 1);
-  return startIdx + Math.round((clientX - startX) / per);
+/* 滑块位置 = 速度：|dx| 越接近两端刻度滚得越快（平方曲线），
+   手指按住不动也会一直滚；回到中心附近就停。左 → 向前翻，右 → 向后翻。 */
+function autoTick(now) {
+  scrubAutoRaf = 0;
+  if (!scrubOn) return;
+  const dt = scrubAutoT ? clamp((now - scrubAutoT) / 16.7, .5, 2) : 1;
+  scrubAutoT = now;
+  const r = Math.abs(scrubDx) / Math.max(scrubMaxX, 1);
+  if (r > .08 && scrubLast() > 0) {
+    const dir = scrubDx < 0 ? -1 : 1;
+    scrubPos = clamp(scrubPos + dir * SCRUB_VMAX * r * r * dt, 0, scrubLast());
+    const idx = clamp(Math.round(scrubPos), 0, scrubLast());
+    if (idx !== scrubIndex()) setScrubIndex(idx); else paintScrub();
+  }
+  scrubAutoRaf = requestAnimationFrame(autoTick);
 }
-/* 每帧最多重绘一次 */
-function queueScrub(fn) {
-  scrubJob = fn;
-  if (scrubRaf) return;
-  scrubRaf = requestAnimationFrame(() => {
-    scrubRaf = 0;
-    const job = scrubJob; scrubJob = null;
-    if (!job || !scrubOn) return;
-    setScrubIndex(job());
-    paintScrub();
-  });
-}
-function openScrub(clientX, absolute) {
+function openScrub(clientX) {
   const n = pageCount();
   if (!n) { toast('还没有页面'); return; }
   if (isCoverView()) {                       // 停在封面时，从第 1 页开始选
@@ -89,19 +97,31 @@ function openScrub(clientX, absolute) {
     renderReader();
   }
   buildScrub();
+  scrubPos = scrubIndex();
+  scrubDx = 0;
   hideTextBar();                             // 页数轴和文字样式条不同时出现
   $('#scrub').classList.add('show', 'dragging');
   scrubOn = true;
   clearTimeout(scrubHideT);
+  const track = $('#scrubTrack'), num = $('#scrubNum');
+  scrubMaxX = track && num ? Math.max(12, (track.clientWidth - num.offsetWidth) / 2 - 6) : 48;
   paintScrub();
-  const startX = clientX, startIdx = scrubIndex();
-  const mv = ev => queueScrub(() => absolute ? idxFromAbs(ev.clientX) : idxFromDelta(ev.clientX, startX, startIdx));
+  stopAuto(); scrubAutoRaf = requestAnimationFrame(autoTick);
+  const startX = clientX;
+  const mv = ev => {
+    scrubDx = clamp(ev.clientX - startX, -scrubMaxX, scrubMaxX);
+    if (num) num.style.transform = `translate(calc(-50% + ${scrubDx.toFixed(1)}px),-50%)`;
+  };
   const up = () => {
     window.removeEventListener('pointermove', mv);
     window.removeEventListener('pointerup', up);
     window.removeEventListener('pointercancel', up);
-    $('#scrub').classList.remove('dragging');
+    stopAuto();
+    $('#scrub').classList.remove('dragging');   // 先撤掉 transition:none，回弹才有动画
+    if (num) num.style.transform = '';          // 过冲曲线把滑块弹回正中
+    scrubDx = 0;
     scrubOn = false;
+    renderReader();                            // 落到最终页：整页只重绘这一次
     clearTimeout(scrubHideT);
     scrubHideT = setTimeout(closeScrub, 800);
   };
@@ -110,6 +130,7 @@ function openScrub(clientX, absolute) {
   window.addEventListener('pointercancel', up);
 }
 function closeScrub() {
+  stopAuto();
   clearTimeout(scrubHideT);
   scrubOn = false;
   const s = $('#scrub');
@@ -152,7 +173,7 @@ function closeScrub() {
     if (scrubOn) return;
     e.preventDefault(); e.stopPropagation();
     clearTimeout(scrubHideT);
-    openScrub(e.clientX, true);
+    openScrub(e.clientX);
   });
 })();
 // 键盘

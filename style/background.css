@@ -62,7 +62,7 @@
 .bg-light .modal::-webkit-scrollbar-thumb{background:rgba(40,44,66,.28)}
 .bg-light .text-input{background:rgba(255,255,255,.5);border-color:rgba(40,44,66,.16);color:#2b2f3d}
 .bg-light .text-input:hover{border-color:rgba(40,44,66,.3)}
-.bg-light .text-input:focus{background:rgba(255,255,255,.74);box-shadow:0 0 0 3px rgba(224,102,138,.22)}
+.bg-light .text-input:focus{background:rgba(255,255,255,.74);box-shadow:0 0 0 3px rgba(17,19,24,.18)}
 /* 色块：浅底上描边要换成深色才勾得出来（白色描边压在白玻璃上等于没有） */
 .bg-light .swatch{border-color:rgba(40,44,66,.2)}
 .bg-light .swatch.on{border-color:#fff;box-shadow:0 0 0 2px rgba(40,44,66,.3)}
@@ -77,7 +77,7 @@
 
 /* ---- 确认框 ---- */
 .bg-light .confirm-box{color:#2b2f3d;border-color:rgba(255,255,255,.7)}
-.bg-light .confirm-actions .btn.danger{color:#c33b5c}
+.bg-light .confirm-actions .btn.danger{color:#111318;background:rgba(17,19,24,.07);border-color:rgba(17,19,24,.24)}
 
 /* ---- 下拉菜单列表（＋ / 更多 / 分享 / 多选）---- */
 .bg-light .addmenu{box-shadow:0 18px 40px -16px rgba(30,32,48,.5)}
@@ -86,8 +86,8 @@
 .bg-light .addmenu .am-row{background:rgba(40,44,66,.06)}
 .bg-light .addmenu .am-side{color:rgba(43,47,61,.72)}
 .bg-light .addmenu .am-side.on{background:#fff;color:#20222c}
-.bg-light .addmenu .am-del{color:#c33b5c}
-.bg-light .addmenu .am-del:hover,.bg-light .addmenu .am-del:active{background:rgba(224,102,138,.16)}
+.bg-light .addmenu .am-del{color:#111318}
+.bg-light .addmenu .am-del:hover,.bg-light .addmenu .am-del:active{background:rgba(17,19,24,.09)}
 
 /* ---- 底部面板（编辑文字 / 本页底色 / 图片边框 / 贴纸）----
    这一族底色写死在 .tsheet 上（不走 --frost），得单独换：
@@ -159,17 +159,14 @@
    深色 tint 只用在极淡的浓度上（见 .actionbar 那条），这里统一走白玻璃。 */
 #home.bg-light .topbar .icon-btn,#home.bg-light .topbar .pill{
   color:#2b2f3d;
-  background:rgba(255,255,255,.34);
+  background:rgba(255,255,255,.24);
   border-color:rgba(255,255,255,.6);
-  backdrop-filter:blur(16px) saturate(150%);
+  backdrop-filter:blur(1px) saturate(150%);
   -webkit-backdrop-filter:blur(16px) saturate(150%)
 }
 #home.bg-light .view-toggle{
-  background:rgba(255,255,255,.3);border-color:rgba(255,255,255,.58);
-  /* 白边在浅底上勾不出轮廓，补一道极淡的深色内描边把胶囊的形状收出来 */
-  box-shadow:0 8px 18px -10px rgba(6,8,20,.2),inset 0 0 0 .5px rgba(40,44,66,.12),
-             inset 0 1px 0 rgba(255,255,255,.5);
-  backdrop-filter:blur(16px) saturate(150%);-webkit-backdrop-filter:blur(16px) saturate(150%)
+  background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.58);
+  backdrop-filter:blur(1px) saturate(150%);-webkit-backdrop-filter:blur(16px) saturate(150%)
 }
 #home.bg-light .view-toggle button{color:#2b2f3d}
 #home.bg-light .view-toggle button:hover{background:rgba(255,255,255,.3)}
@@ -201,22 +198,9 @@
 #reader.bg-light .pager.pressing{background:rgba(40,44,66,.1)}
 /* 阅读器跟主页一样是浅底了，书的落地影也得跟着收：深色背景上 .5 的黑影压在浅底上是一坨脏灰 */
 #reader.bg-light .book{filter:drop-shadow(0 26px 34px rgba(40,42,60,.28))}
-/* ---- 页数轴（长按页码冒出来的那条）：原本是白玻璃 + 白刻度，浅底上整条糊进背景 ---- */
-#reader.bg-light .scrub-track{
-  background:linear-gradient(180deg,rgba(255,255,255,.66),rgba(255,255,255,.42));
-  border-color:rgba(255,255,255,.72);
-  box-shadow:0 14px 26px -18px rgba(30,32,48,.5),inset 0 1px 0 rgba(255,255,255,.9)
-}
-#reader.bg-light .scrub-ticks i::before{background:rgba(40,44,66,.38)}
-#reader.bg-light .scrub-ticks i.maj::before{background:rgba(40,44,66,.6)}
-#reader.bg-light .scrub-fill{
-  background:linear-gradient(90deg,rgba(224,102,138,.14),rgba(224,102,138,.42));
-  border-right-color:rgba(224,102,138,.55)
-}
-#reader.bg-light .scrub-bar{
-  background:linear-gradient(180deg,#fff,#f1eff3);border-color:rgba(255,255,255,.9);
-  box-shadow:0 4px 14px -3px rgba(30,32,48,.4),0 0 0 1px rgba(224,102,138,.55),inset 0 1px 0 #fff
-}
+/* ---- 页数轴 ----
+   新版是自带深色底的胶囊 + 白刻度 / 白标签，深浅背景都立得住，
+   不再需要为浅底单独翻一套白玻璃样式（旧的那几条覆盖已随改造删掉）。 */
 /* ---- 浅色背景：书脚陷进玻璃板里的接触影 ----
    书是**插进**板里的（书脚下沉 26px），所以紧贴书脚那一线压得最深、往下渐隐 ——
    这道影是「书嵌在板里」唯一看得见的证据，没有它书看着只是浮在板前。

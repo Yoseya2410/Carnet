@@ -337,7 +337,9 @@ function bindPage() {
       let sx = e.clientX, sy = e.clientY, ox = im.x, oy = im.y;   // 跨页时这几个基准就地重设
       let dragging = false;
       let fit = {};
-      const mv = ev => {
+      /* 走 bindPage 里那条 track()：pointermove 按帧合一次，松手补跑最后一帧。
+         以前这条路径自己绑监听、来一次事件写一次 left/top，是唯一漏掉合帧的拖动 */
+      track(e.clientX, e.clientY, ev => {
         if (!dragging) {
           if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 9) return;
           dragging = true; w.__dragging = true;
@@ -353,19 +355,12 @@ function bindPage() {
         w.style.left = (im.x * 100).toFixed(2) + '%';
         w.style.top = (im.y * 100).toFixed(2) + '%';
         syncBar(w, im); fitObjBar(w, fit);          // 一边打字一边挪：工具条也跟着躲
-      };
-      const up = () => {
-        window.removeEventListener('pointermove', mv);
-        window.removeEventListener('pointerup', up);
-        window.removeEventListener('pointercancel', up);
+      }, () => {
         w.__dragging = false;
         unCross();
         state.imgDragging = false;
         if (dragging) { save(); realign(); }
-      };
-      window.addEventListener('pointermove', mv);
-      window.addEventListener('pointerup', up);
-      window.addEventListener('pointercancel', up);
+      });
     };
 
     const startDrag = e => {

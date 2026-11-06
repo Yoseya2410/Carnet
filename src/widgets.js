@@ -43,10 +43,16 @@ function hexToHsv(hex) {
   return { h, s: max ? d / max : 0, v: max };
 }
 /* keepInput：正在手输色值时不回写输入框，免得把光标和已输入内容打乱 */
+let cpLastHue = NaN;
 function paintCP(keepInput) {
   const hex = hsvToHex(cp.h, cp.s, cp.v);
-  $('#cpSV').style.background =
-    `linear-gradient(to top,#000,rgba(0,0,0,0)),linear-gradient(to right,#fff,rgba(255,255,255,0)),hsl(${cp.h},100%,50%)`;
+  /* 拖饱和度 / 明度时色相没变，那三层渐变一模一样 —— 重建 linear-gradient
+     会让整块面板重绘，拖起来发涩。色相条变了才重画 */
+  if (cp.h !== cpLastHue) {
+    $('#cpSV').style.background =
+      `linear-gradient(to top,#000,rgba(0,0,0,0)),linear-gradient(to right,#fff,rgba(255,255,255,0)),hsl(${cp.h},100%,50%)`;
+    cpLastHue = cp.h;
+  }
   $('#cpDot').style.left = (cp.s * 100).toFixed(2) + '%';
   $('#cpDot').style.top = ((1 - cp.v) * 100).toFixed(2) + '%';
   $('#cpHueDot').style.left = (cp.h / 360 * 100).toFixed(2) + '%';
@@ -82,18 +88,25 @@ $('#cpHex').addEventListener('focus', () => $('#cpMask').classList.add('kb'));
 $('#cpHex').addEventListener('blur', () => { paintCP(); setTimeout(() => $('#cpMask').classList.remove('kb'), 240); });
 /* 面板与色相条：按下即取色，拖动连续取色（自己接管手势，不依赖系统能力） */
 function bindCPDrag(el, onPick) {
-  const pick = ev => {
-    const r = el.getBoundingClientRect();
-    onPick(clamp((ev.clientX - r.left) / r.width, 0, 1), clamp((ev.clientY - r.top) / r.height, 0, 1));
-  };
+  /* 面板在拖动期间不动，rect 按下时量一次就够；移动事件按帧合一次，
+     松手 flush() 把最后那一下补上，取到的颜色跟手指停下的位置一致 */
+  let rect = null;
+  const q = frameQueue(ev => {
+    if (!rect) return;
+    onPick(clamp((ev.clientX - rect.left) / rect.width, 0, 1),
+           clamp((ev.clientY - rect.top) / rect.height, 0, 1));
+  });
   el.addEventListener('pointerdown', ev => {
     cp.dragging = true;
+    rect = el.getBoundingClientRect();
     try { el.setPointerCapture(ev.pointerId); } catch (_) {}
-    pick(ev); ev.preventDefault();
+    q.push(ev); q.flush();                 // 按下即取色，别等到下一帧
+    ev.preventDefault();
   });
-  el.addEventListener('pointermove', ev => { if (cp.dragging) pick(ev); });
-  el.addEventListener('pointerup', () => { cp.dragging = false; });
-  el.addEventListener('pointercancel', () => { cp.dragging = false; });
+  el.addEventListener('pointermove', ev => { if (cp.dragging) q.push(ev); });
+  const end = () => { cp.dragging = false; q.flush(); rect = null; };
+  el.addEventListener('pointerup', end);
+  el.addEventListener('pointercancel', end);
 }
 bindCPDrag($('#cpSV'), (x, y) => { cp.s = x; cp.v = 1 - y; paintCP(); });
 bindCPDrag($('#cpHue'), x => { cp.h = Math.round(x * 360); paintCP(); });

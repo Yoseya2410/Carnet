@@ -61,7 +61,11 @@
   --app-bg:linear-gradient(168deg,#fbfbfa 0%,#f2f1ef 46%,#eceae7 100%);
   --bg1:#9aa0bb; --bg2:#767c99; --bg3:#565c7a;
   --ink:#2b2f3d; --paper:#fffdf8; --line:#dfe3ee;
-  --accent:#e0668a; --glass:rgba(255,255,255,.14);
+  /* 强调色统一走黑白：--accent 用在纸面 / 浅底，--accent-on-dark 是同一语义在
+     深色毛玻璃面板上的反色（黑色压在深底上会看不见），主按钮用两者之间的渐变。
+     改强调色只动这三个值；调色板里用户可选的粉色属于内容色，不在这里。 */
+  --accent:#111318; --accent-2:#3b404c; --accent-on-dark:#f2f2f6;
+  --glass:rgba(255,255,255,.14);
   --glass-bd:rgba(255,255,255,.22);
   /* 毛玻璃：所有弹窗面板 / 下拉菜单 / 底栏按键统一用这一套。
      底色带一点深色（而不是纯白），白字在任意背景图上才读得清；改浓淡只动 --frost 的 alpha。 */
@@ -128,7 +132,7 @@ button{font-family:inherit;border:none;background:none;color:inherit;cursor:poin
 
 /* ============ 输入框 / 选区的统一手感 ============ */
 ::placeholder{color:rgba(255,255,255,.40);opacity:1}
-::selection{background:rgba(224,102,138,.45);color:#fff}
+::selection{background:rgba(17,19,24,.82);color:#fff}
 /* 键盘走查时给个看得见的焦点圈，鼠标点不出现（:focus-visible 只在键盘聚焦时命中）。
    只给 outline —— 别顺手改 border-radius，那会真的把元素本身的圆角改掉 */
 :focus-visible{outline:2px solid rgba(255,255,255,.72);outline-offset:2px}

@@ -16,7 +16,7 @@
  *
  * 说明：模块间共用全局作用域，加载顺序即依赖顺序（见 index.html 与 README）。
  * ===================================================================== */
-const sts = { open: false, pid: 0, built: false, out: null, tab: 'note' };
+const sts = { open: false, pid: 0, built: false, tab: 'note' };
 
 /* ==================== 素材 ==================== */
 /* ---- 装饰胶带：120×30 的一条，两头是撕开的锯齿边，花纹裁在带子里 ---- */
@@ -267,17 +267,8 @@ function renderMinePane() {
     </button>`).join('');
   if (empty) empty.style.display = lib.length ? 'none' : '';
 }
-function stArmOutside() {
-  stDisarmOutside();
-  sts.out = ev => {
-    if (ev.target.closest && ev.target.closest('#stsheet, #eflowTop, .cp-mask, #addMenu')) return;
-    closeStickerSheet();
-  };
-  document.addEventListener('pointerdown', sts.out, true);
-}
-function stDisarmOutside() {
-  if (sts.out) { document.removeEventListener('pointerdown', sts.out, true); sts.out = null; }
-}
+function stArmOutside() { armSheetOutside('#stsheet', closeStickerSheet); }
+function stDisarmOutside() { disarmSheetOutside(); }
 function openStickerSheet(pid) {
   const j = cur(); if (!j || !j.pages[pid]) return;
   closeAddMenu();
@@ -295,8 +286,7 @@ function openStickerSheet(pid) {
   stTab(sts.tab === 'draw' ? 'mine' : (sts.tab || 'note'));   // 旧档位 draw 已下线，落到「我的贴纸」
   renderMinePane();
   updateEflow();
-  requestAnimationFrame(() => { sheetLayout(); layoutBook(); });
-  setTimeout(() => { sheetLayout(); layoutBook(); }, 340);
+  scheduleSheetLayout();
   stArmOutside();
 }
 function closeStickerSheet() {

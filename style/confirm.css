@@ -19,11 +19,11 @@
 }
 .confirm-box .ci{
   width:44px;height:44px;margin:0 auto 12px;border-radius:50%;display:grid;place-items:center;
-  background:rgba(224,102,138,.16);border:1px solid rgba(224,102,138,.4);color:var(--accent);font-size:20px
+  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.28);color:var(--accent-on-dark);font-size:20px
 }
 .confirm-box h3{margin:0 0 8px;font-size:16px;font-weight:600;letter-spacing:.04em}
 .confirm-box p{margin:0 0 18px;font-size:13px;opacity:.72;line-height:1.7;word-break:break-word}
 .confirm-actions{display:flex;gap:10px}
 .confirm-actions .btn{padding:11px;font-size:14px}
-.confirm-actions .btn.danger{background:rgba(224,102,138,.16);border:1px solid rgba(224,102,138,.44);color:#ff92ab}
+.confirm-actions .btn.danger{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.34);color:var(--accent-on-dark)}
 

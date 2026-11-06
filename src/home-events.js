@@ -110,6 +110,13 @@ function shelfTouched(i) {
 }
 
 /* ==================== 书架拖动排序 ==================== */
+/* 多层 / 单层书架的 pointermove 与 touchmove 共用一条逐帧队列：
+   一帧只更新一次悬浮副本与命中判定（原来来一个事件就量一堆 rect 再写一堆 transform）。
+   抬手前 flush() 补上攒着没画的最后一点位移，落位不会差一截。 */
+const sortMoveQ = frameQueue(v => {
+  if (v.spine) spineSortPointer(v.x, v.y);
+  else shelfSortPointer(v.x, v.y);
+});
 function shelfBeginSort(item, x, y) {
   const i = +item.dataset.i;
   if (!Number.isFinite(i) || state.journals.length < 2) return false;
@@ -128,7 +135,8 @@ function shelfBeginSort(item, x, y) {
     at: i, from: i, el: item,
     selJ: state.journals[state.sel], // 记住选中的是哪一本，重排后跟着走
     ghost, gdx: x - r.left, gdy: y - r.top,
-    sx: x, sy: y, px: x, py: y, moved: false, raf: 0, flipRaf: 0, slots: null
+    sx: x, sy: y, px: x, py: y, moved: false, raf: 0, flipRaf: 0, slots: null,
+    rect: wrap.getBoundingClientRect()   // 拖动期间容器几何不变，边缘自动滚动只量这一次
   };
   shelfSort.slots = shelfMeasureSlots();
   wrap.classList.add('sorting');
@@ -233,7 +241,7 @@ function shelfRenderSort(prev) {
 function shelfHitTest(x, y) {
   const s = shelfSort; if (!s || !s.slots) return;
   const wrap = $('#shelfWrap');
-  const wr = wrap.getBoundingClientRect();
+  const wr = s.rect;                     // 拖动开始时量过的容器位置，滚动改的是 scrollTop
   const px = x - wr.left + wrap.scrollLeft, py = y - wr.top + wrap.scrollTop;
   let j = -1;
   for (let k = 0; k < s.slots.length; k++) {
@@ -252,7 +260,7 @@ function shelfSortTick() {
   const s = shelfSort;
   if (!s) return;
   const wrap = $('#shelfWrap');
-  const r = wrap.getBoundingClientRect();
+  const r = s.rect;                        // 缓存的容器位置，滚动的是内容、盒子本身不动
   const edge = Math.min(78, r.height * 0.28);
   let d = 0;
   if (s.py < r.top + edge) d = -Math.min(1, (r.top + edge - s.py) / edge);
@@ -284,11 +292,11 @@ function shelfTouchMoveGuard(e) {
   if (e.cancelable) e.preventDefault();
   const t = e.touches && e.touches[0];
   if (!t) return;
-  if (shelfSort) shelfSortPointer(t.clientX, t.clientY);
-  else spineSortPointer(t.clientX, t.clientY);
+  sortMoveQ.push({ x: t.clientX, y: t.clientY, spine: !!spineSort });
 }
 document.addEventListener('touchmove', shelfTouchMoveGuard, { passive: false });
 function shelfEndSort() {
+  sortMoveQ.flush();                     // 补上最后一次移动，s.at / s.slots 才是松手时的位置
   const s = shelfSort; shelfSort = null;
   if (!s) return;
   if (s.raf) cancelAnimationFrame(s.raf);
@@ -357,13 +365,13 @@ $('#shelfWrap').addEventListener('pointerup', () => {
 $('#shelfWrap').addEventListener('pointercancel', () => { clearTimeout(shelfHold.timer); shelfHold.el = null; });
 window.addEventListener('pointermove', e => {
   if (spineSort) {                       // 单层书架：拖动时别让书排跟着滚
-    e.preventDefault();
-    spineSortPointer(e.clientX, e.clientY);
+    e.preventDefault();                  // 拦滚动必须同步做，位置更新才交给逐帧队列
+    sortMoveQ.push({ x: e.clientX, y: e.clientY, spine: true });
     return;
   }
   if (!shelfSort) return;
   e.preventDefault();                    // 拖动时别让页面 / 书架跟着滚
-  shelfSortPointer(e.clientX, e.clientY);
+  sortMoveQ.push({ x: e.clientX, y: e.clientY, spine: false });
 }, { passive: false });
 window.addEventListener('pointerup', () => {
   if (spineSort) spineEndSort();
@@ -492,7 +500,8 @@ function spineBeginSort(item, x, y) {
     at: i, from: i, el: item,
     selJ: state.journals[state.sel], // 记住选中的是哪一本，重排后跟着走
     ghost, gdx: x - r.left, gdy: y - r.top,
-    sx: x, sy: y, px: x, py: y, moved: false, raf: 0, flipRaf: 0, slots: spineMeasureSlots()
+    sx: x, sy: y, px: x, py: y, moved: false, raf: 0, flipRaf: 0, slots: spineMeasureSlots(),
+    rect: $('#spineScroll').getBoundingClientRect()  // 横滑时容器不动，边缘判定复用这一份
   };
   spineSetHover(-1);                 // 拖起来的时候不要有预览挡着
   $('#spineWrap').classList.add('sorting');
@@ -536,7 +545,7 @@ function spineRenderSort(prev) {
 function spineHitTest(x) {
   const s = spineSort; if (!s || !s.slots) return;
   const sc = $('#spineScroll');
-  const sr = sc.getBoundingClientRect();
+  const sr = s.rect;                     // 同上：横滑改的是 scrollLeft，盒子位置不变
   const px = x - sr.left + sc.scrollLeft;
   let j = -1;
   for (let k = 0; k < s.slots.length; k++) {
@@ -564,7 +573,7 @@ function spineSortTick() {
   const s = spineSort;
   if (!s) return;
   const sc = $('#spineScroll');
-  const r = sc.getBoundingClientRect();
+  const r = s.rect;                        // 缓存的容器位置
   const edge = Math.min(70, r.width * 0.2);
   let d = 0;
   if (s.px < r.left + edge) d = -Math.min(1, (r.left + edge - s.px) / edge);
@@ -585,6 +594,7 @@ function spineSortPointer(x, y) {
   if (!s.raf) s.raf = requestAnimationFrame(spineSortTick);
 }
 function spineEndSort() {
+  sortMoveQ.flush();                     // 补上最后一次移动，松手落在哪一格要按它算
   const s = spineSort; spineSort = null;
   if (!s) return;
   if (s.raf) cancelAnimationFrame(s.raf);
@@ -702,6 +712,8 @@ $('#spineWrap').addEventListener('keydown', e => {
 /* 书排横滑时下方预览要跟着那根书脊走（偏移量是照着实时位置算的）。
    ⚠️ 滑动中临时关掉对位过渡：否者预览会比书脊慢半拍，快速一甩能看到它在后面追 */
 let spineShiftTimer = 0;
+/* 横滑时预览对位要量 3 次布局，逐帧做一次就够 */
+const spineShiftQ = frameQueue(() => spineDetailShift());
 $('#spineScroll').addEventListener('scroll', () => {
   const d = $('#spineDetail');
   if (d) {
@@ -709,7 +721,7 @@ $('#spineScroll').addEventListener('scroll', () => {
     clearTimeout(spineShiftTimer);
     spineShiftTimer = setTimeout(() => d.classList.remove('sliding'), 160);
   }
-  spineDetailShift();
+  spineShiftQ.push();
 }, { passive: true });
 /* 鼠标竖滚轮也能带动超出屏幕的单排书，手机上则直接横向滑 */
 $('#spineScroll').addEventListener('wheel', e => {
@@ -728,11 +740,11 @@ $$('#viewToggle button').forEach(btn => {
    书架已经吃满整屏高度，滑动的这一下屏幕上就只剩书 */
 (function floatBarsAway() {
   const home = $('#home');
-  let timer = 0;
+  let timer = 0, away = false;
   $('#shelfWrap').addEventListener('scroll', () => {
-    home.classList.add('bars-away');
+    if (!away) { home.classList.add('bars-away'); away = true; }  // 已在让位就别再写 class
     clearTimeout(timer);
-    timer = setTimeout(() => home.classList.remove('bars-away'), 480);
+    timer = setTimeout(() => { home.classList.remove('bars-away'); away = false; }, 480);
   }, { passive: true });
 })();
 /* ==================== 通用确认弹窗 ==================== */
@@ -809,7 +821,9 @@ function renderSearch(q) {
 }
 $('#searchBtn').onclick = () => toggleSearch(!$('#searchPanel').classList.contains('show'));
 $('#searchClose').onclick = () => toggleSearch(false);
-$('#searchInput').oninput = e => renderSearch(e.target.value);
+/* 每敲一个字都重建整列结果（含每本封面）太重，按帧合一次，手感不变 */
+const searchQ = frameQueue(q => renderSearch(q));
+$('#searchInput').oninput = e => searchQ.push(e.target.value);
 document.addEventListener('pointerdown', e => {
   if (!$('#searchPanel').classList.contains('show')) return;
   if (e.target.closest('#searchPanel') || e.target.closest('#searchBtn')) return;

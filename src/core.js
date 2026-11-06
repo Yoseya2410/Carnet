@@ -5,8 +5,9 @@
  * ② 输入法弹起时锁定应用高度（底栏不被顶起、编辑文字时跟随抬起）
  * ③ 底栏高度记在 window.__syncBotBar / __kbHeight 上，text-sticker 会读
  * ④ 关面板后抑制翻页的统一记号 markFlipSuppressed / flipSuppressed
+ * ⑤ 高频事件逐帧合帧 frameQueue（拖动 / 滑块 / 滚动 / 输入共用一份）
  *
- * 对外接口：$, $$, uid, clamp, enc, esc, shade, markFlipSuppressed, flipSuppressed
+ * 对外接口：$, $$, uid, clamp, enc, esc, shade, markFlipSuppressed, flipSuppressed, frameQueue
  *
  * 依赖模块：无
  *
@@ -95,14 +96,38 @@
     window.visualViewport.addEventListener('resize', syncBars);
     window.visualViewport.addEventListener('scroll', syncBars);
   }
-  /* 键盘升起有动画，多加几次延迟重试，抬升才跟得上最终高度 */
-  const later = fn => { setTimeout(fn, 60); setTimeout(fn, 220); setTimeout(fn, 460); setTimeout(fn, 700); };
+  /* 键盘升起有动画，多加几次延迟重试，抬升才跟得上最终高度。
+     focusin / focusout 常常连着来，用同一组定时器去重，别叠成 8 个回调 */
+  let kbTimers = [];
+  const later = fn => {
+    kbTimers.forEach(clearTimeout);
+    kbTimers = [60, 220, 460, 700].map(ms => setTimeout(fn, ms));
+  };
   document.addEventListener('focusin', () => later(syncBars));
   document.addEventListener('focusout', () => later(syncBars));
   document.addEventListener('focusout', () => setTimeout(sync, 60));
 })();
 
 /* ==================== 工具 ==================== */
+/* ---- 高频回调逐帧合帧：全项目只此一份 ----
+   pointermove / scroll / input 一秒能来上百次，来一次就同步写样式 + 读布局，
+   主线程直接被堵住，拖动就一顿一顿的。push() 只记住最后一次的值，下一帧统一跑 fn；
+   收尾调 flush() 把攒着没画的那一帧补上，位置 / 色值一点不丢。
+   cancel() 用于手势中途作废（比如面板关了）。 */
+function frameQueue(fn) {
+  let raf = 0, last = null, has = false;
+  const run = () => {
+    raf = 0;
+    if (!has) return;
+    const v = last; last = null; has = false;
+    fn(v);
+  };
+  return {
+    push(v) { last = v; has = true; if (!raf) raf = requestAnimationFrame(run); },
+    flush() { if (raf) { cancelAnimationFrame(raf); raf = 0; } if (has) run(); },
+    cancel() { if (raf) { cancelAnimationFrame(raf); raf = 0; } last = null; has = false; }
+  };
+}
 /* ---- 「刚退出某个面板」的统一记号 ----
    关掉文字编辑面板 / 底色面板 /「＋」菜单的那一下，手指往往还落在纸面上，
    紧接着抬起的 pointerup 不该被当成「翻页」或「点选」。

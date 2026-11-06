@@ -30,13 +30,13 @@
 .text-input{
   width:100%;padding:11px 14px;border-radius:12px;font-size:14.5px;
   background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);color:#fff;outline:none;
-  /* 聚焦时不只是换边框色，再套一圈很淡的粉色光晕 —— 一眼看得出光标在哪 */
+  /* 聚焦时不只是换边框色，再套一圈很淡的白色光晕 —— 一眼看得出光标在哪 */
   transition:border-color .2s ease,background .2s ease,box-shadow .2s ease
 }
 .text-input:hover{border-color:rgba(255,255,255,.26)}
 .text-input:focus{
-  border-color:var(--accent);background:rgba(255,255,255,.13);
-  box-shadow:0 0 0 3px rgba(224,102,138,.18)
+  border-color:var(--accent-on-dark);background:rgba(255,255,255,.13);
+  box-shadow:0 0 0 3px rgba(255,255,255,.16)
 }
 /* 页数那种 number 输入框：去掉右侧原生小箭头，跟其它输入框一个样 */
 .text-input[type=number]{-moz-appearance:textfield;appearance:textfield}
@@ -58,7 +58,7 @@
 .swatch.ribbon-none{background:linear-gradient(135deg,#fbfbfd 46%,#c9cdda 54%)}
 .swatch.ribbon-none::after{
   content:"";position:absolute;left:15%;right:15%;top:50%;height:2px;margin-top:-1px;
-  background:#e0668a;border-radius:2px;transform:rotate(-45deg)
+  background:var(--accent);border-radius:2px;transform:rotate(-45deg)
 }
 /* 可折叠的小节（封面图案）：标题带三角指示，收起时正文整块隐藏 */
 /* 用 .fold-sec .fold-head 提高优先级，盖过 .modal label 的 display:block */

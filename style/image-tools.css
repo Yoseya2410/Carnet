@@ -22,8 +22,9 @@
 .paper::after{content:"";position:absolute;inset:0;pointer-events:none;background:none}
 .tplbg{position:absolute;inset:var(--pmy) var(--pmx);background-repeat:repeat;background-position:0 0;pointer-events:none}
 .paper.t-lined .tplbg{
+  /* 单元高度 = 渐变周期 28px，平铺时相位连续，首两行不会错开（详见 visuals.js 的 tplStyle） */
   background-image:repeating-linear-gradient(transparent 0,transparent 27px,#dfe3ee 27px,#dfe3ee 28px);
-  background-position:0 34px;
+  background-size:100% 28px;
 }
 /* 横线模板那条红边线（版心左界）：跟着页边留白一起往里挪，别压在空白边上 */
 .paper.t-lined::before{content:"";position:absolute;left:calc(var(--pmx) + 12px);top:0;bottom:0;width:1px;background:#eab7c2;opacity:.8}
@@ -35,7 +36,7 @@
 .paper.t-kraft,.paper.t-kraftplain{background:linear-gradient(160deg,#ecdec4,#e0cfae)}
 .paper.t-kraft .tplbg{
   background-image:repeating-linear-gradient(transparent 0,transparent 27px,rgba(120,96,64,.22) 27px,rgba(120,96,64,.22) 28px);
-  background-position:0 34px;opacity:.9
+  background-size:100% 28px;opacity:.9
 }
 /* —— 跨页拖迁：对象落到这一页时给纸描一道内描边 ——
    双页摊开时把图片 / 文字拖过中缝，它会搬进另一页；落点要有看得见的回应，

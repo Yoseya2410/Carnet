@@ -500,11 +500,15 @@ const TEMPLATES = [
 ];
 function tplStyle(k) {
   switch (k) {
-    case 'lined': return 'background-image:repeating-linear-gradient(transparent 0,transparent 27px,#dfe3ee 27px,#dfe3ee 28px);background-position:0 34px;';
+    /* 横线 / 牛皮纸横线：平铺单元必须正好等于一个渐变周期（28px）。
+       原来只写了 background-position:0 34px，单元高度却跟着元素高度走（不是 28 的整数倍），
+       顶部那一截由上一个单元的尾部补上，接缝处首两条线间距变成 39px，后面才是 28px。
+       撤掉偏移、把单元锁死成 28px，所有线严格等距；页边留白已由 .tplbg 的 --pmy 负责。 */
+    case 'lined': return 'background-image:repeating-linear-gradient(transparent 0,transparent 27px,#dfe3ee 27px,#dfe3ee 28px);background-size:100% 28px;';
     case 'grid': return 'background-image:linear-gradient(#e8ebf3 1px,transparent 1px),linear-gradient(90deg,#e8ebf3 1px,transparent 1px);background-size:23px 23px;';
     case 'dots': return 'background-image:radial-gradient(#d2d8e8 1.35px,transparent 1.45px);background-size:20px 20px;';
     /* kraftplain 空白牛皮纸不画纹理，底色由 .paper.t-kraftplain 提供 */
-    case 'kraft': return 'background-image:repeating-linear-gradient(transparent 0,transparent 27px,rgba(120,96,64,.22) 27px,rgba(120,96,64,.22) 28px);background-position:0 34px;';
+    case 'kraft': return 'background-image:repeating-linear-gradient(transparent 0,transparent 27px,rgba(120,96,64,.22) 27px,rgba(120,96,64,.22) 28px);background-size:100% 28px;';
     default: return '';
   }
 }

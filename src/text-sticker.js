@@ -10,9 +10,10 @@
  * ⑥ 对象工具条自动避让 fitObjBar：贴边 / 顶栏 / 底栏 / 面板 / 键盘挡住时自己换个地方待
  *
  * 对外接口：openTextSheet, closeTextSheet, startTextEdit, stopTextEdit, commitTextEdit, pageBusy,
- *           syncBar, fitObjBar, refitObjBars, syncTextSizeUI, fitTextBox, fitTextHeight,
+ *           syncBar, fitObjBar, refitObjBars, syncTextSizeUI, fitTextBox,
  *           refitVisibleTexts, updateEflow, sheetLayout,
- *           isSideSheet, resetSheetSpace, anySheetOpen, openSheetEl
+ *           isSideSheet, resetSheetSpace, openSheetEl,
+ *           armSheetOutside, disarmSheetOutside, scheduleSheetLayout
  *
  * 依赖模块：core, state, visuals（widgets / scrub / page-bg 后置，只在运行时调用）
  *
@@ -388,7 +389,30 @@ function syncTextSizeUI(iid) {
    同一时刻只会开一张，但「有没有开」这一问在好几处都要用，集中成一句话 */
 const SHEET_SELS = ['#tsheet', '#bgsheet', '#frsheet', '#stsheet'];
 function openSheetEl() { for (const s of SHEET_SELS) { const el = $(s); if (el && !el.hidden) return el; } return null; }
-function anySheetOpen() { return !!openSheetEl() || !!$('.ptext-wrap.editing'); }
+/* ---- 四张底部面板共用的两块样板 ----
+   ① 点面板外面就收：同一时刻只会开一张，所以全项目只挂一个捕获监听，
+      不再每个面板各存一份 handler 各自绑定 / 摘除；
+   ② 面板升起动画期间要量两次布局（起手一帧 + 动画走完 340ms）。
+      中途已经关掉的面板不必再重排一遍 —— 关闭处已经 layoutBook 过了。 */
+let sheetOutside = null;
+function armSheetOutside(sel, close) {
+  disarmSheetOutside();
+  sheetOutside = ev => {
+    if (ev.target.closest && ev.target.closest(sel + ', #eflowTop, .cp-mask, #addMenu')) return;
+    close();
+  };
+  document.addEventListener('pointerdown', sheetOutside, true);
+}
+function disarmSheetOutside() {
+  if (sheetOutside) { document.removeEventListener('pointerdown', sheetOutside, true); sheetOutside = null; }
+}
+function scheduleSheetLayout(first, last) {
+  requestAnimationFrame(() => { sheetLayout(); layoutBook(); if (first) first(); });
+  setTimeout(() => {
+    if (openSheetEl()) { sheetLayout(); layoutBook(); }
+    if (last) last();
+  }, 340);
+}
 /* ---- 横屏：面板从「贴底升起」改成「右侧挂一竖条」 ----
    书是竖的、横屏卡的恰恰是高度，面板贴底会把这本来就不多的高度吃掉一大半，
    书被压成一条（layoutBook 拿到的 availH 只剩一点点）。横屏宽度反而富余，
@@ -486,8 +510,9 @@ function openTextSheet(pid, iid, focus) {
   updateEflow();
   /* 面板撑开会把纸压小（layoutBook 会避开它），纸一缩工具条就得重新挑位置，
      文字贴的贴合尺寸也跟着纸重贴一遍（字号是 --pw 的百分比，比例不变，但实量一次更稳） */
-  requestAnimationFrame(() => { sheetLayout(); layoutBook(); refitVisibleTexts(); refitObjBars(); });
-  setTimeout(() => { sheetLayout(); layoutBook(); refitVisibleTexts(); refitLater(); }, 340);
+  scheduleSheetLayout(
+    () => { refitVisibleTexts(); refitObjBars(); },
+    () => { refitVisibleTexts(); refitLater(); });
   if (focus) setTimeout(() => { const i = $('#tsInput'); if (i) { i.focus(); shGrowInput(); } }, 60);
   syncTextBar();
 }
@@ -519,6 +544,10 @@ function closeTextSheet(commit) {
   renderReader();
 }
 /* ---- 面板：一次建好，之后只切选中态 ---- */
+/* 打字 / 拖字号时每敲一下都要「写 textarea 高度 → 读 scrollHeight → 克隆文字量框 →
+   刷整块面板」。按帧合一次，纸面照样跟手，主线程不再被连续输入堵住。
+   面板收尾会按最新数据整页重绘（closeTextSheet / stopTextEdit），所以不必 flush。 */
+const shPaintQ = frameQueue(() => { shGrowInput(); shPaint(); });
 function shTab(name) {
   sh.tab = name || 'font';
   $$('#tsTabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === sh.tab));
@@ -595,7 +624,7 @@ function buildSheet() {
     if (!t) return;
     t.size = +rg.value;
     $('#tsSizeVal').textContent = (t.size / 100 * (state.pw || PAGE_W_DEFAULT)).toFixed(1) + 'px';
-    save(); shPaint();
+    save(); shPaintQ.push();
   });
   if (rg) rg.addEventListener('change', () => { const t = shCur(); if (t) shPush('size'); });
   /* 正文输入：边打边画回纸面，800ms 内的连续输入合并成一步撤销 */
@@ -604,8 +633,7 @@ function buildSheet() {
     const t = shCur(); if (!t) return;
     t.text = inp.value;
     save();
-    shGrowInput();
-    shPaint();
+    shPaintQ.push();
     shPush('text');
   });
   inp.addEventListener('focus', () => setTimeout(shKb, 60));
@@ -747,8 +775,6 @@ function fitTextBox(w, el, growOnly, tObj) {
   if (changed && window.__syncTypeShift) window.__syncTypeShift();
   return changed;
 }
-/* 旧名字留个入口：以前只管高度，现在宽高一起贴 */
-function fitTextHeight(w, el, growOnly) { return fitTextBox(w, el, growOnly); }
 /* 当前摊开的两页里所有文字贴重新贴一遍：布局变了 / 字体到位了都用它。
    手势或行内打字正在进行时别插一杠子（会打断输入）。 */
 function refitVisibleTexts() {
@@ -807,7 +833,8 @@ function startTextEdit(w, pid, iid, pt) {
   });
   /* 打字时框跟着内容走：长了跟着长，删掉几行也跟着收回去。
      内容高度现在是「放开 height 后实量的」，不会自己越长越大，所以两头都收是安全的 */
-  w.__onInput = () => fitTextBox(w, el, false);
+  w.__fitQ = frameQueue(() => fitTextBox(w, el, false));
+  w.__onInput = () => w.__fitQ.push();
   el.addEventListener('input', w.__onInput);
   // 点纸面空白处不会触发 contentEditable 的 blur，得自己兜住
   // 编辑面板上的按键自己会保住焦点，不能在这里先提交掉
@@ -831,6 +858,8 @@ function stopTextEdit(w, commit, noRender) {
   if (w.__docDown) { document.removeEventListener('pointerdown', w.__docDown, true); w.__docDown = null; }
   const el = w.querySelector('.ptxt');
   if (el && w.__onInput) { el.removeEventListener('input', w.__onInput); w.__onInput = null; }
+  /* 收尾会同步贴一次框并重绘整页，排队中的那一帧直接丢掉，别重复量布局 */
+  if (w.__fitQ) { w.__fitQ.cancel(); w.__fitQ = null; }
   w.classList.remove('editing', 'adjust', 'sel');
   w.classList.add('locked');                       // 编辑完文字默认自动固定
   if (el) {

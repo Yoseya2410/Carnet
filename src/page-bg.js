@@ -15,7 +15,7 @@
  *
  * 说明：模块间共用全局作用域，加载顺序即依赖顺序（见 index.html 与 README）。
  * ===================================================================== */
-const bgs = { open: false, pid: 0, built: false, out: null, orig: '', pick: '' };
+const bgs = { open: false, pid: 0, built: false, orig: '', pick: '' };
 
 /* 真正落盘：v 是 hex 就写 pg.bg，'' 就是「这一页不自带颜色、沿用整本 / 模板」 */
 function writePageBg(pid, v) {
@@ -92,17 +92,8 @@ function syncBgSheet() {
   if (done) done.classList.toggle('on', !!pick && pick !== bgs.orig);
 }
 /* 点面板外面（纸面 / 顶栏）就收面板；面板自己、左上角完成、取色盘、菜单都算「里面」 */
-function bgArmOutside() {
-  bgDisarmOutside();
-  bgs.out = ev => {
-    if (ev.target.closest && ev.target.closest('#bgsheet, #eflowTop, .cp-mask, #addMenu')) return;
-    closeBgSheet();                                // 点外面 = 取消：没按完成就不落盘
-  };
-  document.addEventListener('pointerdown', bgs.out, true);
-}
-function bgDisarmOutside() {
-  if (bgs.out) { document.removeEventListener('pointerdown', bgs.out, true); bgs.out = null; }
-}
+function bgArmOutside() { armSheetOutside('#bgsheet', closeBgSheet); }
+function bgDisarmOutside() { disarmSheetOutside(); }
 function openBgSheet(pid) {
   const j = cur(); if (!j || !j.pages[pid]) return;
   closeAddMenu();                                 // 菜单让位：面板是全宽的底部弹窗
@@ -121,8 +112,7 @@ function openBgSheet(pid) {
   sheet.hidden = false;
   syncBgSheet();
   updateEflow();
-  requestAnimationFrame(() => { sheetLayout(); layoutBook(); });
-  setTimeout(() => { sheetLayout(); layoutBook(); }, 340);   // 升起动画走完再量一次
+  scheduleSheetLayout();
   bgArmOutside();
 }
 function closeBgSheet() {

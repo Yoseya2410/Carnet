@@ -21,7 +21,7 @@
 .ptext-wrap.editing{outline:1.5px dashed var(--accent);outline-offset:3px;z-index:7;cursor:text}
 .ptext-wrap.editing .ptxt{
   cursor:text;user-select:text;-webkit-user-select:text;touch-action:auto;
-  box-shadow:0 0 0 1px rgba(224,102,138,.38);background:rgba(255,255,255,.55);
+  box-shadow:0 0 0 1px rgba(17,19,24,.32);background:rgba(255,255,255,.55);
   overflow:auto;overscroll-behavior:contain
 }
 /* 双击进来的编辑态：四角手柄 + 旋转手柄 + 上方工具条全都在 ——

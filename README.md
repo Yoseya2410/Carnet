@@ -36,7 +36,7 @@ npx serve .
 Carnet/
 ├─ index.html          # 唯一的页面：结构骨架 + 按顺序引入所有模块
 ├─ src/                #  JavaScript 模块（27 个，见下一节）
-├─ style/              #  CSS 模块（19 个，见下文）
+├─ style/              #  CSS 模块（20 个，见下文）
 ├─ example/            #  示例手帐本文件，首次使用时自动导入
 │   ├─ manifest.json   #   文件清单（服务器没开目录列表时的兜底）
 │   └─ *.json          #   导出的手帐本
@@ -69,7 +69,7 @@ index.html
 
 | # | 文件 | 行数 | 职责 | 依赖 |
 |---|---|---|---|---|
-| 1 | `core.js` | 128 | 通用工具 `$ / $$ / uid / clamp / enc / esc / shade`；输入法弹起时锁定应用高度（底栏不被顶起，编辑文字时底栏跟着抬起）、编辑中把页面抬到键盘上方；`window.__kbHeight()` 对外暴露当前键盘高度（编辑面板据此把自己顶上去） | 无 | |
+| 1 | `core.js` | 128 | 通用工具 `$ / $$ / uid / clamp / enc / esc / shade`、**高频事件逐帧合帧 `frameQueue`**；输入法弹起时锁定应用高度（底栏不被顶起，编辑文字时底栏跟着抬起）、编辑中把页面抬到键盘上方；`window.__kbHeight()` 对外暴露当前键盘高度（编辑面板据此把自己顶上去） | 无 | |
 | 2 | `visuals.js` | 517 | 封面与纸面的视觉素材：三角（等边三角网格镶嵌，角对角共用顶点；只画尖朝上的一半，尖朝下那块留空全透明、直接透出封面底色）/圆/星/心/小花（三角网格密排，贴片 64×110.85，四角+中心各一朵）/叶 SVG 图案、封面明暗 `coverLum`、图案层 `patternLayers / faceLayers`（有封面图片时不叠图案）；色板 `COLORS / GRADS / RIBBONS / PAT_COLORS`（彩带含「透明」档 `RIBBON_NONE`，书脊背景走 `ribbonSpine`）与内页模板 `TEMPLATES`；文字贴用的 4 档中文字体 `TEXT_FONTS`（手写/楷/宋/默认；**黑体 2026-10-02 撤掉**，老数据里的 `'hei'` 靠 `FONT_ALIAS` 落到「默认字体」）、8 档英文字体 `EN_FONTS`（前 4 档系统字体 + 后 4 档项目自带 woff2：Courier Prime / Cutive Mono / Pixelify Sans / Special Elite；**一律不带通用族、字体名用单引号且必须成对**——栈末多一个引号会让整条 `font-family` 作废，宋体/黑体就是这么废掉的；英文栈排在中文字体**前面**；自带字体那几档多带 `face`（导出内嵌用）与 `fallback`（内嵌失败时的近似系统字体链））、7 档文字色 `TEXT_COLORS`、6 档高亮色 `TEXT_BGS`；对象工具条图标 `OB_*_SVG`、旋转手柄上的转圈箭头 `ROT_SVG`；**内页底色**：九组「由浅到深」的色阶 `PAPER_RAMPS`、`normPaperBg`；**全项目共用的尺寸与阈值** `PAGE_RATIO`（默认内页 A5 = `210/148`）/ `PAGE_W_DEFAULT / LUM_DARK`（只认 `#rgb / #rrggbb`）、三级取值 `pageBgOf`（单页 > 整本 > 模板）、`pageBgStyle / pageBgDark`、**预览版 `pageBgShown / pageBgDarkShown`**（读到 `window.__bgPv` 就先按面板上正在挑的那一档画，`pg.bg` 不动）、任意色值的亮度 `hexLum` | core |；**装帧样式** `BOOK_STYLES / normBookStyle / bookStyleOf / isRingStyle`（每档自带三个数：`asp` = 封面宽÷高、`pageAsp` = 内页宽÷高、`pageHScale` = 同比例展示时内页相对封面的高度 —— **笔记本 A5 148×210、活页封面 B6 125×176 而内页 95×170（比封面短 6mm）、方形画册 1:1**）、`pageRatioOf` / `coverRatioOf` / `pageHeightScaleOf`；**图片边框** `FRAMES / FRAME_COLORS / FRAME_DEFAULT_COLOR / normFrame / normHex6 / frameWidth / frameColor / frameBoxStyle / frameImgStyle / hasFrame`，`GRAIN_URL` 是屏幕与导出共用的那张噪点图 |
 | 3 | `storage.js` | 166 | IndexedDB 封装 `DB`（降级 localStorage）、防抖保存 `save()`；显示偏好 `prefs` 与背景读写 `setBg / applyBg`（同一份背景铺 `#home / #reader / body`，body 兜住画布露底）；**改名后旧键 → 新键的一次性迁移** `migrateLegacyStorage()` | core | |
 | 4 | `io-export.js` | 187 | 导出地基：稳定序列化 `stableStringify`、摘要 `checksum`、资产计数 `countAssets`；单本导出、「另存为 / 系统分享 / 下载」`deliverBlob`、`downloadBlob` | core, storage | |
@@ -129,7 +129,7 @@ index.html
 ### 文字贴：框紧贴内容 + 四角整块缩放（改 `text-sticker.js` / `page-edit.js` 前先看这里）
 
 文字贴的框是 `x/y/w/h`（占页比例），字是 `size`（`calc(var(--pw) * size/100)`）。
-早年只把**框高**对齐内容（`fitTextHeight`），宽度一直沿用 `newText` 的 `.56` 页宽 —— 短句右边空一大截；
+早年只把**框高**对齐内容（旧函数 `fitTextHeight`，已随整理删除），宽度一直沿用 `newText` 的 `.56` 页宽 —— 短句右边空一大截；
 四角拉伸又拿图片那套 `IMG_MIN_W / IMG_MIN_H`（都是 `.1`）去夹，一行字只有约 6% 页高，
 `IMG_MIN_H / oh` 一除就是 1.7 以上，**手指刚动 4px 整块就被强行放大到 1.7 倍**（「一拖就变得很大」）。
 现在两处都改掉了：
@@ -550,8 +550,16 @@ index.html
    先在本目录起 `python -m http.server 8777`，再 `node .workbuddy/_tmp_verify/_mod.js`
    （`playwright-core` 就装在同目录的 `node_modules` 里，不用额外设 `NODE_PATH`），
    结果写到同目录的 `_xxx_out.txt`。
-   `_enfonts.js`（8787）、`_fslink.js`（8788）、`_tbfit.js`（8792）自带静态服务，不用先起 8777，
-   直接 `node _enfonts.js` / `node _fslink.js` / `node _tbfit.js` 即可；前者带 `font/woff2` MIME。
+`_enfonts.js`（8787）、`_fslink.js`（8788）、`_tbfit.js`（8792）自带静态服务，不用先起 8777，
+直接 `node _enfonts.js` / `node _fslink.js` / `node _tbfit.js` 即可；前者带 `font/woff2` MIME。
+
+11. **高频事件一律走 `frameQueue()`**（在 `core.js`）：`pointermove / scroll / input / 滑块` 只 `push()`
+    最新值，重活一帧跑一次；手势收尾必须 `flush()` 补最后一帧（拖动落位、取色盘最终色值都靠它），
+    中途作废用 `cancel()`。别再各写一份 `let raf = 0` 的合帧器。
+    同理，四张底部面板的「点外面关闭」与「升起时量两次布局」共用 `text-sticker.js` 的
+    `armSheetOutside / disarmSheetOutside / scheduleSheetLayout`，新增面板照着接即可。
+    拖动期间容器 / 纸面的 `getBoundingClientRect()` 要在手势开始时量一次缓存下来，
+    滚动改的是 `scrollTop / scrollLeft`，盒子本身不动。
 
 ## 十一、已知事项
 

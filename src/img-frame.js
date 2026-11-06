@@ -15,7 +15,7 @@
  *
  * 说明：模块间共用全局作用域，加载顺序即依赖顺序（见 index.html 与 README）。
  * ===================================================================== */
-const frs = { open: false, pid: 0, iid: null, built: false, out: null };
+const frs = { open: false, pid: 0, iid: null, built: false };
 
 function frObj() {
   const j = cur(); if (!j) return null;
@@ -116,12 +116,15 @@ function buildFrSheet() {
   const w = $('#frWidth');
   if (w) {
     w.min = '1'; w.max = '100'; w.step = '1';
-    /* input 事件：拖的过程中实时画到纸上；change 只在松手时补一次存档 */
+    /* input 事件：拖的过程中实时画到纸上，但按帧合一次 ——
+       frApply 要重贴对象工具条 + 刷整块面板，来一个事件跑一遍会卡住手指 */
+    const q = frameQueue(v => pickFrameWidth(v));
     w.addEventListener('input', () => {
       const n = $('#frWidthVal');
-      if (n) n.textContent = w.value;
-      pickFrameWidth(w.value);
+      if (n) n.textContent = w.value;      // 数字本身很轻，即时跟手
+      q.push(w.value);
     });
+    w.addEventListener('change', () => q.flush());   // 松手补上最后那一下
   }
   const done = $('#frDone');
   if (done) done.onclick = closeFrameSheet;
@@ -172,17 +175,8 @@ function syncFrSheet() {
   if (hint) hint.textContent = (FRAMES.find(f => f.k === k) || FRAMES[0]).n;
 }
 /* 点面板外面就收面板（改动已经当场存过了，收面板 ≠ 撤销） */
-function frArmOutside() {
-  frDisarmOutside();
-  frs.out = ev => {
-    if (ev.target.closest && ev.target.closest('#frsheet, #eflowTop, .cp-mask, #addMenu')) return;
-    closeFrameSheet();
-  };
-  document.addEventListener('pointerdown', frs.out, true);
-}
-function frDisarmOutside() {
-  if (frs.out) { document.removeEventListener('pointerdown', frs.out, true); frs.out = null; }
-}
+function frArmOutside() { armSheetOutside('#frsheet', closeFrameSheet); }
+function frDisarmOutside() { disarmSheetOutside(); }
 function openFrameSheet(pid, iid) {
   const j = cur(); if (!j) return;
   const pg = j.pages[pid]; if (!pg) return;
@@ -200,8 +194,7 @@ function openFrameSheet(pid, iid) {
   sheet.hidden = false;
   syncFrSheet();
   updateEflow();
-  requestAnimationFrame(() => { sheetLayout(); layoutBook(); refitObjBars(); });
-  setTimeout(() => { sheetLayout(); layoutBook(); }, 340);
+  scheduleSheetLayout(refitObjBars);
   frArmOutside();
 }
 function closeFrameSheet() {

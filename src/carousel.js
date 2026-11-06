@@ -24,22 +24,41 @@ const carousel = (() => {
      translate / scale 走的是 transform，不参与布局，拖动过程中这两个数不会变。
      原来是边写 el.style.transform 边读 el.offsetWidth —— 写一次就强制重排一次，
      n 本书就是每帧 n 次重排，拖起来发涩全花在这上面。 */
-  let mets = [], wrapW = 0;
-  function measure() {
-    items = [...track.children];
+  let mets = [], wrapW = 0, lastK = [];
+  /* 只有「节点换了」或「视口变了」才重新量布局。
+     拖动松手 / 滚轮换本都会调 snap()，以前每次都把 n 本书的 offsetLeft / offsetWidth
+     读一遍 —— CSS transform 刚写完就同步读布局，是一次强制重排，落在松手那一下最明显。
+     书没换、视口没动时这些数一个都不会变，直接沿用。 */
+  function measure(force) {
+    const els = [...track.children];
+    const changed = force || els.length !== items.length || els.some((el, i) => el !== items[i]);
+    if (!changed) return;
+    items = els;
     wrapW = wrap.clientWidth;
     mets = items.map(el => ({ c: el.offsetLeft + el.offsetWidth / 2, w: el.offsetWidth }));
-    if (!items.length) { minOff = maxOff = 0; return; }
+    lastK = items.map(() => NaN);     // 节点重建过，下一帧必须全量写一次
+    minOff = maxOff = 0;
+    if (!items.length) return;
     maxOff = wrapW / 2 - mets[0].c;
     minOff = wrapW / 2 - mets[mets.length - 1].c;
     if (minOff > maxOff) { const t = minOff; minOff = maxOff; maxOff = t; }
   }
   function styleItems() {
-    const view = wrapW / 2 - off;
+    const view = wrapW / 2 - off, edge = wrapW / 2;
     for (let i = 0; i < items.length; i++) {
-      const m = mets[i];
-      const d = Math.abs(m.c - view) / Math.max(m.w * 1.25, 1);
-      const k = Math.max(0, 1 - d);
+      const m = mets[i], prev = lastK[i];
+      const span = Math.max(m.w * 1.25, 1);
+      const dist = Math.abs(m.c - view);
+      /* 屏幕外、且上次就已经是熄灭态：连除法都不必算。
+         中心点 / 宽度是布局值，transform 不影响它们，measure() 后一直有效。 */
+      if (dist > edge + span && prev === 0) continue;
+      const k = dist >= span ? 0 : 1 - dist / span;
+      /* 只写真正变了的书：拖动时绝大多数书 k 恒为 0，中心附近 1~2 本在变。
+         ⚠️ 阈值 .0002 是照着下面三个 toFixed 的精度算的 —— 小于它时
+         scale(4 位小数)、saturate / brightness(3 位小数) 三串都不会变，
+         跳过写 DOM 不会有任何像素差异，只是省掉字符串拼接与 CSSOM 写入。 */
+      if (Number.isFinite(prev) && Math.abs(k - prev) < .0002) continue;
+      lastK[i] = k;
       const el = items[i];
       el.style.transform = `scale(${(1 + 0.055 * k).toFixed(4)})`;
       el.style.filter = `saturate(${(0.86 + 0.14 * k).toFixed(3)}) brightness(${(0.94 + 0.06 * k).toFixed(3)})`;
@@ -61,7 +80,54 @@ const carousel = (() => {
     track.style.transition = animate ? EASE : 'none';
     items.forEach(el => el.style.transition = animate ? EASE + ',filter .46s ease' : 'none');
   }
+  /* ===== 松手惯性 =====
+     vel 的单位是 px/帧（pointermove 里已按 16.7ms 归一），摩擦按帧衰减。
+     以前松手是「算一个投影目标 → CSS 缓动一次跳过去」，快甩也只能跨两本，
+     手上没有"东西还在滑"的感觉。现在按初速逐帧滑行，末端仍吸附到最近一本。
+     惯性期间 track 的 transition 保持 'none'（pointerdown 的 ease(false) 设的），
+     每帧位移立即生效；只有收尾 snap() 才打开缓动补最后一点距离。 */
+  let inertRaf = 0, inertVel = 0, inertT = 0;
+  function stopInertia() {
+    if (inertRaf) { cancelAnimationFrame(inertRaf); inertRaf = 0; }
+    inertVel = 0; inertT = 0;
+  }
+  function nearestIndex() {
+    const view = wrapW / 2 - off;
+    let best = 0, bd = Infinity;
+    for (let i = 0; i < mets.length; i++) {
+      const d = Math.abs(mets[i].c - view);
+      if (d < bd) { bd = d; best = i; }
+    }
+    return best;
+  }
+  function settle() { stopInertia(); snap(nearestIndex(), true); }
+  function startInertia(v0) {
+    stopInertia();
+    inertVel = clamp(v0, -48, 48);
+    if (Math.abs(inertVel) < 1.2) { settle(); return; }
+    const step = now => {
+      inertRaf = 0;
+      const dt = inertT ? clamp((now - inertT) / 16.7, .5, 2) : 1;
+      inertT = now;
+      off += inertVel * dt;
+      /* 撞到两端：软回弹 + 快速泄速，不硬停 */
+      if (off > maxOff) { off -= (off - maxOff) * .22; inertVel *= .68; }
+      else if (off < minOff) { off += (minOff - off) * .22; inertVel *= .68; }
+      inertVel *= Math.pow(.94, dt);
+      paint();
+      const near = nearestIndex();
+      if (near !== state.sel) {          // 滑行中选中态 / 计数跟着走，点开时 cur() 也是这一本
+        state.sel = near;
+        items.forEach((el, k) => el.classList.toggle('active', k === near));
+        $('#countPill').textContent = `${near + 1} / ${items.length}`;
+      }
+      if (Math.abs(inertVel) < .35) { settle(); return; }
+      inertRaf = requestAnimationFrame(step);
+    };
+    inertRaf = requestAnimationFrame(step);
+  }
   function snap(i, animate) {
+    stopInertia();                       // 外部换本 / 滚轮 / 重排都要先掐掉惯性
     measure();
     if (!items.length) { track.style.transform = 'translate3d(0,0,0)'; return; }
     const idx = clamp(i, 0, items.length - 1);
@@ -87,8 +153,10 @@ const carousel = (() => {
     const bases = els.map(e => e.offsetLeft);
     const step = Math.abs(bases[1] - bases[0]) || el.offsetWidth;
     sorting = { el, els, bases, step, from, to: from, lastTo: from, startX: x,
-                x, dx: 0, scroll: 0, auto: 0, raf: 0, lastT: 0, dragged: false };
+                x, dx: 0, scroll: 0, auto: 0, raf: 0, lastT: 0, dragged: false,
+                wrapRect: wrap.getBoundingClientRect() };  // 拖动期间容器不动，边缘判定只量这一次
     dragging = false; vel = 0;                  // 交出横向滚动的控制权
+    stopInertia();
     wrap.classList.add('sortmode');
     el.classList.add('picked');
     buzz(12);
@@ -108,8 +176,19 @@ const carousel = (() => {
     const [lo, hi] = scrollRange(s);
     const speed = s.step * (1.8 + 2.2 * (s.depth || 0));   // 手指越贴边，送得越快
     s.scroll = clamp(s.scroll + s.auto * speed * dt, lo, hi);
-    applySort();
+    applySortNow();                           // 自动滚动本身就在帧里，立刻画，不排队到下一帧
     s.raf = requestAnimationFrame(autoTick);
+  }
+  /* 排序的重画统一收口到一帧一次：pointermove 和边缘自动滚动的 rAF 可能在同一帧
+     都要求重画，各写一次的话 n 本书会被写两遍。 */
+  let sortRaf = 0;
+  function scheduleSort() {
+    if (sortRaf) return;
+    sortRaf = requestAnimationFrame(() => { sortRaf = 0; applySort(); });
+  }
+  function applySortNow() {
+    if (sortRaf) { cancelAnimationFrame(sortRaf); sortRaf = 0; }
+    applySort();
   }
   function applySort() {
     const s = sorting; if (!s) return;
@@ -133,7 +212,7 @@ const carousel = (() => {
     const s = sorting;
     s.x = x; s.dx = x - s.startX;
     if (Math.abs(s.dx) > 6) s.dragged = true;    // 真的拖动了才吞掉随后的 click
-    const r = wrap.getBoundingClientRect(), edge = Math.max(56, r.width * 0.18);
+    const r = s.wrapRect, edge = Math.max(56, r.width * 0.18);
     let a = 0, depth = 0;
     if (x > r.right - edge) { a = 1; depth = Math.min(1, (x - (r.right - edge)) / Math.max(edge, 1)); }
     else if (x < r.left + edge) { a = -1; depth = Math.min(1, ((r.left + edge) - x) / Math.max(edge, 1)); }
@@ -141,9 +220,10 @@ const carousel = (() => {
     if (a && !s.raf) { s.auto = a; s.lastT = performance.now(); s.raf = requestAnimationFrame(autoTick); }
     else if (!a && s.raf) { s.auto = 0; cancelAnimationFrame(s.raf); s.raf = 0; }
     else s.auto = a;
-    applySort();
+    scheduleSort();                           // 上百次 pointermove 只画一帧
   }
   function endSort() {
+    applySortNow();      // 补上攒着没画的那一帧：s.to 必须是松手那一刻的位置
     const s = sorting; sorting = null;
     if (s.raf) cancelAnimationFrame(s.raf);
     wrap.classList.remove('sortmode');
@@ -165,6 +245,11 @@ const carousel = (() => {
 
   wrap.addEventListener('pointerdown', e => {
     if (e.target.closest('.gear')) return;
+    if (inertRaf) {                       // 按下打断惯性：这一下不该顺手把书翻开
+      suppressClick = true;
+      setTimeout(() => suppressClick = false, 340);
+    }
+    stopInertia();
     measure();
     dragging = true; moved = false; vel = 0;
     startX = lastX = e.clientX; lastT = performance.now();
@@ -195,15 +280,19 @@ const carousel = (() => {
     if (!dragging) return;
     dragging = false;
     cancelPaint();
-    const proj = off + vel * 5;
+    if (moved) { suppressClick = true; setTimeout(() => suppressClick = false, 340); }
+    /* 手指停在原地超过 120ms 再松手，说明已经不想甩了，别把旧速度带出去 */
+    const v0 = performance.now() - lastT < 120 ? vel : 0;
+    vel = 0;
+    if (items.length > 1 && Math.abs(v0) >= 1.5) { startInertia(v0); return; }
+    /* 轻手一拨：沿用原来的短投影吸附，最多跨两本 */
+    const proj = off + v0 * 5;
     let best = state.sel, bd = Infinity;
     items.forEach((el, i) => {
       const d = Math.abs(mets[i].c + proj - wrapW / 2);
       if (d < bd) { bd = d; best = i; }
     });
     best = clamp(best, state.sel - 2, state.sel + 2);
-    if (moved) { suppressClick = true; setTimeout(() => suppressClick = false, 340); }
-    vel = 0;
     snap(best, true);
   };
   window.addEventListener('pointerup', endDrag);
@@ -217,7 +306,7 @@ const carousel = (() => {
   }, { passive: true });
 
   return {
-    layout(animate) { measure(); snap(state.sel, animate); },
+    layout(animate) { measure(true); snap(state.sel, animate); },  // 外部调用视口可能变了，强制重量
     snap,
     consumeClick() { const s = suppressClick; suppressClick = false; return s; }
   };
