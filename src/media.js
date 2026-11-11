@@ -5,9 +5,9 @@
  * ② 图片按真实比例落位、补齐高度 ensureImageHeights、「铺满整页」的等比几何 fillGeom
  * ③ 对象盒子与旋转的统一下发 applyBox（内部调 applyRot）
  * ④ 换图 replaceImage：只换图源，位置 / 宽 / 旋转 / 上下层不动（文件读取 readFileDataURL）
- * ⑤ 封面图片上传（会用到 editor.js 的 ed / syncEditor）
+ * ⑤ 封面图片上传、自定义内页模板图片 packTemplateImage（会用到 editor.js 的 ed / syncEditor）
  *
- * 对外接口：shrinkImageFile, ensureImageHeights, applyBox, applyRot, applyCur, cursorValue,
+ * 对外接口：shrinkImageFile, packTemplateImage, ensureImageHeights, applyBox, applyRot, applyCur, cursorValue,
  *           rotShift, paperAspect, imgRatio, fillGeom, applyFillGeom, ensureFillGeom, replaceImage
  *
  * 依赖模块：core（state / storage / reader-view / editor 后置，只在运行时回调里用）
@@ -236,6 +236,41 @@ function shrinkImageFile(file, maxSide, opt) {
     fr.readAsDataURL(file);
   });
 }
+/* ---- 自定义内页模板图片 ----
+   跟贴纸一样先缩到长边 1200，但**不铺白底**：模板是压在纸上的一层，
+   透明处要能透出「本页底色」。所以有透明像素就存 PNG；整张不透明（照片 / 扫描页）
+   改存 JPEG，几 MB 的 PNG 压完通常只剩一两百 KB，存档和导出都轻得多。
+   输出一律是 base64 位图 dataURL —— 这串要塞进 .tplbg 的 style 和导出的 XHTML，
+   svg / 外链 / 带引号的地址都不收（tplImgOf 会把它们挡掉）。失败返回 null。 */
+const TPL_IMG_MAX_EDGE = 1200;
+function packTemplateImage(file) {
+  return new Promise(res => {
+    const fr = new FileReader();
+    fr.onerror = () => res(null);
+    fr.onload = () => {
+      const im = new Image();
+      im.onerror = () => res(null);
+      im.onload = () => {
+        const k = Math.min(1, TPL_IMG_MAX_EDGE / Math.max(im.width, im.height));
+        const w = Math.max(1, Math.round(im.width * k));
+        const h = Math.max(1, Math.round(im.height * k));
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        const cx = c.getContext('2d');
+        cx.drawImage(im, 0, 0, w, h);
+        let alpha = false;
+        try {
+          const d = cx.getImageData(0, 0, w, h).data;
+          for (let i = 3; i < d.length; i += 4) { if (d[i] < 250) { alpha = true; break; } }
+        } catch (_) { alpha = true; }               // 取不到像素就保守按「有透明」处理
+        try { res(alpha ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', .88)); }
+        catch (_) { res(String(fr.result || '')); }    // 拿不到画布时退回原图（仍是 base64）
+      };
+      im.src = String(fr.result);
+    };
+    fr.readAsDataURL(file);
+  });
+}
 /* 读一个图片文件 → dataURL。失败给回 null（不抛，调用处各自兜着） */
 function readFileDataURL(f) {
   return new Promise(res => {
@@ -291,7 +326,9 @@ $('#filePicker').addEventListener('change', async e => {
 $('#coverFile').addEventListener('change', e => {
   const f = e.target.files[0]; if (!f) return;
   const r = new FileReader();
-  r.onload = () => { ed.temp.cover.img = r.result; syncEditor(); };
+  /* 上传普通封面图 = 换掉整个封面，顺手清掉 DIY 草稿：
+     留着它的话「图案栏锁死」的判断会以为这仍是 DIY 封面，栏就不收了 */
+  r.onload = () => { ed.temp.cover.img = r.result; delete ed.temp.cover.diym; syncEditor(); };
   r.readAsDataURL(f);
   e.target.value = '';
 });

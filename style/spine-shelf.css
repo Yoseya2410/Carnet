@@ -2,7 +2,7 @@
  * Carnet · 单层书架模式   （样式 20 / 20）
  * ---------------------------------------------------------------------
  * ① 高低错落的单排书脊：底边对齐、紧挨着排，窄屏横向滑动
- * ② 书脊文字与几何装饰：颜色、图案来自每本书的封面
+ * ② 简洁书脊：保留封面色、图案与竖排书名，不叠加几何装饰线
  * ③ 书脊宽度按页数走：--spine-min-w 保底，越厚越宽但差距克制
  * ④ 下方预览图：悬停书脊即显示，移开淡出
  * ===================================================================== */
@@ -45,9 +45,9 @@
   content:"";position:absolute;inset:0;z-index:5;pointer-events:none;border-radius:inherit;
   border:1px solid transparent;transition:border-color .2s,box-shadow .2s
 }
-.spine-item:hover{transform:translateY(-4px);filter:none}
+.spine-item:hover{transform:translateY(-6px);filter:none}
 .spine-item.active{
-  transform:translateY(-7px);filter:none;
+  transform:translateY(-10px);filter:none;
   box-shadow:3px 10px 15px -7px rgba(10,12,20,.68),inset 0 0 0 1px rgba(255,255,255,.2)
 }
 .spine-item.active::after{border-color:rgba(255,255,255,.82);box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
@@ -58,25 +58,6 @@
   max-width:100%;overflow:hidden;white-space:nowrap;writing-mode:vertical-rl;text-orientation:mixed;
   font-size:clamp(11px,1.05vw,15px);font-weight:600;line-height:1;letter-spacing:.12em;
   text-shadow:0 1px 5px rgba(0,0,0,.16);pointer-events:none
-}
-.spine-art{position:absolute;inset:0;z-index:2;opacity:.38;pointer-events:none;color:var(--spine-ink,#fff)}
-.spine-art i{position:absolute;display:block}
-.spine-art.deco-0 i{left:18%;right:18%;height:1px;background:currentColor}
-.spine-art.deco-0 i:nth-child(1){top:9%}.spine-art.deco-0 i:nth-child(2){top:12%}.spine-art.deco-0 i:nth-child(3){top:15%}
-.spine-art.deco-1 i{left:0;right:0;background:currentColor}
-.spine-art.deco-1 i:nth-child(1){top:0;height:12%;opacity:.55}.spine-art.deco-1 i:nth-child(2){top:12%;height:7%;opacity:.28}.spine-art.deco-1 i:nth-child(3){top:21%;height:2px;opacity:.65}
-.spine-art.deco-2 i{top:8%;height:7%;background:currentColor}
-.spine-art.deco-2 i:nth-child(1){left:14%;width:72%}.spine-art.deco-2 i:nth-child(2){top:16%;left:46%;width:40%;opacity:.65}.spine-art.deco-2 i:nth-child(3){top:23%;left:14%;width:28%;opacity:.4}
-.spine-art.deco-3 i{left:30%;width:140%;height:18%;border:1px solid currentColor;border-radius:50%}
-.spine-art.deco-3 i:nth-child(1){top:4%}.spine-art.deco-3 i:nth-child(2){top:9%}.spine-art.deco-3 i:nth-child(3){top:14%}
-.spine-art.deco-4 i{left:-40%;width:180%;height:7%;background:currentColor;transform:rotate(-32deg)}
-.spine-art.deco-4 i:nth-child(1){top:11%}.spine-art.deco-4 i:nth-child(2){top:20%;opacity:.55}.spine-art.deco-4 i:nth-child(3){display:none}
-.spine-art.deco-5 i:nth-child(1){left:32%;top:8%;width:36%;aspect-ratio:1;border:1px solid currentColor;border-radius:50%}
-.spine-art.deco-5 i:nth-child(2){left:44%;top:14%;width:12%;aspect-ratio:1;background:currentColor;border-radius:50%}
-.spine-art.deco-5 i:nth-child(3){left:20%;right:20%;top:23%;height:1px;background:currentColor}
-.spine-foot{
-  position:absolute;z-index:3;left:25%;right:25%;bottom:6%;height:1px;background:currentColor;opacity:.28;
-  box-shadow:0 4px 0 currentColor,0 8px 0 currentColor;pointer-events:none
 }
 /* 预览框只放一张封面（不再挂编辑按钮、也不重复书名页数），所以只需要装下封面那一块。
    封面尺寸同时受宽度和高度约束（min(vw,vh)），矮屏上自动让一让。
@@ -107,7 +88,8 @@
   transform:translateX(calc(var(--px,0px) - 50%));
   transition:transform .26s cubic-bezier(.22,.8,.3,1)
 }
-.spine-detail-cover .cover{--cover-w:clamp(58px,min(6.4vw,11vh),88px)}
+/* 书脊下方那张预览封面只有 58~88px 宽，圆角同比缩到 .3 */
+.spine-detail-cover .cover{--cover-w:clamp(58px,min(6.4vw,11vh),88px);--cr-scale:.3}
 /* ==================== 点书脊：从架子上抽出来 ====================
    ① 先自己往上抽出一截（像手指捏住书脊往上提）+ 稍微放大，影子和光泽跟着变；
       抽的幅度要够大（-15% 左右）才看得出「从一排书里被拎出来」，太小就等于原地抖一下；
@@ -189,7 +171,7 @@
   }
   .spine-scroll{min-height:150px}
   .spine-detail{flex-basis:128px;padding-top:10px}
-  .spine-detail-cover .cover{--cover-w:clamp(52px,9.5vh,66px)}
+  .spine-detail-cover .cover{--cover-w:clamp(52px,9.5vh,66px);--cr-scale:.24}
 }
 /* 横屏：宽而矮，书脊按 vh 算会被压得很短 —— 直接把长度（高度）和粗细都提上来 */
 @media (orientation:landscape) and (max-height:560px){

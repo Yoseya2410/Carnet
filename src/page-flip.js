@@ -46,7 +46,14 @@ function endFlip() {
   cancelAnimationFrame(flipA.raf);
   const dir = flipA.dir;
   flipA = null;
-  if (state.mode === 'spread') state.spread += dir; else state.page += dir;
+  /* 第二道防线：落定时把页码夹回合法范围（-1 = 封面）。
+     快翻 / 删页 / 外部跳页叠在一起时，光靠 flip 入口的判断挡不住累加越界。 */
+  const n = pageCount();
+  if (state.mode === 'spread') {
+    state.spread = clamp(state.spread + dir, -1, Math.max(spreadCount(n) - 1, -1));
+  } else {
+    state.page = clamp(state.page + dir, -1, Math.max(n - 1, -1));
+  }
   const leaf = $('#leaf');
   leaf.classList.remove('show', 'turning');
   leaf.style.transition = 'none';
@@ -102,6 +109,11 @@ function flip(dir) {
   const n = pageCount();
   if (!n) return;
   commitTextEdit();                    // 翻页前先把正在编辑的文字存下来
+  /* ⚠️ 必须先让上一翻落定、再检查边界：页码要等 endFlip 才真正 +dir。
+     以前是「先检查、后 endFlip」，快速连翻时每次都拿同一个旧页码判断，
+     连按两下就能越过最后一跨 —— 截图里「3 / 2」且两页全是环衬就是这么来的。 */
+  // 上一次翻页还没结束：立即落定，接着翻下一页，实现连续快翻
+  if (flipA) endFlip();
   if (state.mode === 'spread') {
     const pairs = spreadCount(n), s = state.spread;
     if (dir > 0 && s >= pairs - 1) return;
@@ -111,8 +123,6 @@ function flip(dir) {
     if (dir > 0 && p >= n - 1) return;
     if (dir < 0 && p <= -1) return;
   }
-  // 上一次翻页还没结束：立即落定，接着翻下一页，实现连续快翻
-  if (flipA) endFlip();
 
   const leaf = $('#leaf'), lf = $('#leafF'), lb = $('#leafB');
   let start, end, slide = null;
@@ -131,6 +141,11 @@ function flip(dir) {
        等到 endFlip 才加 .first-spread 的话，动画期间左槽只剩 .page-slot 的纸色底，
        看起来就是一张白纸停在左边，收尾时才突然变成封面内侧。 */
     if (bookStyleOf(cur()).rings && dir < 0 && s === 1) $('#book').classList.add('first-spread');
+    /* 最后一跨的右半是后封面内侧：动画期间右槽填的就是那一格（dir>0 填 sR、dir<0 填 cR），
+       越界就得同步透明样式，否则翻到最后一页的中途会闪一块白底 / 深蓝环衬。
+       endFlip → renderReader 会按最终页码重新 toggle 一次。 */
+    $('#book').classList.toggle('last-spread',
+      bookStyleOf(cur()).rings && (dir > 0 ? sR : cR) >= n);
     $('#slotL').innerHTML = pageHTML(dir > 0 ? cL : sL, 'left');
     $('#slotR').innerHTML = pageHTML(dir > 0 ? sR : cR, 'right');
     lf.innerHTML = pageHTML(front, 'right');

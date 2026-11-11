@@ -14,9 +14,14 @@
  * ===================================================================== */
 /* ==================== 封面渲染 ====================
    封面按 j.style 分成三种装帧（见 visuals.js 的 BOOK_STYLES）：
-     笔记本 —— 左侧硬壳书脊 + 彩带
-     活页手帐 / 方形画册 —— 左侧只留装订压痕（活页 / 画册都没有彩带）
+     笔记本 —— 左侧一条封面彩带；彩带设「透明」时改画一道浅压槽
+     活页手帐 —— 左侧什么都不画（干净硬壳）
+     方形画册 —— 左侧一道浅压槽
    共同的那几层（由下往上）：底色 → 图案 → 光泽 → 装订。
+   ⚠️ **有彩带时不叠压槽**：带子只是一条平色带 + 右侧柔和接触影（见 home.css）；
+      只有没彩带（透明档）、方形画册和精装书才画压槽，
+      且压槽保留原来那套暗槽底＋亮槽沿的立体断面（用户复评「之前的更逼真」），
+      只去掉上下折边暗边、四周黑影与槽沿 1px 浅白线（见 home.css 的 .spine.ghost）。
    ⚠️ 活页那档**封面上不画金属环**：真活页本的环在里侧，封面就是干净的一张硬壳。
       环的舞台在翻开的内页中缝（reader-view.js 的 gutterRingsHTML + reader.css 的 .grings），
       那里才画得像「一根钢丝穿过左右两页的孔」。 */
@@ -26,14 +31,22 @@ function coverHTML(j) {
   /* 上传了封面图片就不叠图案（图案是按底色深浅配色的，压在照片上只会糊成一片） */
   const pat = j.cover.img ? '' : patternStyle(j.cover.pattern, j.cover);
   /* ---- 装订那一列 ----
-     ⚠️ 彩带只有笔记本这一档有（bookHasRibbon）：活页 / 画册都不画那条竖带，
-        编辑器里那排颜色也一并藏了（见 editor.js 的 syncEditor）。
-     ⚠️ 活页连那道**装订压痕都不画**：它不像精装本那样有一条凹进去的书脊沟，
-        封面就是一张干干净净的硬壳（画册那档仍留压痕，避免看着像一张平卡） */
+     ⚠️ 彩带只有笔记本这一档有（bookHasRibbon）：活页 / 画册 / 精装书都不画那条竖带，
+        编辑器里那排颜色也一并藏了（见 editor.js 的 syncEditor）。用户 2026-11-11 定稿：
+        「精装书和画册显示书槽不显示彩带，活页不显示彩带」。
+     ⚠️ 有彩带 → 只画彩带、不叠压槽；没彩带（透明档）/ 画册 / 精装书 →
+        **画带立体断面的压槽**（精装书那列更宽，见 book-style.css）；
+        活页 → 整列不画（活页不是精装本，环在里侧，没有那条凹进去的书脊沟）。 */
   const spine = bookHasRibbon(j) ? ribbonSpine(j.ribbon) : '';   // 彩带选「透明」时为空
-  const bind = spine ? `<div class="spine" style="background:${spine}"></div>`
+  /* 书槽开关（cover.groove，缺省开）：关掉时整列都不画 —— 彩带与透明档的压槽都不画，
+     封面变成一整张干净的皮；颜色值仍留在数据里，重新打开就恢复。 */
+  const bind = !coverGrooveOn(j) ? ''
+    : spine ? `<div class="spine" style="background:${spine}"></div>`
     : isRingStyle(j.style) ? '' : `<div class="spine ghost"></div>`;
-  return `<div class="cover s-${st.k}" style="${bg}">
+  /* 右侧两角的圆角写进 --cr（每本可自定义，见 visuals.js 的 coverRadiusOf）；
+     左侧书脊两角由 CSS 的 --cr-left 定死，不跟着变。主页 / 书架 / 搜索缩略图 /
+     编辑器预览 / 飞入动画都走这同一个 coverHTML，所以只需在这里写一次。 */
+  return `<div class="cover s-${st.k}" style="${bg}${coverRadiusVar(j)}">
     <div class="pattern" data-pat="${j.cover.img ? 'none' : (j.cover.pattern || 'none')}" style="${pat}"></div>
     <div class="gloss"></div>
     ${bind}
@@ -156,9 +169,9 @@ function renderShelf(order, sel) {
    1 页和 64 页之间才拉开 [最窄, 最宽] 这一小段，再往后加页也几乎看不出变化，
    免得一本厚的把整排书挤歪。最窄宽度写在 CSS 里（--spine-min-w），薄本也有下限。 */
 const SPINE_PAGES_FULL = 64;     // 到这个页数，书脊宽到头
-/* 书脊的「高矮」与「几何装饰」只能由**这一本自身**算出来，绝不能掺进下标 i。
+/* 书脊的「高矮」只能由**这一本自身**算出来，绝不能掺进下标 i。
    ⚠️ 掺了下标的后果：拖动排序 / 插到最前 / 删掉一本都会让下标整体挪位，
-      于是同一本书换个位置就换一副长相 —— 松手瞬间整排的高矮重新洗牌、装饰也换一种，
+      于是同一本书换个位置就换一副长相 —— 松手瞬间整排的高矮重新洗牌，
       看着像排序把书换了一批（而不是把原来那几本挪了个位置）。
    老数据可能没有 id，退回 created，再退回书名；都撞了才会出现两本一样高。 */
 function spineSeed(j) {
@@ -190,9 +203,7 @@ function spineItemHTML(j, i) {
     data-i="${i}" data-id="${j.id || ''}" title="${name}" aria-label="${name}，${j.pages.length} 页"
     aria-pressed="false" style="--spine-p:${spineWidthRatio(j)};--spine-h:${h};--spine-ink:${ink};${bg}">
     <span class="spine-pattern" style="${pat}"></span>
-    <span class="spine-art deco-${seed % 6}" aria-hidden="true"><i></i><i></i><i></i></span>
     <span class="spine-title">${name}</span>
-    <span class="spine-foot" aria-hidden="true"></span>
   </button>`;
 }
 /* 下方那块是「预览图」：鼠标停在书脊上才显示那一本的封面，鼠标一离开就收起。

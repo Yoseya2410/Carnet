@@ -4,9 +4,22 @@
  * ① 向上弹出的分享 / 导出菜单
  * ② 书架多选时的底部选择条
  * ③ 封面上的勾选圈
+ * ④ 手帐本纸面右键菜单（复制 / 剪切 / 粘贴）
  *
  * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
  * ===================================================================== */
+/* ============ 纸面右键菜单 ============
+   复用 .addmenu 那套毛玻璃，但改成跟着鼠标走的 fixed 定位（.addmenu 本身是
+   挂在右上角按钮底下的 absolute）。挂在 #reader 直属子节点上：.book 有一层
+   filter，放它里面的话 fixed 会被那层滤镜改成相对 .book 定位。 */
+.addmenu.pmenu{
+  position:fixed;right:auto;top:0;left:0;z-index:80;min-width:162px;
+  transform-origin:top left
+}
+.addmenu.pmenu:not(.show){transform:translateY(-4px) scale(.97)}
+.addmenu.pmenu button[disabled]{opacity:.34;pointer-events:none}
+.addmenu.pmenu .pm-hint{font-size:11px;opacity:.55;margin-left:6px;letter-spacing:.02em}
+.addmenu.pmenu .pm-hint:empty{display:none}
 /* ============ 分享导出菜单（从分享按钮向上弹） ============ */
 .share-wrap{position:relative}
 .share-pop{right:auto;left:50%;top:auto;bottom:calc(100% + 12px);min-width:172px;transform-origin:bottom center}

@@ -5,10 +5,15 @@
  *    图片四角 = 自由拉伸；文字贴四角 = 整块等比缩放（框宽、框高、字号同乘一个系数）
  * ② 选中对象后的工具条 objAction：完成 ✓ / 复制 / 换图（仅图片）/ 字随框缩放（仅文字）/ 编辑 / 删除
  * ③ 右上角「添加」菜单：加页 / 加图片 / 加文字 / 本页底色 / 删本页，目标页判定 currentAddPage
- * ④ 文字贴单击零反应、长按解除固定并可拖着挪位置、双击才进编辑态（编辑逻辑在 text-sticker.js）
+ * ④ 文字贴两种手势各管一件事（编辑逻辑在 text-sticker.js）：
+ *    长按 = 版式态 .boxmode：解除固定 → 选中 → 拖动挪位置 + 四角改大小 + 旋转手柄；
+ *    双击 = 内容态 .editing：只改文字，手柄收起、拖不动、缩不了；
+ *    单击零反应（手势归翻页）。.boxmode 只活在本次选中里，不写进数据。
  *    ⚠️ 文字贴的最小尺寸按「一个字 / 一行」算，绝不能套图片那套 IMG_MIN_*（见四角拉伸分支）
+ * ⑤ 纸面右键菜单与对象级剪贴板：复制 / 剪切 / 粘贴文字贴与图片（也能贴外部文本 / 图片）
  *
- * 对外接口：bindPage, objAction, addImageTo, addTextTo, currentAddPage, toggleAddMenu
+ * 对外接口：bindPage, objAction, addImageTo, addTextTo, currentAddPage, toggleAddMenu,
+ *           clipSet, clipCopy, clipCut, clipPasteAt
  *
  * 依赖模块：core, state（media / text-sticker / page-bg 后置，只在运行时回调里用）
  *
@@ -32,13 +37,15 @@ function objAction(act, w, pid, iid, isText) {
   const finish = () => {                             // 完成 = 固定到这一页
     im.locked = true; save();
     w.classList.add('locked');
-    w.classList.remove('adjust', 'sel');
+    w.classList.remove('adjust', 'sel', 'boxmode');
     disarmOut();
     if (isText) { hideTextBar(); }                    // 面板一起收掉（内部会重绘）
     else { w.classList.add('justlock'); setTimeout(() => w.classList.remove('justlock'), 460); renderReader(); toast('已固定在第 ' + (pid + 1) + ' 页 · 长按可重新移动'); }
   };
   if (act === 'close') { finish(); return; }
   if (act === 'copy') {
+    /* 除了就地再来一份，也存进对象级剪贴板：右键纸面 / Ctrl+V 能贴到别的地方或别的页 */
+    clipSet(isText ? 'text' : 'image', im);
     const cp = JSON.parse(JSON.stringify(im));
     cp.id = uid();
     cp.x = clamp((im.x ?? 0) + .05, OBJ_MIN, OBJ_MAX);
@@ -47,7 +54,7 @@ function objAction(act, w, pid, iid, isText) {
     cp.z = nextZ(pg);                       // 复制出来的这份盖在原件上面
     arr.splice(arr.indexOf(im) + 1, 0, cp);
     save(); renderReader();
-    toast(isText ? '已复制这段文字' : '已复制这张图片');
+    toast(isText ? '已复制这段文字 · 右键纸面可粘贴' : '已复制这张图片 · 右键纸面可粘贴');
     return;
   }
   /* 换图：弹出选图框，选完只换掉这张图的图源 —— 位置 / 大小 / 旋转 / 上下层原样保留。
@@ -117,6 +124,203 @@ function objAction(act, w, pid, iid, isText) {
       toast('已铺满整页 · 完整显示不裁切 · 已固定，长按可解锁');
     });
   }
+}
+
+/* ==================== 纸面右键 / 对象级剪贴板 ====================
+   复制的是「一整块文字贴或图片」，不是系统剪贴板里的一段字：工具条「复制」、
+   右键「复制 / 剪切」、Ctrl+C / Ctrl+X 都往 paperClip 存一份深拷贝；
+   「粘贴」把它落在右键那一刻的那一页、以光标为中心，能跨页贴。
+   内部剪贴板空着时，粘贴会去读系统剪贴板：纯文本落成文字贴、图片落成图片对象。
+   ⚠️ 剪贴板只活在内存里 —— 图片是 dataURL，写进存档会白白多一份大字符串。 */
+let paperClip = null;               // { kind:'text'|'image', data:{...} }
+let paperMenuCtx = null;            // 这次右键：{ pid, x, y, ref }
+let paperLastPt = null;             // 最近一次右键落点（键盘粘贴没有坐标时用）
+
+function clipReaderOn() {
+  const r = $('#reader'); return !!(r && r.classList.contains('show'));
+}
+/* 正在打字 / 框选了一段文字时，Ctrl+C 这些交给浏览器，别抢 */
+function clipTyping() {
+  const a = document.activeElement;
+  if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable)) return true;
+  const s = window.getSelection && window.getSelection();
+  return !!(s && !s.isCollapsed && String(s).trim());
+}
+function clipRefFromWrap(w) {
+  if (!w || !w.isConnected) return null;
+  const pid = +w.dataset.page, iid = w.dataset.id;
+  const isText = w.classList.contains('ptext-wrap');
+  const pg = cur() && cur().pages[pid];
+  if (!pg || !Number.isFinite(pid)) return null;
+  const arr = isText ? pageTexts(pg) : (pg.images || []);
+  const o = arr.find(x => x.id === iid);
+  return o ? { pid, iid, isText, o, w } : null;
+}
+function clipWrapOf(pid, iid, isText) {
+  const cls = isText ? 'ptext-wrap' : 'pimg-wrap';
+  return $(`#slotL .${cls}[data-id="${iid}"], #slotR .${cls}[data-id="${iid}"]`);
+}
+/* 当前选中的对象：图片看 .sel，文字看 .adjust / .boxmode；面板刚收掉时退回 selText */
+function clipSelectedRef() {
+  let ref = clipRefFromWrap($('.pimg-wrap.sel, .ptext-wrap.adjust, .ptext-wrap.boxmode'));
+  if (!ref && typeof selText !== 'undefined' && selText)
+    ref = clipRefFromWrap(clipWrapOf(selText.pid, selText.iid, true));
+  return ref;
+}
+function clipWriteSystemText(o) {
+  const s = ((o && o.text) || '').trim();
+  if (!s || !navigator.clipboard || !navigator.clipboard.writeText) return;
+  try { const p = navigator.clipboard.writeText(s); if (p && p.catch) p.catch(() => {}); } catch (_) {}
+}
+function clipSet(kind, o) {
+  if (!o) return;
+  paperClip = { kind, data: JSON.parse(JSON.stringify(o)) };
+  if (kind === 'text') clipWriteSystemText(o);
+}
+function clipCopy(ref) {
+  if (!ref) return false;
+  const now = clipRefFromWrap(clipWrapOf(ref.pid, ref.iid, ref.isText)) || ref;
+  clipSet(now.isText ? 'text' : 'image', now.o);
+  toast(now.isText ? '已复制文字 · 在纸面右键可粘贴' : '已复制图片 · 在纸面右键可粘贴');
+  return true;
+}
+function clipCut(ref) {
+  if (!ref) return false;
+  clipCopy(ref);
+  objAction('del', clipWrapOf(ref.pid, ref.iid, ref.isText) || ref.w, ref.pid, ref.iid, ref.isText);
+  toast(ref.isText ? '已剪切文字 · 在纸面右键可粘贴' : '已剪切图片 · 在纸面右键可粘贴');
+  return true;
+}
+/* 落点以右键为中心；贴出来的一份保持解锁 + 选中，抬手就能直接拖走 */
+function clipPasteAt(pid, x, y) {
+  const j = cur(); const pg = j && j.pages[pid];
+  if (!pg || !paperClip) return false;
+  const { kind, data } = paperClip;
+  const o = JSON.parse(JSON.stringify(data));
+  o.id = uid();
+  o.z = nextZ(pg);
+  o.locked = false;
+  const w = clamp(o.w || .3, .02, IMG_MAX);
+  const h = clamp(o.h || w / .68, .02, IMG_MAX);
+  o.x = clamp((x ?? .5) - w / 2, OBJ_MIN, OBJ_MAX);
+  o.y = clamp((y ?? .5) - h / 2, OBJ_MIN, OBJ_MAX);
+  if (kind === 'text') pageTexts(pg).push(o);
+  else (pg.images || (pg.images = [])).push(o);
+  save(); renderReader();
+  const nw = clipWrapOf(pid, o.id, kind === 'text');
+  if (nw) {
+    if (kind === 'text') {
+      showTextBar(nw, pid, o.id);        // 内部会重设 selText / 工具条 / 避让
+      nw.classList.add('boxmode');
+      if (selText) selText.box = true;
+    } else { nw.classList.add('sel'); syncBar(nw, o); fitObjBar(nw); }
+  }
+  toast((kind === 'text' ? '已粘贴文字' : '已粘贴图片') + ' · 第 ' + (pid + 1) + ' 页');
+  return true;
+}
+/* 外部复制来的东西：图片走文件读取（跟「添加图片」同一套比例算法），文字落成文字贴 */
+async function clipPasteExternal(pid, x, y, file, text) {
+  const j = cur(); const pg = j && j.pages[pid]; if (!pg) return false;
+  if (file && /^image\//.test(file.type || '')) {
+    const src = await readFileDataURL(file);
+    if (!src) { toast('这张图读不出来'); return false; }
+    const w = .42;
+    const h = clamp(w * (await imgRatio(src)) * paperAspect(), .04, IMG_MAX);
+    (pg.images || (pg.images = [])).push({
+      id: uid(), src,
+      x: clamp((x ?? .5) - w / 2, OBJ_MIN, OBJ_MAX), y: clamp((y ?? .5) - h / 2, OBJ_MIN, OBJ_MAX),
+      w, h, z: nextZ(pg), locked: false
+    });
+    save(); renderReader();
+    toast('已粘贴图片 · 第 ' + (pid + 1) + ' 页');
+    return true;
+  }
+  const s = String(text || '').trim();
+  if (!s) return false;
+  const t = newText(clamp((x ?? .5) - .15, .02, .8), clamp((y ?? .5) - .03, .02, .9), s);
+  t.z = nextZ(pg); t.locked = false;
+  pageTexts(pg).push(t);
+  save(); renderReader();
+  const nw = clipWrapOf(pid, t.id, true);
+  if (nw) {
+    showTextBar(nw, pid, t.id);
+    nw.classList.add('boxmode');
+    if (selText) selText.box = true;
+  }
+  toast('已粘贴文字 · 第 ' + (pid + 1) + ' 页');
+  return true;
+}
+function clipPasteTarget() {
+  const j = cur(); if (!j || !j.pages.length) return null;
+  /* 键盘粘贴没有坐标：最近一次右键那一页还摊在眼前就贴回那一页，
+     不然「在右页剪切 → Ctrl+V」会莫名跑到左页去 */
+  const vis = currentIndices();
+  if (paperLastPt && vis.indexOf(paperLastPt.pid) >= 0 && j.pages[paperLastPt.pid])
+    return { pid: paperLastPt.pid, x: paperLastPt.x, y: paperLastPt.y };
+  const pid = currentAddPage();
+  if (!j.pages[pid]) return null;
+  return { pid, x: .5, y: .5 };
+}
+/* 右键菜单：复制 / 剪切只在指着某个对象时可用；粘贴永远可点（系统剪贴板也可能有东西） */
+function closePaperMenu() {
+  const m = $('#paperMenu'); if (m) m.classList.remove('show');
+  paperMenuCtx = null;
+}
+function openPaperMenu(e) {
+  const m = $('#paperMenu'); if (!m) return;
+  const paper = e.target.closest('.paper');
+  if (!paper || paper.classList.contains('coverpage')
+      || paper.classList.contains('cover-inside') || paper.classList.contains('endpaper')) return;
+  const slot = e.target.closest('#slotL, #slotR');
+  if (!slot) return;                       // 翻页叶片上的临时纸不算
+  const pid = slotPageIndex(slot);
+  if (pid < 0 || !cur() || !cur().pages[pid]) return;
+  e.preventDefault();
+  const pr = paper.getBoundingClientRect();
+  /* 指着某个对象就针对它；点在空白纸上则退回到「当前选中的对象」，
+     这样先选中再在别处右键也能复制 / 剪切，不必非点在对象上 */
+  const ref = clipRefFromWrap(e.target.closest('.pimg-wrap, .ptext-wrap')) || clipSelectedRef();
+  paperMenuCtx = {
+    pid, ref,
+    x: pr.width ? clamp((e.clientX - pr.left) / pr.width, 0, 1) : .5,
+    y: pr.height ? clamp((e.clientY - pr.top) / pr.height, 0, 1) : .5
+  };
+  paperLastPt = { pid, x: paperMenuCtx.x, y: paperMenuCtx.y };
+  const q = k => m.querySelector(`[data-clip="${k}"]`);
+  q('copy').disabled = !ref;
+  q('cut').disabled = !ref;
+  q('paste').disabled = false;
+  const hint = $('#pmHint');
+  if (hint) hint.textContent = paperClip ? (paperClip.kind === 'text' ? '· 一段文字' : '· 一张图片') : '';
+  m.classList.add('show');
+  const r = m.getBoundingClientRect();
+  m.style.left = clamp(e.clientX, 8, Math.max(8, window.innerWidth - r.width - 8)) + 'px';
+  m.style.top = clamp(e.clientY, 8, Math.max(8, window.innerHeight - r.height - 8)) + 'px';
+}
+function clipPasteMenu(c) {
+  if (!c) return;
+  if (paperClip) { clipPasteAt(c.pid, c.x, c.y); return; }
+  /* 内部剪贴板空：向系统剪贴板要（图片优先，其次纯文本）。
+     这一步必须由右键菜单里的点击触发，浏览器才认作用户手势。 */
+  (async () => {
+    let file = null, text = '';
+    try {
+      if (navigator.clipboard && navigator.clipboard.read) {
+        for (const it of await navigator.clipboard.read()) {
+          const ty = (it.types || []).find(t => t.indexOf('image/') === 0);
+          if (ty && !file) {
+            const blob = await it.getType(ty);
+            file = new File([blob], 'pasted.' + (ty.split('/')[1] || 'png'), { type: ty });
+          }
+        }
+      }
+    } catch (_) {}
+    if (!file && navigator.clipboard && navigator.clipboard.readText) {
+      try { text = await navigator.clipboard.readText(); } catch (_) {}
+    }
+    if (!file && !text.trim()) { toast('剪贴板里没有可粘贴的内容'); return; }
+    clipPasteExternal(c.pid, c.x, c.y, file, text);
+  })();
 }
 
 function bindPage() {
@@ -225,24 +429,30 @@ function bindPage() {
       return true;
     };
 
-    /* 文字贴：解锁 → 选中（四角手柄 + 工具条）；点框外自动重新固定 */
+    /* 文字贴：解锁 → 选中（虚线框 + 工具条）；点框外自动重新固定 */
     const lockText = () => {
       const im = getIm(); if (!im) return;
       im.locked = true; save();
       w.classList.add('locked');
-      w.classList.remove('adjust', 'sel');
+      w.classList.remove('adjust', 'sel', 'boxmode');
       disarmOut();
       hideTextBar();                    // 面板也一起收（内部重绘）
     };
-    const selectText = () => {
+    /* box=true 是长按进来的「版式态」：额外放出四角 / 旋转手柄，能拖能缩；
+       box=false 是双击 / 面板的「内容态」：只留工具条，手柄一律收起。
+       selText.box 给重绘后恢复用（renderReader 会按它把 boxmode 加回来）。 */
+    const selectText = (box) => {
       const im = getIm(); if (!im) return;
       if (im.locked) { im.locked = false; save(); }
       w.classList.remove('locked');
       w.classList.add('adjust');
-      showTextBar(w, pid, iid);
+      w.classList.toggle('boxmode', !!box);
+      showTextBar(w, pid, iid);        // 内部会重设 selText
+      if (box && typeof selText !== 'undefined' && selText) selText.box = true;
       realign();
       disarmOut();
       w.__outDown = ev => {
+        if (ev.button > 0) return;        // 右键：交给纸面菜单，别顺手把对象锁回去
         if (w.contains(ev.target)) return;
         if (w.classList.contains('editing')) return;    // 正在行内打字：收尾交给编辑流程，别抢在它前面清掉选中
         if (ev.target.closest && ev.target.closest('#tsheet, #eflowTop, #addMenu, #cpMask, #confirmMask, .cp-mask')) return;
@@ -281,9 +491,10 @@ function bindPage() {
       });
     };
 
-    /* 文字贴长按：解除固定 → 选中（虚线框 + 工具条）→ 手指不用抬就能接着拖着挪位置。
-       固定态的文字单击是「完全没反应」的（手势归翻页），所以挪位置得先双击进编辑；
-       这里补一条跟图片一样的长按，抬手前就能直接拖。
+    /* 文字贴长按 = 版式态：解除固定 → 选中（虚线框 + 工具条 + 四角 / 旋转手柄）
+       → 手指不用抬就能接着拖着挪位置，抬手后拖四角还能改大小。
+       固定态的文字单击是「完全没反应」的（手势归翻页），双击只改文字，
+       所以要动位置 / 改大小都得走这条跟图片一样的长按。
        没按够 420ms 就松手、或中途划开了，都算单击，手势照旧交回翻页 */
     const armTextHold = e => {
       const sx = e.clientX, sy = e.clientY;
@@ -293,9 +504,9 @@ function bindPage() {
         const t = getIm(); if (!t) return;
         if (t.locked) { t.locked = false; save(); }
         w.classList.remove('locked');
-        selectText();                               // 虚线框 + 工具条；点框外自动重新固定
+        selectText(true);                           // 版式态：虚线框 + 工具条 + 手柄；点框外自动重新固定
         if (navigator.vibrate) { try { navigator.vibrate(12); } catch (_) {} }
-        toast('已解除固定 · 拖动可挪位置');
+        toast('已解除固定 · 拖动挪位置，拖四角改大小');
         startTextDrag({ clientX: sx, clientY: sy, preventDefault() {} });
       }, 420);
       const cancel = ev => {
@@ -329,39 +540,9 @@ function bindPage() {
       window.addEventListener('pointerup', off);
       window.addEventListener('pointercancel', off);
     };
-    /* 行内打字时挪位置：轻点仍然交给浏览器去落光标，按住拖过 9px 就改成拖整块。
-       两个动作抢同一个 pointerdown，只能靠「有没有真的移动」来分 */
-    const watchTextMove = e => {
-      const im = getIm(); if (!im) return;
-      let rect = elPaper().getBoundingClientRect();
-      let sx = e.clientX, sy = e.clientY, ox = im.x, oy = im.y;   // 跨页时这几个基准就地重设
-      let dragging = false;
-      let fit = {};
-      /* 走 bindPage 里那条 track()：pointermove 按帧合一次，松手补跑最后一帧。
-         以前这条路径自己绑监听、来一次事件写一次 left/top，是唯一漏掉合帧的拖动 */
-      track(e.clientX, e.clientY, ev => {
-        if (!dragging) {
-          if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 9) return;
-          dragging = true; w.__dragging = true;
-          state.imgDragging = true;
-          try { window.getSelection().removeAllRanges(); } catch (_) {}   // 把拖出来的选区清掉
-        }
-        im.x = clamp(ox + (ev.clientX - sx) / rect.width, OBJ_MIN, OBJ_MAX);
-        im.y = clamp(oy + (ev.clientY - sy) / rect.height, OBJ_MIN, OBJ_MAX);
-        if (tryCrossPage(ev)) {                             // 同上：先更新再判「是不是过了中缝」
-          rect = elPaper().getBoundingClientRect();
-          sx = ev.clientX; sy = ev.clientY; ox = im.x; oy = im.y; fit = {};
-        }
-        w.style.left = (im.x * 100).toFixed(2) + '%';
-        w.style.top = (im.y * 100).toFixed(2) + '%';
-        syncBar(w, im); fitObjBar(w, fit);          // 一边打字一边挪：工具条也跟着躲
-      }, () => {
-        w.__dragging = false;
-        unCross();
-        state.imgDragging = false;
-        if (dragging) { save(); realign(); }
-      });
-    };
+    /* 内容态（双击进来的行内打字）不再挂拖整块的监听：pointerdown 直接放行给
+       contentEditable，轻点落光标、拖过一段就是选中文字，位置与大小一律不动。
+       要移动 / 缩放请用长按进版式态。 */
 
     const startDrag = e => {
       state.imgDragging = true;
@@ -395,18 +576,24 @@ function bindPage() {
       });
     };
 
-    /* 编辑态里拖整块的时候，别让浏览器顺手框选走一段字 */
-    w.addEventListener('selectstart', e => { if (w.__dragging) e.preventDefault(); });
-
     w.addEventListener('pointerdown', e => {
+      if (e.button > 0) return;           // 右键只弹纸面菜单，不算拖动 / 长按 / 双击
       if (e.target.closest('.objbar') || e.target.closest('.hdl')) return;   // 工具条和手柄自己处理
       const im = getIm(); if (!im) return;
       if (isText) {
-        /* 已经在行内打字：轻点 = 落光标，按住拖 = 挪整块 */
-        if (w.classList.contains('editing')) { watchTextMove(e); return; }
+        /* 内容态只改文字：行内打字直接放行给 contentEditable（落光标 / 拖选文字）。 */
+        if (w.classList.contains('editing')) return;
+        /* 文字面板开着时（刚「添加文字」就是这一态）依旧要能把框拖走：
+           以前这里整支 return，新加的文字在打字前后都挪不了，只能关掉面板再长按 420ms。
+           面板负责打字、这里负责位置，两者不冲突（面板开着时不进双击 / 长按分支）。 */
+        if (typeof sh !== 'undefined' && sh && sh.open && sh.iid === iid) {
+          e.preventDefault();
+          startTextDrag(e);
+          return;
+        }
         const now = performance.now();
-        /* 双击才是「进入编辑」：解除固定 → 选中（虚线框 + 工具条）→ 落光标。
-           编辑态里拖动 / 改大小 / 旋转 / 打字全都可用 */
+        /* 双击 = 进入内容编辑：收掉版式手柄 → 选中（虚线框 + 工具条）→ 落光标。
+           这个状态里不能移动文本框、不能改大小、不能旋转 */
         if (w.__tTap && now - w.__tTap < 340 &&
             Math.abs(e.clientX - (w.__xTap || 0)) < 26 && Math.abs(e.clientY - (w.__yTap || 0)) < 26) {
           w.__tTap = 0;
@@ -425,12 +612,11 @@ function bindPage() {
           const up = ev => {
             off();
             if (far(ev)) return;
-            if (im.locked) { im.locked = false; w.classList.remove('locked'); save(); }
-            selectText();                                   // 固定态要先解锁，手柄才点得动
+            selectText(false);                              // 内容态：解锁只为工具条，手柄收起
             startTextEdit(w, pid, iid, { x: ev.clientX, y: ev.clientY });   // 光标落在点的那个字上
             if (!window.__textHintShown) {
               window.__textHintShown = true;
-              toast('拖四角整块缩放（字跟着变大）· 按住 Alt 只改框 · 右边那颗转');
+              toast('正在编辑文字 · 想移动或改大小，请长按文字');
             }
           };
           window.addEventListener('pointermove', mv);
@@ -439,10 +625,12 @@ function bindPage() {
           return;
         }
         /* 单击：什么都不做 —— 不选中、不画框，手势照旧归翻页（横划一下照样翻页）；
-           按住 420ms 则解除固定并进选中态，接着就能把整段拖到别处 */
+           按住 420ms 则解除固定并进版式态，接着就能把整段拖到别处 */
         armTap(e);
         e.preventDefault();
-        if (w.classList.contains('adjust')) { startTextDrag(e); return; }   // 面板开着时本来就是解锁态，按住照旧能挪
+        /* 已在版式态、或本来就是解锁的（刚添加 / 刚粘贴 / 面板里改完还没固定）：
+           按住就能挪，跟图片一样，不必再等一次 420ms 长按 */
+        if (w.classList.contains('boxmode') || im.locked === false) { startTextDrag(e); return; }
         armTextHold(e);
         return;
       }
@@ -477,6 +665,7 @@ function bindPage() {
     /* 工具条：四个动作（按下就响应，手感跟其它按钮一致） */
     const bar = w.querySelector('.objbar');
     if (bar) bar.addEventListener('pointerdown', e => {
+      if (e.button > 0) return;           // 右键：纸面菜单，不是按钮
       const b = e.target.closest('.ob'); if (!b) return;
       e.preventDefault(); e.stopPropagation();
       objAction(b.dataset.ob, w, pid, iid, isText);
@@ -485,8 +674,13 @@ function bindPage() {
     // 四角拉伸 / 旋转：横竖都能自由调节，对角线另一端保持不动
     w.querySelectorAll('.hdl').forEach(h => {
       h.addEventListener('pointerdown', e => {
+        if (e.button > 0) return;
         e.preventDefault(); e.stopPropagation();
         const im = getIm(); if (!im || im.locked) return;
+        /* 文字贴的手柄只在长按的版式态里管用。内容态（行内打字 / 文字面板）
+           即使 CSS 漏了手柄也不能让它缩放或旋转，这是第二道保险。 */
+        if (isText && (!w.classList.contains('boxmode') || w.classList.contains('editing') ||
+            (typeof sh !== 'undefined' && sh && sh.open && sh.iid === iid))) return;
         const p = elPaper();
         if (!p) return;
         const rect = p.getBoundingClientRect();
@@ -747,10 +941,12 @@ function addImageTo(pid) {
 function addTextTo(pid) {
   const j = cur(); if (!j || !j.pages.length) return;
   pid = clamp(pid, 0, j.pages.length - 1);
-  const t = newText(.16, .16);
+  const t = newText(.16, .16);           // 默认一个字都没有（占位提示由 CSS 画，不进数据）
   t.z = nextZ(j.pages[pid]);             // 后加的盖在先加的上面
   pageTexts(j.pages[pid]).push(t);
   save(); renderReader();
+  /* 记一笔「刚添加」：第一次收面板先别锁，抬手就能把这个框拖到别处 */
+  if (typeof markFreshText === 'function') markFreshText(t.id);
   openTextSheet(pid, t.id, true);        // 新建就直接开面板、自动聚焦，接着就能打字
   toast('已添加到第 ' + (pid + 1) + ' 页');
 }
@@ -767,3 +963,83 @@ function toggleAddMenu(force) {
   if (show) updateAddMenuHint();      // 菜单里标出「· 第 N 页」
   markAddTarget();
 }
+
+/* ==================== 纸面右键 / 快捷键接线 ==================== */
+/* 只在正文内页上接管右键：封面 / 封面内侧 / 环衬不显示我们的菜单；
+   正在行内打字时把系统菜单留给文本编辑（选词、粘贴文字进光标处）。 */
+$('#stage').addEventListener('contextmenu', e => {
+  if (!clipReaderOn()) return;
+  if (e.target.closest('.ptext-wrap.editing')) return;
+  openPaperMenu(e);
+});
+const paperMenu = $('#paperMenu');
+if (paperMenu) paperMenu.addEventListener('click', e => {
+  const b = e.target.closest('button[data-clip]');
+  if (!b || b.disabled) return;
+  e.preventDefault(); e.stopPropagation();
+  const c = paperMenuCtx, act = b.dataset.clip;
+  closePaperMenu();
+  if (act === 'paste') { clipPasteMenu(c); return; }
+  const ref = c && c.ref;
+  if (!ref) { toast('右键点在一个文字框或图片上才能' + (act === 'copy' ? '复制' : '剪切')); return; }
+  if (act === 'copy') clipCopy(ref); else clipCut(ref);
+});
+document.addEventListener('pointerdown', e => {
+  if (!e.target.closest || !e.target.closest('#paperMenu')) closePaperMenu();
+}, true);
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  const m = $('#paperMenu');
+  if (!m || !m.classList.contains('show')) return;
+  /* 只收菜单：window 上还挂着「Esc 关阅读器 / 退出吸管」，别一起触发 */
+  e.preventDefault(); e.stopImmediatePropagation();
+  closePaperMenu();
+});
+window.addEventListener('resize', closePaperMenu);
+window.addEventListener('blur', closePaperMenu);
+
+/* Ctrl+C / Ctrl+X / Ctrl+V 走浏览器自己的 copy / cut / paste 事件：
+   比监听 keydown 稳（菜单触发的复制也能收到），打字时则整支放行给浏览器。 */
+document.addEventListener('copy', e => {
+  if (!clipReaderOn() || clipTyping()) return;
+  const ref = clipSelectedRef(); if (!ref) return;
+  e.preventDefault();
+  clipSet(ref.isText ? 'text' : 'image', ref.o);
+  if (e.clipboardData && ref.isText) {
+    try { e.clipboardData.setData('text/plain', ((ref.o.text) || '').trim()); } catch (_) {}
+  }
+  toast(ref.isText ? '已复制文字 · 在纸面右键可粘贴' : '已复制图片 · 在纸面右键可粘贴');
+});
+document.addEventListener('cut', e => {
+  if (!clipReaderOn() || clipTyping()) return;
+  const ref = clipSelectedRef(); if (!ref) return;
+  e.preventDefault();
+  if (e.clipboardData && ref.isText) {
+    try { e.clipboardData.setData('text/plain', ((ref.o.text) || '').trim()); } catch (_) {}
+  }
+  clipCut(ref);
+});
+document.addEventListener('paste', e => {
+  if (!clipReaderOn() || clipTyping()) return;
+  const pt = clipPasteTarget(); if (!pt) return;
+  const cd = e.clipboardData;
+  /* 内部剪贴板优先：复制的是对象，就还原成一整块文字贴 / 图片 */
+  if (paperClip) { e.preventDefault(); clipPasteAt(pt.pid, pt.x, pt.y); return; }
+  let file = null;
+  if (cd) {
+    const fs = cd.files ? [...cd.files] : [];
+    file = fs.find(f => /^image\//.test(f.type || '')) || null;
+    if (!file && cd.items) {
+      for (const it of cd.items) {
+        if (it.kind === 'file' && /^image\//.test(it.type || '')) {
+          const f = it.getAsFile && it.getAsFile();
+          if (f) { file = f; break; }
+        }
+      }
+    }
+  }
+  const text = cd ? (cd.getData('text/plain') || '') : '';
+  if (!file && !text.trim()) return;
+  e.preventDefault();
+  clipPasteExternal(pt.pid, pt.x, pt.y, file, text);
+});

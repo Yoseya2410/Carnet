@@ -66,8 +66,16 @@
      于是所有本子一样高、只是画册更宽 —— 所以尺寸基准必须是这个变量，别写成固定 px。
      ⚠️ 活页手帐封面是 B6（125×176），在 book-style.css 里单独改比例 */
   position:relative;width:var(--cover-w);aspect-ratio:148/210;
-  /* 圆角比照书脊那侧收小（book-style.css 那条是最终生效的，这里同值兜底） */
-  border-radius:3px 10px 10px 3px;overflow:hidden;
+  /* 圆角比照书脊那侧收小（book-style.css 那条是最终生效的，这里同值兜底）。
+     --cr = 右侧翻口两角，由 coverHTML() 按每本的 cover.radius 写成内联变量，
+            单位是「主页封面（--cover-w 上限 246px）」上的 px；
+     --cr-left = 左侧书脊两角，固定不参与自定义；
+     --cr-scale = 缩略图折算系数：小尺寸预览必须按自己的封面宽同比缩小圆角，
+            否则 82px 高的装帧卡片套 28px 圆角会圆得像一颗胶囊，跟实际封面完全不符。 */
+  --cr-left:3px;--cr:10px;--cr-scale:1;
+  border-radius:calc(var(--cr-left) * var(--cr-scale)) calc(var(--cr) * var(--cr-scale))
+                calc(var(--cr) * var(--cr-scale)) calc(var(--cr-left) * var(--cr-scale));
+  overflow:hidden;
   /* 落地影要淡：影子太重书看着像浮在半空、而不是坐在架子上。
      两层的活儿分开 —— 远处那道大范围软影只留一点点，贴边那道更要淡 */
   box-shadow:0 22px 40px -20px rgba(20,22,40,.32),0 4px 12px -4px rgba(20,22,40,.14),
@@ -75,17 +83,47 @@
   background:#ddd;
 }
 .cover .pattern{position:absolute;inset:0;opacity:.95;pointer-events:none}
+/* 左侧这一列按「有没有彩带」分两条路（2026-11-09 用户定稿）：
+   ① 有彩带 —— 只画一条平色带，**不叠压槽**（有封面彩带的不要压槽）；
+   ② 没彩带（透明档）/ 画册 —— **画压槽**，并保留原来那套立体断面：
+      左壁逐暗 → 槽底最深 → 右壁接光形成细凸缘 → 封面重新落回暗面
+      （用户复评「之前的更逼真」，所以断面原样恢复）。
+      ⚠️ 仍然去掉三样：上下两端的折边暗边（原 ::before 的第一层 180deg 渐变）、
+         四周的黑色投影（原 .spine 的 box-shadow）、槽沿那条 1px 浅白线（原 ::after）。
+   ③ 活页 —— coverHTML 整列不输出，封面是一张干净硬壳。 */
 .cover .spine{
-  position:absolute;left:0;top:0;bottom:0;width:8.5%;
-  box-shadow:2px 0 8px rgba(0,0,0,.35),inset -1px 0 0 rgba(255,255,255,.18);
+  position:absolute;left:0;top:0;bottom:0;width:6.5%;pointer-events:none;
+  box-shadow:none;
 }
-.cover .spine::after{content:"";position:absolute;left:34%;top:0;bottom:0;width:1px;background:rgba(255,255,255,.16)}
-/* 透明彩带：只留装订压痕（无颜色带），阴影收淡一点，免得看着像一条脏印子 */
-.cover .spine.ghost{
-  background:none;
-  box-shadow:2px 0 7px rgba(0,0,0,.24),inset -1px 0 0 rgba(255,255,255,.15)
+/* 彩带：**纯色**一条带（背景由 ribbonSpine() 给纯色值，不带任何明暗渐变）。
+   ⚠️ 右侧两层柔和接触影是「彩带贴在封面上」压出来的投影，用户明确要保留；
+      要去掉的是**彩带上面**那道黑影，所以把带子抬到 .cover::after 暗角之上
+      （book-style.css 里靠书脊的 inset 黑影否则会压在带子上，看着发黑、不纯色）。
+   ⚠️ .ghost（透明档压槽）不吃这条：压槽仍留在暗角之下、保持立体断面。 */
+.cover .spine:not(.ghost){
+  z-index:1;
+  /* 接触影浓度（2026-11-12 用户要求「再浅一点」）：主 .18 / 次 .06，别加深回去。
+     几何（2px/6px/-2px、1px/2px）与 diy-cover.css / color-picker.css / io-doc.js 同源，别只调一边。 */
+  box-shadow:2px 0 6px -2px rgba(7,9,16,.18),1px 0 2px rgba(7,9,16,.06);
 }
-.cover .spine.ghost::after{background:rgba(255,255,255,.12)}
+/* 有彩带：凹槽断面不生成；::after（槽沿浅白线）任何时候都不画 */
+.cover .spine:not(.ghost)::before,
+.cover .spine::after{content:none}
+/* 透明彩带：完整的精装压槽断面，只有断面本身的明暗，没有折边 / 外围黑影 / 浅线。
+   ⚠️ 方向沿用 23:15 的「左亮右暗」；色标按**视觉位置**从左到右写 90deg，不再做镜像换算。
+   ⚠️ 23:32 用户要求「亮槽宽一点、暗槽窄一点」：亮峰 .30白 从单个点扩成 22%~38%
+      的平台（约 16% 宽），暗区从 46%~68% 收到 50%~62%（约 12% 宽）。
+      想回到最初的「左暗右亮」：把亮平台挪到 64%~73%、暗区放回 32%~54%。 */
+.cover .spine.ghost{background:none}
+.cover .spine.ghost::before{
+  content:"";position:absolute;inset:0;
+  background:linear-gradient(90deg,
+    rgba(0,0,0,.02) 0%,rgba(0,0,0,.07) 12%,
+    rgba(255,255,255,.30) 22%,rgba(255,255,255,.30) 38%,
+    rgba(255,255,255,.20) 44%,
+    rgba(0,0,0,.34) 50%,rgba(0,0,0,.26) 56%,rgba(0,0,0,.08) 62%,
+    rgba(255,255,255,.04) 78%,rgba(255,255,255,.18) 100%);
+}
 .cover .gloss{
   position:absolute;inset:0;pointer-events:none;
   background:linear-gradient(112deg,rgba(255,255,255,.28) 0%,rgba(255,255,255,0) 34%,rgba(255,255,255,0) 68%,rgba(255,255,255,.12) 100%);
@@ -129,4 +167,12 @@
 }
 #home.bg-light .actionbar .icon-btn:hover{background:rgba(255,255,255,.46)}
 #home.bg-light .actionbar .icon-btn.danger{color:#111318}
+
+/* 主页按钮不画白色焦点框：base.css 那条全局 :focus-visible 会在按钮被点击 / 聚焦后
+   临时套一圈 2px 白框，浅底上很突兀、失焦又消失 —— 用户不要这个「选中的白色框」。
+   按钮本来就有 hover / active 的底色与形状反馈，去掉 outline 不影响操作。
+   ⚠️ 只限 #home 内的 button：阅读器、弹窗里的键盘焦点圈仍保留（可访问性），
+      也别顺手改 border-radius，那会把圆钮本身的圆角改掉。 */
+#home button:focus,
+#home button:focus-visible{outline:none}
 

@@ -30,7 +30,8 @@
   let migrated = false;
   /* 已下线的「日历」模板迁移到空白牛皮纸 */
   data.forEach(j => { if (j && j.template === 'calendar') { j.template = 'kraftplain'; migrated = true; } });
-  /* 一次性迁移：封面图案「曼陀罗」换成「圆形」、「齿轮」换成「三角形」，老封面自动跟着改 */
+  /* 一次性迁移：封面图案按 PAT_MAP 改写 —— 曼陀罗→圆形、齿轮→无，
+     以及 2026-11-08 下线的「三角形 / 小花」就地清成「无图案」，老封面自动跟着改 */
   data.forEach(j => {
     if (j && j.cover && PAT_MAP[j.cover.pattern]) { j.cover.pattern = PAT_MAP[j.cover.pattern]; migrated = true; }
   });

@@ -42,10 +42,11 @@ async function checksum(str) {
   return 'fnv:' + h.toString(16).padStart(8, '0');
 }
 /* 两本手帐是否「内容完全一样」：比对除 id / created 之外的一切
-   （名字、封面、彩带、模板、每页的图片与文字），用于导入去重 */
+   （名字、封面、彩带、模板、自定义模板图与铺法、每页的图片与文字），用于导入去重 */
 async function journalFP(j) {
   return checksum(stableStringify({
-    name: j.name, cover: j.cover, ribbon: j.ribbon, template: j.template, pages: j.pages
+    name: j.name, cover: j.cover, ribbon: j.ribbon,
+    template: j.template, tplImg: j.tplImg, tplImgs: j.tplImgs, tplFit: j.tplFit, pages: j.pages
   }));
 }
 /* 数一数文件里实际写了多少资产。注意这里数的是条目本身、不做有效性过滤：

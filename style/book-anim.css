@@ -55,8 +55,10 @@
    封面就正好落在正中；翻页用的叶子位置与静止时完全重合，翻页动画可以原样沿用 */
 .book.cover-only{transform:translateX(calc(var(--pw) * -.5))}
 .book.cover-only .page-slot.left{display:none}
-.book.cover-only .page-slot.right{border-radius:var(--spine-r,3px) var(--cover-r,10px) var(--cover-r,10px) var(--spine-r,3px)}
-.book.cover-only .leaf-face.front{border-radius:var(--spine-r,3px) var(--cover-r,10px) var(--cover-r,10px) var(--spine-r,3px)}
+/* 合书封面 = 整本外框：吃 --book-r 在「合上」那一刻的值（活页 5px 25px 25px 5px、
+   其它 5px 16px 16px 5px）；翻开后 .book-under 由 .has-under 覆写成四角一致的同角度 */
+.book.cover-only .page-slot.right{border-radius:var(--book-r,5px 16px 16px 5px)}
+.book.cover-only .leaf-face.front{border-radius:var(--book-r,5px 16px 16px 5px)}
 /* 合上封面时，右侧内页必须一直留到翻过来的封面真正盖住它。
    不能提前把右槽透明化：那会让底下的后封面先露出来，看起来像封面还没合到右边、
    右侧就已经变成封面了。这里的 .cover-closing 只负责裁掉左半张封面板。 */

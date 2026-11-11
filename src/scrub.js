@@ -193,6 +193,8 @@ window.addEventListener('keydown', e => {
   const stage = $('#stage');
   let sx = 0, sy = 0, active = false;
   stage.addEventListener('pointerdown', e => {
+    /* 右键是纸面菜单的，不参与翻页手势：否则抬起的那一下会被当成「点了一下」翻页 */
+    if (e.button > 0) { active = false; return; }
     if (flipSuppressed(500)) { active = false; return; }        // 刚关菜单：只关菜单
     if (e.target.closest('.objbar')) return;                 // 工具条上的按键不算滑动手势
     syncAddFocusFrom(e.target);               // 在哪一页上操作，新内容就默认加到那一页
@@ -204,10 +206,12 @@ window.addEventListener('keydown', e => {
     if (!e.target.closest('.objbar,.hdl')) {
       hideTextBar();                                // 点空白处：收起编辑面板与选中态
     }
-    $$('.pimg-wrap,.ptext-wrap').forEach(x => { if (x !== tw) x.classList.remove('sel', 'adjust'); });
+    /* boxmode 是长按版式态的标记，跟着 adjust 一起撤，别让旧对象的四角手柄孤零零留着 */
+    $$('.pimg-wrap,.ptext-wrap').forEach(x => { if (x !== tw) x.classList.remove('sel', 'adjust', 'boxmode'); });
     sx = e.clientX; sy = e.clientY; active = true;
   });
   stage.addEventListener('pointerup', e => {
+    if (e.button > 0) { active = false; return; }
     if (!active) return; active = false;
     if (state.imgDragging) return;
     const dx = e.clientX - sx, dy = e.clientY - sy;

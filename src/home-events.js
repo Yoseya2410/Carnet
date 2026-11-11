@@ -736,6 +736,65 @@ $('#spineScroll').addEventListener('wheel', e => {
 $$('#viewToggle button').forEach(btn => {
   btn.addEventListener('click', () => setView(btn.dataset.vt));
 });
+/* 白钮也能**拖着**换模式：按下 → 拖 → 松手吸附到最近那一格。
+   点击仍走上面那组 click；只有真拖过（≥6px）才吞掉尾巴跟着来的那一下 click，
+   否则「从 shelf 拖到 carousel」会被起点按钮的 click 又切回 shelf。
+   ⚠️ 格距从按钮的 offsetLeft 现算，别写死 39px：CSS 改了间距也不会错位。 */
+(function dragViewToggle() {
+  const box = $('#viewToggle'), thumb = box && box.querySelector('.vt-thumb');
+  if (!box || !thumb) return;
+  const views = ['shelf', 'spine', 'carousel'];
+  const btns = Array.from(box.querySelectorAll('button'));
+  let drag = null, suppress = false;
+  const step = () => btns.length > 1 ? (btns[1].offsetLeft - btns[0].offsetLeft) || 39 : 39;
+  box.addEventListener('pointerdown', e => {
+    if (e.button > 0 || drag) return;
+    const s = step(), i = Math.max(0, views.indexOf(state.prefs.view));
+    drag = { id: e.pointerId, x: e.clientX, from: i * s, step: s, max: s * (views.length - 1), moved: 0, captured: false };
+    /* ⚠️ 这里**不能**立刻 setPointerCapture：一旦捕获，随后那一下 click 的共同祖先
+       会变成 box 而不是被点的 button，纯点击就再也切不了模式了。
+       等真拖动起来（moved ≥ 6）再捕获，此时 click 已注定要被吞掉。 */
+  });
+  box.addEventListener('pointermove', e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x;
+    drag.moved = Math.max(drag.moved, Math.abs(dx));
+    if (drag.moved < 6) return;
+    if (!drag.captured) {
+      try { box.setPointerCapture(e.pointerId); drag.captured = true; } catch (_) {}
+    }
+    box.classList.add('dragging');           // 收掉 .on 的白玻璃底，只留白钮这一个圆
+    thumb.classList.add('dragging');
+    const x = clamp(drag.from + dx, 0, drag.max);
+    thumb.style.transform = 'translateX(' + x.toFixed(1) + 'px)';
+    /* 选中态跟着白钮走：图标高亮落到拇指最近那一格，旧格不再「还留着一个按钮」。
+       白底已被 .dragging 关掉，所以全程只有一个白色圆。松手由 syncViewToggle 定稿。 */
+    const hi = clamp(Math.round(x / drag.step), 0, views.length - 1);
+    btns.forEach((b, i) => b.classList.toggle('on', i === hi));
+  });
+  const finish = (e, cancel) => {
+    if (!drag || (e.pointerId !== undefined && e.pointerId !== drag.id)) return;
+    const d = drag; drag = null;
+    if (d.captured) { try { box.releasePointerCapture(d.id); } catch (_) {} }
+    box.classList.remove('dragging');
+    thumb.classList.remove('dragging');
+    thumb.style.transform = '';
+    if (cancel) { syncViewToggle(); return; }  // 手势取消：.on 还原到真实模式
+    if (d.moved < 6) return;                   // 纯点击：.on 从没被改过，交回 click
+    const x = clamp(d.from + (e.clientX - d.x), 0, d.max);
+    const i = clamp(Math.round(x / d.step), 0, views.length - 1);
+    suppress = true;
+    setView(views[i]);                         // syncViewToggle 把 data-vt 落到新格
+    setTimeout(() => { suppress = false; }, 0);
+  };
+  box.addEventListener('pointerup', e => finish(e, false));
+  box.addEventListener('pointercancel', e => finish(e, true));
+  box.addEventListener('click', e => {
+    if (!suppress) return;
+    suppress = false;
+    e.preventDefault(); e.stopPropagation();
+  }, true);
+})();
 /* 书架上下滑动时把浮层按钮整块让开（顶栏底栏都不挡视线），停下 0.48s 再淡回来。
    书架已经吃满整屏高度，滑动的这一下屏幕上就只剩书 */
 (function floatBarsAway() {
@@ -793,7 +852,7 @@ function renderSearch(q) {
     /* 方形画册比其它本子宽 1.35 倍（一样高、只是方），缩略图容器要跟着放开，否则右边被裁 */
     const sq = bookStyleOf(j).k === 'square' ? ' sq' : '';
     return `<div class="sr-item" data-i="${i}">
-      <div class="sr-thumb${sq}">${coverHTML(j)}</div>
+      <div class="sr-thumb${sq}" style="${coverRadiusVar(j)}">${coverHTML(j)}</div>
       <div class="info"><div class="nm">${nm}</div><div class="meta">${j.pages.length} 页 · ${date}</div></div>
     </div>`;
   }).join('');

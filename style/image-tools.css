@@ -21,13 +21,16 @@
 /* 纸面不再压内侧灰色渐变（去掉后两页之间干干净净，纸张是平的） */
 .paper::after{content:"";position:absolute;inset:0;pointer-events:none;background:none}
 .tplbg{position:absolute;inset:var(--pmy) var(--pmx);background-repeat:repeat;background-position:0 0;pointer-events:none}
+/* 自定义图片模板是整张纸的底图，不吃版心留白（内置格线 / 点阵才需要那一圈空白纸边）。
+   活页打孔列的 mask 仍然生效，孔那一列照旧露出干净纸色。导出端同步把留白设成 0，见 io-doc.js */
+.paper.t-custom .tplbg{inset:0}
 .paper.t-lined .tplbg{
   /* 单元高度 = 渐变周期 28px，平铺时相位连续，首两行不会错开（详见 visuals.js 的 tplStyle） */
   background-image:repeating-linear-gradient(transparent 0,transparent 27px,#dfe3ee 27px,#dfe3ee 28px);
   background-size:100% 28px;
 }
-/* 横线模板那条红边线（版心左界）：跟着页边留白一起往里挪，别压在空白边上 */
-.paper.t-lined::before{content:"";position:absolute;left:calc(var(--pmx) + 12px);top:0;bottom:0;width:1px;background:#eab7c2;opacity:.8}
+/* 横线模板只保留等距横线：原来版心左界那条红色竖边线已去掉（2026-11-11），
+   屏幕、缩略图、PDF / SVG / 长图导出四处都不再画它。 */
 .paper.t-grid .tplbg{
   background-image:linear-gradient(#e8ebf3 1px,transparent 1px),linear-gradient(90deg,#e8ebf3 1px,transparent 1px);
   background-size:23px 23px;
@@ -41,12 +44,14 @@
 /* —— 跨页拖迁：对象落到这一页时给纸描一道内描边 ——
    双页摊开时把图片 / 文字拖过中缝，它会搬进另一页；落点要有看得见的回应，
    否则「到底过去了没有」全凭猜（手势一结束这道边就没了，所以不必做动画）。
-   只写 box-shadow 不动伪元素：.t-lined 的红色边距线就长在 ::before 上，抢不得 */
+   只写 box-shadow 不动伪元素，免得跟纸面其它装饰层抢同一层 */
 .paper.drop-in{
   box-shadow:inset 0 0 0 2px rgba(43,53,80,.42),inset 0 0 44px rgba(43,53,80,.12)
 }
 .paper.endpaper{background:linear-gradient(160deg,#3b425e,#2b3048)}
 .paper.endpaper::after{display:none}
+/* 活页最后一跨的右半 = 后封面内侧：透明，露出底下 .book-under 铺的那张皮 */
+.paper.endpaper.see-through{background:none}
 
 .pcontent{position:absolute;inset:0;z-index:2}
 .pimg-wrap,.ptext-wrap{position:absolute;z-index:3;touch-action:none;cursor:grab}

@@ -32,6 +32,7 @@
   <link rel="stylesheet" href="style/menus.css">
   <link rel="stylesheet" href="style/decor.css">
   <link rel="stylesheet" href="style/background.css">
+  <link rel="stylesheet" href="style/diy-cover.css">
 </head>
 <body data-page-node-id="fyhITFSae6zxcmzB16cSQh">
 <div data-page-node-id="FaGVY50w6eg6p918jzsNIa" id="app">
@@ -117,11 +118,12 @@
           <button data-page-node-id="SHsvg" data-shareact="svg"><svg data-page-node-id="SHsvgIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><path data-page-node-id="SHsvgP1" d="M9 6.5L4 12l5 5.5"/><path data-page-node-id="SHsvgP2" d="M15 6.5L20 12l-5 5.5"/><circle data-page-node-id="SHsvgC1" cx="12" cy="12" r="1.5"/></svg>导出 SVG（矢量）</button>
         </div>
       </div>
-      <button data-page-node-id="F8B7W1c0gr3Z02ip7wkPk6" class="icon-btn danger" data-act="del" title="删除">
-        <svg data-page-node-id="78F3dUv48uxTrjt3Q4Pv1w" fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="20"><path data-page-node-id="MXr7t5JgOGG8oBdRPUBEib" d="M4 6.5h16"/><path data-page-node-id="KcrwDlL0QNuVAmFeEzaR8g" d="M9.2 6.5V4.4h5.6v2.1"/><path data-page-node-id="f8q2Df283TmahgItCfHCQm" d="M6.4 6.5l.95 13.1h9.3l.95-13.1"/><path data-page-node-id="YvWgigUyIKHFyHK009gc8A" d="M10 10v6.4M14 10v6.4"/></svg>
-      </button>
+      <!--pnid:ActNew--><!-- 底栏顺序：分享 · 新建（居中） · 删除。新建是最高频的动作，摆中间顺手 -->
       <button data-page-node-id="gaSRmb39fcmGkPnWJEDNej" class="icon-btn" data-act="new" title="新建手帐本">
         <svg data-page-node-id="Or13RcJh8coNC3NmemE9TD" fill="none" height="22" stroke="currentColor" stroke-linecap="round" stroke-width="2" viewBox="0 0 24 24" width="22"><path data-page-node-id="kmk1Yz6gmnPQsBoGOBJ969" d="M12 5v14M5 12h14"/></svg>
+      </button>
+      <button data-page-node-id="F8B7W1c0gr3Z02ip7wkPk6" class="icon-btn danger" data-act="del" title="删除">
+        <svg data-page-node-id="78F3dUv48uxTrjt3Q4Pv1w" fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="20"><path data-page-node-id="MXr7t5JgOGG8oBdRPUBEib" d="M4 6.5h16"/><path data-page-node-id="KcrwDlL0QNuVAmFeEzaR8g" d="M9.2 6.5V4.4h5.6v2.1"/><path data-page-node-id="f8q2Df283TmahgItCfHCQm" d="M6.4 6.5l.95 13.1h9.3l.95-13.1"/><path data-page-node-id="YvWgigUyIKHFyHK009gc8A" d="M10 10v6.4M14 10v6.4"/></svg>
       </button>
     </div>
   </section>
@@ -287,10 +289,19 @@
       <div data-page-node-id="STFoot" class="st-foot">
         <button data-page-node-id="STImport" class="st-imp" id="stImport">
           <svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><path d="M12 5v14M5 12h14"/></svg>
-          导入图片为贴纸
+          导入图片为贴纸（可多选）
         </button>
       </div>
-      <input data-page-node-id="STFile" type="file" accept="image/*" id="stFile" hidden>
+      <input data-page-node-id="STFile" type="file" accept="image/*" id="stFile" multiple hidden>
+    </div>
+
+    <!--pnid:PaperMenu--><!-- 纸面右键：复制 / 剪切 / 粘贴。对象是整块文字贴或图片，
+         粘贴落在右键那一刻的位置。右键指着对象就针对它，点在空白处退回当前选中的对象，
+         一个都没选中时前两项置灰；粘贴始终可用来贴外部复制的文字 / 图片 -->
+    <div data-page-node-id="PaperMenu" class="addmenu pmenu" id="paperMenu">
+      <button data-page-node-id="PMcopy" data-clip="copy" title="复制这个文字框或图片"><svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><rect height="11.6" rx="2.4" width="11.6" x="8.4" y="8.4"/><path d="M15.9 8.4V6.3a2.3 2.3 0 00-2.3-2.3H6.3A2.3 2.3 0 004 6.3v7.3a2.3 2.3 0 002.3 2.3h2.1"/></svg>复制</button>
+      <button data-page-node-id="PMcut" data-clip="cut" title="剪切这个文字框或图片"><svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><circle cx="6.6" cy="18" r="2.5"/><circle cx="17.4" cy="18" r="2.5"/><path d="M8.3 16.4L18.6 4M15.7 16.4L5.4 4"/></svg>剪切</button>
+      <button data-page-node-id="PMpaste" data-clip="paste" title="把复制的内容贴到右键的位置"><svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><rect height="16.6" rx="2.3" width="13.6" x="5.2" y="4.4"/><path d="M9.2 4.6V3.3h5.6v1.3M9 11h6M9 15h4"/></svg>粘贴<span class="pm-hint" id="pmHint"></span></button>
     </div>
   </section>
 
@@ -326,6 +337,19 @@
         </div>
       </div>
 
+      <!--pnid:RadiusSec--><!-- 封面圆角：每本单独存 cover.radius，只放开右侧（翻口）两个角 -->
+      <div class="fold-sec" data-sec="radius" id="edSecRadius">
+        <label class="fold-head" id="edRadiusHead">封面圆角<span class="fold-hint" id="edRadiusHint"></span><i class="fold-caret"></i></label>
+        <div class="fold-body">
+          <div class="ed-r-row">
+            <input class="ed-range" type="range" id="edRadius" min="0" max="36" step="1" value="10">
+            <span class="ed-r-val" id="edRadiusVal">10px</span>
+            <button class="btn ghost" id="edRadiusReset" style="flex:0 0 auto;padding:9px 13px;font-size:12.5px">默认</button>
+          </div>
+          <p class="tpl-note">只调整封面右侧（翻口）的两个角，左侧靠书脊的两角保持装帧原样；数值越大越圆，0 为直角。主页、阅读器与导出的封面会一起变。</p>
+        </div>
+      </div>
+
       <!--pnid:PatSec--><!-- 封面图案：上传了封面图片时自动收起并锁死（图案在图片上不起作用） -->
       <div data-page-node-id="PatSec" class="fold-sec" data-sec="pattern" id="edPatSec">
         <label data-page-node-id="5uxvYDynqdymG6oMEZBqbC" class="fold-head" id="edPatHead">封面图案<span data-page-node-id="PatFoldHint" class="fold-hint" id="edPatFoldHint"></span><i data-page-node-id="PatCaret" class="fold-caret" id="edPatCaret"></i></label>
@@ -356,14 +380,50 @@
         <label class="fold-head" id="edRibbonHead">封面彩带颜色<span class="fold-hint" id="edRibbonHint"></span><i class="fold-caret"></i></label>
         <div class="fold-body">
           <div data-page-node-id="gfmWXJ2h8ollpVn43Vq92m" class="swatches" id="edRibbons"></div>
+          <p class="tpl-note">彩带只有「笔记本」这一档有；选「透明」时封面左侧改画带立体断面的书槽。</p>
         </div>
       </div>
 
-      <!--pnid:TplSec-->
+      <!--pnid:InsideSec--><!-- 活页封面内侧：自动主色 / 与封面一致 / 自定义颜色或图片 -->
+      <div class="fold-sec" data-sec="inside" id="edSecInside">
+        <label class="fold-head" id="edInsideHead">封面内侧（活页）<span class="fold-hint" id="edInsideHint"></span><i class="fold-caret"></i></label>
+        <div class="fold-body">
+          <div class="tpl-fit" id="edInsideModes">
+            <span>内衬</span>
+            <button class="on" data-inside="auto" title="从封面提取最多五个主色，任选一个">封面主色</button>
+            <button data-inside="match" title="整张沿用封面（色 / 图 / 图案）">与封面一致</button>
+            <button data-inside="custom">自定义</button>
+          </div>
+          <div class="ed-inside-pal fold" id="edInsidePalette"></div>
+          <div class="ed-inside-pv" id="edInsidePv"></div>
+          <div id="edInsideCustomBox">
+            <div class="swatches" id="edInsideColors"></div>
+            <div class="upload-row" style="margin-top:10px">
+              <button class="btn ghost" id="edInsideUpload">选择内衬图片</button>
+              <div class="upload-thumb" id="edInsideThumb" style="display:none"></div>
+              <button class="btn ghost" id="edInsideClearImg" style="display:none;flex:0 0 auto;padding:10px 14px;font-size:13px">移除</button>
+            </div>
+          </div>
+          <p class="tpl-note">默认从封面里提取最多五个主色，点一个作纯色内衬；也可整张沿用封面，或自己挑颜色 / 传一张内衬图。仅活页手帐翻开后看得到。</p>
+        </div>
+      </div>
+
+      <!--pnid:TplSec--><!-- 内页模板：六档内置纸面 + N 张自定义图片模板（每张各占一格）+ 末尾「＋添加」。
+            图片压缩后存进 j.tplImgs 素材库，当前选中的那张写进 j.tplImg，
+            跟着源文件 / PDF / 长图一起导出。上传入口就在模板栏里，下面不再放选图按钮 -->
       <div class="fold-sec" data-sec="template" id="edSecTpl">
         <label class="fold-head" id="edTplHead">内页模板<span class="fold-hint" id="edTplHint"></span><i class="fold-caret"></i></label>
         <div class="fold-body">
           <div data-page-node-id="Vfrw9LkHhzLxQ9OlWR8TSY" class="tpl-grid" id="edTemplates"></div>
+          <div class="tpl-up" id="edTplUp">
+            <div class="tpl-fit" id="edTplFit">
+              <span>铺法</span>
+              <button class="on" data-fit="cover">铺满</button>
+              <button data-fit="stretch">拉伸</button>
+              <button data-fit="tile">平铺</button>
+            </div>
+            <p class="tpl-note" id="edTplNote">点「＋」添加图片模板，可一次选多张；图片铺满整本每一页，随手帐本一起保存与导出。</p>
+          </div>
         </div>
       </div>
 
@@ -475,6 +535,66 @@
   <!-- 换图专用：跟「添加图片」分开，免得两者抢同一个 pendingPage -->
   <input data-page-node-id="SWAPfile" accept="image/*" hidden id="swapFile" type="file">
   <input data-page-node-id="PfKLvwIHF0oGvl7g7C4CMc" accept="image/*" hidden id="coverFile" type="file">
+  <!-- 自定义内页模板专用：跟封面图 / 页内图片分开，免得几路上传抢同一个回调 -->
+  <input accept="image/*" hidden id="tplFile" type="file" multiple>
+  <!-- 自定义封面专用选图入口：加图片 / 换图 / 往贴纸库导入，三路分开免得抢回调 -->
+  <input accept="image/*" hidden id="diyFile" type="file">
+  <input accept="image/*" hidden id="diySwapFile" type="file">
+  <input accept="image/*" hidden id="diyStickerFile" type="file" multiple>
+  <input accept="image/*" hidden id="edInsideFile" type="file">
+
+  <!-- ============ 自定义封面：独立全屏页面 ============
+       与 #home / #reader 平级（不是弹窗）。进入时编辑器弹窗让位，完成后再交还。
+       纸面上的图片 / 文字 / 贴纸都是**阅读器同款对象**（images / texts，含 x/y/w/h/z/rot），
+       渲染复用 imgWrapHTML / textWrapHTML / objBarHTML，手势与工具条也照阅读器那套。
+       「完成」把纸面合成成一张封面图写进 cover.img，草稿 cover.diym 留着可再编辑。 -->
+  <section class="diy-page" id="diyPage" hidden>
+    <div class="diy-top">
+      <button class="icon-btn" id="diyBack" title="返回（放弃本次修改）">
+        <svg fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="20"><path d="M14.5 5.5L8 12l6.5 6.5"/></svg>
+      </button>
+      <div class="diy-tt"><b>自定义封面</b><small>双击文字打字 · 长按解锁摆位置 · 四角缩放</small></div>
+      <button class="pill-btn diy-done" id="diyDone">完成</button>
+    </div>
+    <!-- ⚠️ .diy-main / .diy-side 在竖屏是 display:contents（不生成盒子），
+         四个块因此仍是 .diy-page 的直接 flex 子项：顶栏 → 画布 → 底栏 → 底部面板。
+         横屏时两者变成真盒子：.diy-main 左右分栏，画布在左、工具条＋面板合成右侧一竖条。
+         见 style/diy-cover.css 末尾的横屏媒体查询。增删块时别把这两个壳拆散。 -->
+    <div class="diy-main">
+      <div class="diy-stage" id="diyStage">
+        <div class="diy-paper" id="diyPaper"><div class="diy-pcontent" id="diyContent"></div></div>
+      </div>
+      <div class="diy-side" id="diySide">
+        <!-- 横屏：拖这条左边缘改侧栏宽度；竖屏没有侧栏，整条隐藏 -->
+        <div class="diy-resizer" id="diyResizer" title="拖动调整工具栏宽度"></div>
+        <!-- 竖屏时 .diy-bar-group / .diy-bar-grid 是 display:contents、图标和组标题隐藏，
+             五个按钮仍直接排成一排；横屏才展开成分组的图标按钮网格。 -->
+        <div class="diy-bar" id="diyBar">
+          <div class="diy-bar-group">
+            <div class="diy-bar-cap">添加</div>
+            <div class="diy-bar-grid">
+              <button data-diyact="image" title="添加图片"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M4 17.5l5-5 3.6 3.6 3-3 4.4 4.4"/></svg><span>＋ 图片</span></button>
+              <button data-diyact="text" title="添加文字"><svg viewBox="0 0 24 24"><path d="M5 6.5V5h14v1.5M12 5v14M9 19h6"/></svg><span>＋ 文字</span></button>
+              <button data-diyact="sticker" title="添加贴纸"><svg viewBox="0 0 24 24"><path d="M4 4h16v10l-6 6H4z"/><path d="M14 20v-6h6"/></svg><span>＋ 贴纸</span></button>
+            </div>
+          </div>
+          <div class="diy-bar-group">
+            <div class="diy-bar-cap">编辑</div>
+            <div class="diy-bar-grid">
+              <button data-diyact="bg" title="封面底色"><svg viewBox="0 0 24 24"><path d="M12 3.5c4 4.2 6.5 6.9 6.5 10.2a6.5 6.5 0 01-13 0C5.5 10.4 8 7.7 12 3.5z"/></svg><span>底色</span></button>
+              <button data-diyact="layer" title="图层 / 排序 / 重命名"><svg viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 12.5l9 5 9-5M3 16.5l9 5 9-5"/></svg><span>图层</span></button>
+              <button data-diyact="cover" title="封面设置：彩带颜色 / 圆角"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="15" height="18" rx="3"/><path d="M9 3v18M9 9h7"/></svg><span>封面</span></button>
+            </div>
+          </div>
+        </div>
+        <!-- 工具面板：底色 / 编辑文字 / 贴纸 / 图层共用这一块（竖屏贴底、横屏进右侧栏） -->
+        <div class="diy-sheet" id="diySheet" hidden>
+          <div class="diy-sheet-head"><span id="diySheetTitle">底色</span><button id="diySheetClose" title="收起">✕</button></div>
+          <div class="diy-sheet-body" id="diySheetBody"></div>
+        </div>
+      </div>
+    </div>
+  </section>
 </div>
 
   <!-- 脚本：按依赖顺序加载（defer 保证 DOM 就绪且顺序执行），各文件职责见 README.md。

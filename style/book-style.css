@@ -2,9 +2,9 @@
  * Carnet · 装帧样式与封面拟物   （样式 4 / 19）
  * ---------------------------------------------------------------------
  * ① 封面的光泽与明暗（.gloss）、暗角与内描边（::after）
- * ② 硬壳装帧：书脊（.spine）；彩带颜色只有「笔记本」这一档用得上
- * ③ 活页装帧：封面不再画环（只留装订压痕；环在内页中缝，见 reader.css 的 .grings）
- * ④ 方形画册：1:1 开本（.s-square）
+ * ② 硬壳装帧：左侧彩带（.spine）；彩带颜色只有「笔记本」这一档用得上
+ * ③ 活页装帧：封面不再画环，也不画压槽（环在内页中缝，见 reader.css 的 .grings）
+ * ④ 方形画册：1:1 开本（.s-square）；精装书：无彩带 + 加宽书槽（.s-hardcover）
  * ⑤ 编辑器里的「装帧样式」选择卡（.sty-*)
  *
  * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
@@ -12,11 +12,16 @@
 /* ============ 封面：更像一本真书 ============ */
 /* 圆角不对称：靠书脊那侧（左）几乎是直角，翻口那侧（右）圆得明显 —— 硬壳书的招牌。
    ⚠️ 圆角别开太大：硬壳书的翻口是**小圆角**，开到十几像素看着像一张圆角卡片而不是一本书。
-   ⚠️ 这一组值必须跟**内页**一致（阅读器里内页翻口那两个角是 10px、装订侧 3px，
+   ⚠️ --cr 是每本可自定义的「右侧两角」，--cr-left 是固定的书脊两角；
+      缺省值必须跟**内页**一致（阅读器里内页翻口那两个角是 10px、装订侧 3px，
       见 reader.css 的 .page-slot.right / .leaf-face.front）：封面与内页同一个度数，
       翻开封面的瞬间圆角才不会跳一档。三处（book-style.css / home.css / reader.css）一起改。 */
 .cover{
-  border-radius:3px 10px 10px 3px;
+  /* 右侧两角吃 --cr（每本可自定义，见 visuals.js 的 coverRadiusOf），左侧书脊两角固定。
+     --cr-scale 让缩略图按尺寸同比折算，主页 / 书架等正常尺寸封面保持 1。 */
+  --cr-left:3px;--cr:10px;--cr-scale:1;
+  border-radius:calc(var(--cr-left) * var(--cr-scale)) calc(var(--cr) * var(--cr-scale))
+                calc(var(--cr) * var(--cr-scale)) calc(var(--cr-left) * var(--cr-scale));
   /* 三层影子：远处的大范围软影 + 贴边的接触影 + 一圈内侧描边（把边缘勾出来）。
      ⚠️ 两层外影都要**淡**：影子一重，书看着像浮在半空而不是坐在架子上，
         浅色背景下尤其明显（深影会把整块背景压脏）。
@@ -82,7 +87,9 @@
 }
 
 /* ============ 活页装帧 ============
-   ⚠️ 封面上**没有环** —— 真活页本的环在里侧，封面就是一张干净硬壳（只留 .spine.ghost 那道压痕）。
+   ⚠️ 封面上**没有环、也没有压槽** —— 真活页本的环在里侧，封面就是一张干净硬壳。
+      其它装帧在「透明彩带」时仍画压槽，且保留原来那套立体断面（见 home.css 的
+      .spine.ghost），只去掉上下折边暗边 / 四周黑影 / 槽沿浅白线；有彩带时不叠压槽。
       环画在翻开的内页中缝上（见 reader.css 的 .grings）：那里才有「左右两页的孔」和「中间的缝」，
       画出来才是一根钢丝穿过两页，而不是贴在封面上的一排亮片。 */
 /* ============ 活页封面 ============
@@ -101,15 +108,23 @@
 .cover.s-personal{
   width:calc(var(--cover-w,132px) * .9137);
   aspect-ratio:114.95/178.5;
-  border-radius:6px 16px 16px 6px
+  /* 活页比精装圆一档；右侧两角仍由 coverHTML 写进来的 --cr 覆盖，左侧固定 6px */
+  --cr-left:6px;--cr:16px
 }
 /* ============ 方形画册：1:1 开本 ============ */
 /* ⚠️ 关键：宽度取「常规封面的高」（--cover-w × 210/148），不是沿用 --cover-w。
    正方形下宽=高，这样画册的高度才跟精装 / 活页一模一样 —— 摆在一起不矮一截。
    （若沿用 --cover-w，画册会比别人矮 30%，书架里一眼就看出来。） */
-.cover.s-square{width:calc(var(--cover-w) * 210 / 148);aspect-ratio:1/1;border-radius:3px 10px 10px 3px}
+.cover.s-square{width:calc(var(--cover-w) * 210 / 148);aspect-ratio:1/1}
 /* 画册更宽 → 所有竖条的百分比要同比调小，视觉宽度才跟其它本子一致（≈ 原值 ÷ 1.35） */
 .cover.s-square .spine{width:6%}
+
+/* ============ 精装书：A5 硬壳 · 无彩带 · 加宽的立体书槽 ============ */
+/* 与笔记本同为 148/210 开本（⚠️ 别单独改它的 asp：.cover 默认 aspect-ratio 写死 148/210，
+   改数据不改 CSS，主页封面与阅读器 layoutBook 会算出两种比例，见 visuals.js BOOK_STYLES）。
+   区别全在装订那一列：没有彩带、书槽常显且比笔记本宽一档，看着更「精装」。
+   ⚠️ 宽度必须与 io-doc.js 导出封面里的 w=8 同源，屏幕与 PDF / SVG / 长图才一致。 */
+.cover.s-hardcover .spine{width:8%}
 
 /* ============ 编辑器：装帧样式选择卡 ============ */
 /* 固定两列：四档正好 2×2 排整齐，且列宽足够放下方形画册（它比常规封面宽 1.35 倍，
@@ -121,12 +136,15 @@
 }
 .sty:hover{background:rgba(255,255,255,.12)}
 .sty:active{transform:scale(.97)}
-.sty.on{border-color:#fff;background:rgba(255,255,255,.16)}
+.sty.on{border-color:var(--accent);box-shadow:0 0 0 2px rgba(255,255,255,.55);background:rgba(255,255,255,.16)}
 /* 卡片里那本小书：用封面渲染的真实 HTML 缩一份，选样式时看到的就是成品的样子。
    缩的时候整块跟着变小（transform），环 / 书槽这些细节按比例一齐缩，不走单独画一套 */
 .sty-pv{height:82px;display:flex;align-items:center;justify-content:center;margin-bottom:6px}
-/* 卡片按高度定尺：四档开本宽窄不同，统一高度才排得整齐（方形那档自动走 aspect-ratio:1/1 变宽） */
-.sty-pv .cover{width:auto;height:82px;box-shadow:0 8px 16px -8px rgba(0,0,0,.6),inset 0 0 0 1px rgba(255,255,255,.15)}
+/* 卡片按高度定尺：四档开本宽窄不同，统一高度才排得整齐（方形那档自动走 aspect-ratio:1/1 变宽）。
+   ⚠️ 82px 高 ≈ 58px 宽，只有主页封面（246px 宽）的 .235 倍 —— 圆角必须同比缩，
+      否则自定义 28px 圆角在这个小卡片上会圆成半颗胶囊，跟实际封面完全不像。 */
+.sty-pv .cover{width:auto;height:82px;--cr-scale:.235;
+  box-shadow:0 8px 16px -8px rgba(0,0,0,.6),inset 0 0 0 1px rgba(255,255,255,.15)}
 .sty-pv .gear,.sty-pv .cover-badge{display:none}
 .sty-n{font-size:12px;text-align:center;letter-spacing:.04em;line-height:1.25}
 .sty-d{font-size:10.5px;text-align:center;opacity:.62;margin-top:2px;letter-spacing:.02em}

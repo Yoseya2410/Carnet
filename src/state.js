@@ -109,7 +109,11 @@ function newJournal() {
     /* style = 装帧样式（精装 / 活页 / Personal 活页 / 方形画册），见 visuals.js 的 BOOK_STYLES。
        缺这个字段的老数据一律按「精装」渲染，跟加这个功能之前一模一样 */
     style: BOOK_STYLE_DEFAULT,
-    ribbon: '#c98a8a', template: 'blank', pageBg: '', pages: mkPages(1), created: Date.now()
+    /* tplImg / tplFit 只在 template === 'custom' 时生效（见 visuals.js 的 tplStyle）。
+       老数据缺这两个字段没关系：tplImgOf 返回空串，normTplFit 落回 cover。
+       tplImgs 是图片模板素材库（可存多张），缺省空数组；老数据由 tplImgsOf 兜底。 */
+    ribbon: '#c98a8a', template: 'blank', tplImg: '', tplImgs: [], tplFit: 'cover',
+    pageBg: '', pages: mkPages(1), created: Date.now()
   };
 }
 

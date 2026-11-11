@@ -16,7 +16,18 @@
   /* 默认手写体；行楷比黑体松，行高放宽一点才不挤 */
   font-family:var(--font-hand);line-height:1.42;letter-spacing:.01em
 }
-.ptext-wrap .ptxt.placeholder{color:#a7adc0}
+/* 空文字框：DOM 里一个字都不放（提示画在包裹层的伪元素上，不属于内容，
+   不会进 innerText / 导出 / 存档）。虚线框由 .adjust 画，这里只补一句淡提示 */
+.ptext-wrap.empty::before{
+  content:'输入文字…';position:absolute;left:1px;top:0;right:0;z-index:1;
+  white-space:nowrap;pointer-events:none;line-height:1.42;
+  font-family:var(--font-hand);font-size:calc(var(--pw,340px) * .038);
+  color:rgba(120,128,150,.62)
+}
+.paper.dark .ptext-wrap.empty::before{color:rgba(255,255,255,.5)}
+/* 便利贴的 .ptxt 是定位元素、带不透明底色，提示要抬一层才压得住它 */
+.ptext-wrap.note.empty::before{z-index:2;left:8px;top:6px}
+.ptext-wrap.empty.editing::before{display:none}
 /* 行内输入：虚线框 + 淡底，光标在里面正常走 */
 .ptext-wrap.editing{outline:1.5px dashed var(--accent);outline-offset:3px;z-index:7;cursor:text}
 .ptext-wrap.editing .ptxt{
@@ -24,12 +35,15 @@
   box-shadow:0 0 0 1px rgba(17,19,24,.32);background:rgba(255,255,255,.55);
   overflow:auto;overscroll-behavior:contain
 }
-/* 双击进来的编辑态：四角手柄 + 旋转手柄 + 上方工具条全都在 ——
-   拖动挪位置、打字、改大小、旋转、复制删除都在这一个状态里做完。
-   工具条不再让位：没有它就没法删除 / 复制这段文字了 */
-.ptext-wrap.editing .hdl{display:block}
-/* 文字贴：默认固定；点一下选中 —— 只有虚线框 + 上方那条工具条。
-   单机不出现手柄：改文字、改框大小、旋转都得先双击进编辑，避免误碰把框拉歪 */
+/* 双击 = 内容态：只改文字。四角 / 旋转手柄全收起来，框也拖不动、缩不了。
+   工具条仍留着（完成 ✓ / 复制 / 编辑文字 / 删除）—— 没有它就没法删 / 复制这段文字了。
+   !important 是为了压住下面 .boxmode 那条：从版式态双击进来时不能残留手柄。 */
+.ptext-wrap.editing .hdl{display:none !important}
+/* 长按 = 版式态：虚线框 + 工具条 + 四角 / 旋转手柄，能挪位置、改大小、旋转。
+   手柄默认只在 .sel 时露出来（见 image-tools.css），文字贴的版式态在这里补一条。
+   内容态（双击 / 文字面板）不带 boxmode，手柄就一直是收着的。 */
+.ptext-wrap.adjust.boxmode .hdl{display:block}
+/* 文字贴选中态：虚线框 + 上方工具条；有没有手柄由 boxmode / editing 决定 */
 .ptext-wrap.adjust{outline:1.5px dashed var(--accent);outline-offset:3px;z-index:6}
 .ptext-wrap.locked{cursor:default}
 .ptext-wrap.locked .hdl,.ptext-wrap.locked .objbar{display:none !important}
@@ -54,8 +68,12 @@
   color:#fff;font-size:13.5px;text-align:left;transition:background .16s
 }
 .addmenu button:hover,.addmenu button:active{background:rgba(255,255,255,.14)}
-.addmenu button svg{flex:none;opacity:.85}
-.addmenu .am-t{font-weight:800;font-family:Georgia,"Times New Roman",serif;width:15px;text-align:center}
+/* 菜单图标放大一档（用户 2026-11-11）：写死 16px 的那批直接提到 20px，
+   本来就是 20/21/22 的用 scale 再放大一点，保持相对大小；scale 不动布局盒，
+   不会把文字挤开。纯文字的 T 图标跟着放大。 */
+.addmenu button svg{flex:none;opacity:.9;transform:scale(1.15)}
+.addmenu button svg[width="16"]{width:20px;height:20px;transform:none}
+.addmenu .am-t{font-weight:800;font-family:Georgia,"Times New Roman",serif;width:20px;font-size:17px;text-align:center}
 .addmenu .am-p{font-size:11px;opacity:.6;margin-left:5px;letter-spacing:.02em}
 .addmenu .am-p:empty{display:none}
 /* 菜单里的分组线：一口气放五项以上时，把「对本子做的事」和「设置 / 帮助」分开 */
@@ -149,7 +167,18 @@
   animation:tsUp .3s cubic-bezier(.22,1,.3,1)
 }
 @keyframes tsUp{from{transform:translateY(14%)}to{transform:none}}
-.ts-grab{width:42px;height:4.5px;border-radius:3px;background:rgba(255,255,255,.26);margin:0 auto 11px;flex:none}
+/* grab 小条：移动端竖屏用来**下拉关掉工具栏**（宽屏 / 横屏在下面隐藏）。
+   ⚠️ 原本只有 42×4.5px，手指按不准：用伪元素把命中区扩到约 82×32px；
+      伪元素不产生独立事件 target，pointerdown 仍落在 .ts-grab 上。 */
+.ts-grab{
+  position:relative;width:42px;height:4.5px;border-radius:3px;
+  background:rgba(255,255,255,.26);margin:0 auto 11px;flex:none;
+  cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none
+}
+.ts-grab::before{content:"";position:absolute;left:-20px;right:-20px;top:-14px;bottom:-14px}
+.ts-grab:active{cursor:grabbing}
+/* 拖动中别让入场动画 / transform 过渡拖住面板 */
+.tsheet.grab-dragging{transition:none;animation:none}
 .ts-title{font-size:15px;font-weight:700;letter-spacing:.06em;margin-bottom:11px;flex:none}
 .ts-input{
   flex:none;width:100%;min-height:62px;max-height:124px;padding:12px 13px;border-radius:14px;

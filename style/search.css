@@ -34,8 +34,12 @@
 }
 .sr-item:hover{background:rgba(255,255,255,.16)}
 /* 搜索里的封面缩略图：按真实封面等比缩小渲染，图案疏密、圆角比例都跟原封面一致 */
+/* 右侧两角跟着这一本的封面圆角（--cr 由 renderSearch 写进内联样式），按缩略图的
+   缩放系数 --sr-k 折算；max(4px,…) 保证默认档仍是原来的 4px，只有调大了才变圆。
+   左侧书脊两角固定 2px，不参与自定义。 */
 .sr-thumb{--sr-w:42px;position:relative;width:var(--sr-w);aspect-ratio:148/210;flex:0 0 auto;overflow:hidden;
-  border-radius:2px 4px 4px 2px;box-shadow:0 6px 14px -6px rgba(0,0,0,.6)}
+  border-radius:2px max(4px,calc(var(--cr,10px) * var(--sr-k,.2838))) max(4px,calc(var(--cr,10px) * var(--sr-k,.2838))) 2px;
+  box-shadow:0 6px 14px -6px rgba(0,0,0,.6)}
 /* 方形画册：跟其它本子一样高，所以缩略图要跟着变宽（缩放系数不用动 —— 容器与封面同乘 210/148，比值不变） */
 .sr-thumb.sq{--sr-w:calc(42px * 210 / 148);aspect-ratio:1/1}
 /* ⚠️ 只设 --cover-w，别直接写 width —— 方形画册要按它把宽放大 210/148 倍才能跟别的本子一样高 */

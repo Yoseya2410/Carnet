@@ -8,7 +8,7 @@
  * ⑤ 项目自带的四款英文字体：按本子实际用到的档位转 base64 内嵌进 SVG，PDF / SVG 都能用真字体
  *
  * 对外接口：pageExportHTML, pageExportXHTML, buildPdf, exportJournalPDF, exportJournalSVG,
- *            probeExportFont, prepareExportEnFaces, exportPages, renderExportCanvas, canvasBytes
+ *            probeExportFont, prepareExportEnFaces, exportEnFaceCSS, exportPages, renderExportCanvas, canvasBytes
  *
  * 依赖模块：core, visuals
  *
@@ -91,14 +91,22 @@ async function readEnFace(k) {
     return (__enFaceCache[k] = '');
   }
 }
-async function prepareExportEnFaces(j) {
+/* 给一组文字贴备好自带英文字体的 <style>。DIY 自定义封面合成 cover.img 时也是
+   SVG foreignObject 独立文档，一样吃不到本页 @font-face，所以这条不专属于导出：
+   谁要栅格化一页带英文文字贴的 XHTML，就传那一页的 texts 进来。 */
+async function exportEnFaceCSS(texts) {
   const used = new Set();
-  (j && j.pages ? j.pages : []).forEach(pg => (pg.texts || []).forEach(t => {
+  (texts || []).forEach(t => {
     const f = EN_FONTS.find(x => x.k === t.fontEn);
     if (f && f.face) used.add(f.k);
-  }));
+  });
   const css = (await Promise.all([...used].map(readEnFace))).filter(Boolean).join('');
-  __expEnFaces = css ? `<style type="text/css">${css}</style>` : '';
+  return css ? `<style type="text/css">${css}</style>` : '';
+}
+async function prepareExportEnFaces(j) {
+  const texts = [];
+  (j && j.pages ? j.pages : []).forEach(pg => (pg.texts || []).forEach(t => texts.push(t)));
+  __expEnFaces = await exportEnFaceCSS(texts);
 }
 /* 导出用的字族串：手写体不可用时整段换楷体（含行高也跟着走） */
 function exportFontStack(k) {
@@ -116,22 +124,43 @@ function pageExportHTML(j, idx, W, H) {
   const k = W / PAGE_W_DEFAULT;         // 模板纹理的 px 尺寸按页宽等比缩放（PAGE_W_DEFAULT = 屏幕上一页的宽）
   if (idx === -1) {
     const cv = j.cover || {};
-    const rbBg = ribbonSpine(j.ribbon) || ribbonSpine('#c98a8a');
     const bg = cv.img ? `background-image:url('${cv.img}');background-size:cover;background-position:center;` : `background:${cv.value || '#ddd'};`;
     const pat = (cv.pattern && cv.pattern !== 'none' && !cv.img) ? patternStyle(cv.pattern, cv) : '';
     const st = bookStyleOf(j);
-    /* 装订那一列：
-       ⚠️ 活页（st.rings）封面上既**不画环**也**不留装订压痕** —— 环在里侧、封面是一张干净硬壳，
-          跟屏幕上的取舍保持一致（屏幕上也是只在翻开的内页中缝画环，见 reader.css 的 .grings）；
-       ⚠️ 彩带只有笔记本这一档有（st.ribbon） */
+    /* 装订那一列与屏幕封面严格一致（2026-11-09 用户定稿）：
+       ① 有彩带 → 只画一条平色带，**不叠压槽**；
+       ② 没彩带（透明档）/ 画册 / 精装书 → **画压槽**，恢复原来那套暗槽底＋亮槽沿的立体断面
+          （用户复评更逼真）；仍不画上下两端折边暗边、四周黑色投影、槽沿 1px 浅白线；
+       ③ 活页 → 整列不画（不画环、也不留压痕）；
+       ④ 书槽关（cover.groove === false）→ 与活页一样整列不画。
+       导出吃不到本页 CSS，所以断面渐变必须内联。 */
     const spine = st.ribbon ? ribbonSpine(j.ribbon) : '';
-    const w = st.k === 'square' ? 6 : 8.5;
-    const bind = spine
-      ? `<div style="position:absolute;left:0;top:0;bottom:0;width:${w}%;background:${spine}"></div>`
-      : st.rings ? ''      /* 活页：整张封面干净，连压痕都没有 */
-      /* 方形画册：无彩带，只留装订压痕阴影 */
-      : `<div style="position:absolute;left:0;top:0;bottom:0;width:${w}%;box-shadow:2px 0 7px rgba(0,0,0,.24),inset -1px 0 0 rgba(255,255,255,.15)"></div>`;
-    return `<div style="position:relative;width:${W}px;height:${H}px;overflow:hidden;${bg}">`
+    /* 与 home.css / book-style.css 同一套：画册 6%、精装书 8%、其余 6.5% */
+    const w = st.k === 'square' ? 6 : st.k === 'hardcover' ? 8 : 6.5;
+    /* 与 home.css 完全同一套：左亮右暗，亮沿 22%~38% 加宽成平台、暗底 50%~62% 收窄；
+       色标按视觉位置写 90deg，导出吃不到本页 CSS 所以必须内联。 */
+    const groove = `background:linear-gradient(90deg,`
+      + `rgba(0,0,0,.02) 0%,rgba(0,0,0,.07) 12%,`
+      + `rgba(255,255,255,.30) 22%,rgba(255,255,255,.30) 38%,`
+      + `rgba(255,255,255,.20) 44%,`
+      + `rgba(0,0,0,.34) 50%,rgba(0,0,0,.26) 56%,rgba(0,0,0,.08) 62%,`
+      + `rgba(255,255,255,.04) 78%,rgba(255,255,255,.18) 100%)`;
+    /* 彩带是纯色带（ribbonSpine 已不给渐变，去掉彩带上的黑影）；
+       右侧两层接触影是彩带压在封面上的投影，用户明确要保留。
+       ⚠️ 只加外投影，不加上下折边暗边 / 槽沿细线；透明档走 groove 分支，不吃这条。
+       阴影 px 按屏幕封面基准宽 246px（--cover-w 上限）等比放大到导出宽 W。 */
+    const cs = W / 246;
+    const ribbonShadow = `box-shadow:${(2 * cs).toFixed(1)}px 0 ${(6 * cs).toFixed(1)}px -${(2 * cs).toFixed(1)}px rgba(7,9,16,.18),`
+      + `${(1 * cs).toFixed(1)}px 0 ${(2 * cs).toFixed(1)}px rgba(7,9,16,.06)`;
+    /* 书槽开关跟屏幕封面同源：关掉时这一列整个不画（彩带 / 压槽都不画） */
+    const bind = (st.rings || !coverGrooveOn(j)) ? ''
+      : `<div style="position:absolute;left:0;top:0;bottom:0;width:${w}%;`
+        + (spine ? `background:${spine};${ribbonShadow}` : groove) + `"></div>`;
+    /* 封面右侧两角跟屏幕上同一本（cover.radius，基准 246px 宽等比放大到导出宽 W）；
+       左侧书脊两角固定 3px 基准，不参与自定义。四角露出的就是画布那层纸色。 */
+    const rL = (3 * cs).toFixed(1), rR = (coverRadiusOf(j) * cs).toFixed(1);
+    const radius = `border-radius:${rL}px ${rR}px ${rR}px ${rL}px;`;
+    return `<div style="position:relative;width:${W}px;height:${H}px;overflow:hidden;${radius}${bg}">`
       + `<div style="position:absolute;inset:0;${pat}"></div>`
       + `<div style="position:absolute;inset:0;background:linear-gradient(112deg,rgba(255,255,255,.28) 0%,rgba(255,255,255,0) 34%,rgba(255,255,255,0) 68%,rgba(255,255,255,.12) 100%)"></div>`
       + bind
@@ -143,11 +172,13 @@ function pageExportHTML(j, idx, W, H) {
   const pbg = pageBgOf(pg, j);
   const bg = pbg ? 'background:' + pbg + ';'
     : (kraft ? 'background:linear-gradient(160deg,#ecdec4,#e0cfae);' : 'background:#fffdf8;');
-  const tpl = String(tplStyle(j.template) || '').replace(/(\d+(?:\.\d+)?)px/g, (m, n) => (n * k).toFixed(2) + 'px');
+  const tpl = String(tplStyle(j.template, j) || '').replace(/(\d+(?:\.\d+)?)px/g, (m, n) => (n * k).toFixed(2) + 'px');
   /* ⚠️ 模板只铺在「版心」里、四周留一圈空白纸边 —— 跟屏幕上 .tplbg 的 --pmx / --pmy 同一套比例
-     （见 image-tools.css）：两边不一样的话，导出的图跟屏幕上看到的就不是同一张纸 */
-  const mx = (W * .055).toFixed(1), my = (H * .032).toFixed(1);
-  const lined = j.template === 'lined' ? `<div style="position:absolute;left:${(W * .055 + 12 * k).toFixed(1)}px;top:0;bottom:0;width:1px;background:#eab7c2;opacity:.8"></div>` : '';
+     （见 image-tools.css）：两边不一样的话，导出的图跟屏幕上看到的就不是同一张纸。
+     唯一例外是自定义图片模板：它是整页的图，屏幕上 .paper.t-custom .tplbg 也把 inset 归零了，
+     所以这里同步把四周留白设成 0，不然导出会被裁掉一圈。 */
+  const customTpl = j.template === 'custom' && !!tplImgOf(j);
+  const mx = customTpl ? '0' : (W * .055).toFixed(1), my = customTpl ? '0' : (H * .032).toFixed(1);
   const imgHTML = im => {
     const hw = im.h || clamp(im.w / 0.68, .04, IMG_MAX);
     /* 「铺满」的盒子由 fillGeom 算好（可能有限度地拉过），一律不裁：
@@ -196,7 +227,7 @@ function pageExportHTML(j, idx, W, H) {
   objs.sort((a, b) => (a.o.z || 0) - (b.o.z || 0));
   const body = objs.map(o => o.k === 'img' ? imgHTML(o.o) : txtHTML(o.o)).join('');
   return `<div style="position:relative;width:${W}px;height:${H}px;overflow:hidden;${bg}">`
-    + `<div style="position:absolute;left:${mx}px;right:${mx}px;top:${my}px;bottom:${my}px;${tpl}"></div>${lined}`
+    + `<div style="position:absolute;left:${mx}px;right:${mx}px;top:${my}px;bottom:${my}px;${tpl}"></div>`
     + `<div style="position:absolute;inset:0">${body}</div>`
     + `<div style="position:absolute;right:${(W * .045).toFixed(0)}px;bottom:${(H * .02).toFixed(0)}px;font-size:${(W * .033).toFixed(1)}px;color:#9aa1b5;letter-spacing:.1em">${idx + 1}</div>`
     + `</div>`;

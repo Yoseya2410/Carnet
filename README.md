@@ -70,7 +70,7 @@ index.html
 | # | 文件 | 行数 | 职责 | 依赖 |
 |---|---|---|---|---|
 | 1 | `core.js` | 128 | 通用工具 `$ / $$ / uid / clamp / enc / esc / shade`、**高频事件逐帧合帧 `frameQueue`**；输入法弹起时锁定应用高度（底栏不被顶起，编辑文字时底栏跟着抬起）、编辑中把页面抬到键盘上方；`window.__kbHeight()` 对外暴露当前键盘高度（编辑面板据此把自己顶上去） | 无 | |
-| 2 | `visuals.js` | 517 | 封面与纸面的视觉素材：三角（等边三角网格镶嵌，角对角共用顶点；只画尖朝上的一半，尖朝下那块留空全透明、直接透出封面底色）/圆/星/心/小花（三角网格密排，贴片 64×110.85，四角+中心各一朵）/叶 SVG 图案、封面明暗 `coverLum`、图案层 `patternLayers / faceLayers`（有封面图片时不叠图案）；色板 `COLORS / GRADS / RIBBONS / PAT_COLORS`（彩带含「透明」档 `RIBBON_NONE`，书脊背景走 `ribbonSpine`）与内页模板 `TEMPLATES`；文字贴用的 4 档中文字体 `TEXT_FONTS`（手写/楷/宋/默认；**黑体 2026-10-02 撤掉**，老数据里的 `'hei'` 靠 `FONT_ALIAS` 落到「默认字体」）、8 档英文字体 `EN_FONTS`（前 4 档系统字体 + 后 4 档项目自带 woff2：Courier Prime / Cutive Mono / Pixelify Sans / Special Elite；**一律不带通用族、字体名用单引号且必须成对**——栈末多一个引号会让整条 `font-family` 作废，宋体/黑体就是这么废掉的；英文栈排在中文字体**前面**；自带字体那几档多带 `face`（导出内嵌用）与 `fallback`（内嵌失败时的近似系统字体链））、7 档文字色 `TEXT_COLORS`、6 档高亮色 `TEXT_BGS`；对象工具条图标 `OB_*_SVG`、旋转手柄上的转圈箭头 `ROT_SVG`；**内页底色**：九组「由浅到深」的色阶 `PAPER_RAMPS`、`normPaperBg`；**全项目共用的尺寸与阈值** `PAGE_RATIO`（默认内页 A5 = `210/148`）/ `PAGE_W_DEFAULT / LUM_DARK`（只认 `#rgb / #rrggbb`）、三级取值 `pageBgOf`（单页 > 整本 > 模板）、`pageBgStyle / pageBgDark`、**预览版 `pageBgShown / pageBgDarkShown`**（读到 `window.__bgPv` 就先按面板上正在挑的那一档画，`pg.bg` 不动）、任意色值的亮度 `hexLum` | core |；**装帧样式** `BOOK_STYLES / normBookStyle / bookStyleOf / isRingStyle`（每档自带三个数：`asp` = 封面宽÷高、`pageAsp` = 内页宽÷高、`pageHScale` = 同比例展示时内页相对封面的高度 —— **笔记本 A5 148×210、活页封面 B6 125×176 而内页 95×170（比封面短 6mm）、方形画册 1:1**）、`pageRatioOf` / `coverRatioOf` / `pageHeightScaleOf`；**图片边框** `FRAMES / FRAME_COLORS / FRAME_DEFAULT_COLOR / normFrame / normHex6 / frameWidth / frameColor / frameBoxStyle / frameImgStyle / hasFrame`，`GRAIN_URL` 是屏幕与导出共用的那张噪点图 |
+| 2 | `visuals.js` | 517 | 封面与纸面的视觉素材：圆 / 星 / 心 / 叶 SVG 图案（**三角、小花两档 2026-11-08 已删除**，老数据经 `PAT_MAP` 落回「无」）、封面明暗 `coverLum`、图案层 `patternLayers / faceLayers`（有封面图片时不叠图案；**缩略图统一用自动色 `c`、真实封面保留圆橙 / 星金 / 心粉 / 叶绿的预设色**，用户设了 `patColor` 时两边都以它为准）；色板 `COLORS / GRADS / RIBBONS / PAT_COLORS`（彩带含「透明」档 `RIBBON_NONE`，书脊背景走 `ribbonSpine`）与内页模板 `TEMPLATES`；文字贴用的 4 档中文字体 `TEXT_FONTS`（手写/楷/宋/默认；**黑体 2026-10-02 撤掉**，老数据里的 `'hei'` 靠 `FONT_ALIAS` 落到「默认字体」）、8 档英文字体 `EN_FONTS`（前 4 档系统字体 + 后 4 档项目自带 woff2：Courier Prime / Cutive Mono / Pixelify Sans / Special Elite；**一律不带通用族、字体名用单引号且必须成对**——栈末多一个引号会让整条 `font-family` 作废，宋体/黑体就是这么废掉的；英文栈排在中文字体**前面**；自带字体那几档多带 `face`（导出内嵌用）与 `fallback`（内嵌失败时的近似系统字体链））、7 档文字色 `TEXT_COLORS`、6 档高亮色 `TEXT_BGS`；对象工具条图标 `OB_*_SVG`、旋转手柄上的转圈箭头 `ROT_SVG`；**内页底色**：九组「由浅到深」的色阶 `PAPER_RAMPS`、`normPaperBg`；**全项目共用的尺寸与阈值** `PAGE_RATIO`（默认内页 A5 = `210/148`）/ `PAGE_W_DEFAULT / LUM_DARK`（只认 `#rgb / #rrggbb`）、三级取值 `pageBgOf`（单页 > 整本 > 模板）、`pageBgStyle / pageBgDark`、**预览版 `pageBgShown / pageBgDarkShown`**（读到 `window.__bgPv` 就先按面板上正在挑的那一档画，`pg.bg` 不动）、任意色值的亮度 `hexLum` | core |；**装帧样式** `BOOK_STYLES / normBookStyle / bookStyleOf / isRingStyle`（每档自带三个数：`asp` = 封面宽÷高、`pageAsp` = 内页宽÷高、`pageHScale` = 同比例展示时内页相对封面的高度 —— **笔记本 A5 148×210、活页封面 B6 125×176 而内页 95×170（比封面短 6mm）、方形画册 1:1**）、`pageRatioOf` / `coverRatioOf` / `pageHeightScaleOf`；**图片边框** `FRAMES / FRAME_COLORS / FRAME_DEFAULT_COLOR / normFrame / normHex6 / frameWidth / frameColor / frameBoxStyle / frameImgStyle / hasFrame`，`GRAIN_URL` 是屏幕与导出共用的那张噪点图 |
 | 3 | `storage.js` | 166 | IndexedDB 封装 `DB`（降级 localStorage）、防抖保存 `save()`；显示偏好 `prefs` 与背景读写 `setBg / applyBg`（同一份背景铺 `#home / #reader / body`，body 兜住画布露底）；**改名后旧键 → 新键的一次性迁移** `migrateLegacyStorage()` | core | |
 | 4 | `io-export.js` | 187 | 导出地基：稳定序列化 `stableStringify`、摘要 `checksum`、资产计数 `countAssets`；单本导出、「另存为 / 系统分享 / 下载」`deliverBlob`、`downloadBlob` | core, storage | |
 | 5 | `io-doc.js` | 282 | PDF / SVG 导出：每页渲染成 XHTML（`pageExportXHTML`，文字串带上英文字族、斜体、下划线 / 删除线、高亮；**图片与文字按 `z` 混排**，跟应用里的上下层一致；**底色走 `pageBgOf`，单页 > 整本 > 模板**，跟屏幕上同一套取舍）、JPEG 转字节流、手写 PDF 对象表 `buildPdf`、竖向拼 `foreignObject` 生成矢量长图；导出前 `probeExportFont` 实测手写体画不画得出来，画不出整段按楷体导；**四款自带英文字体**按这一本实际用到的档位把 woff2 转 base64 写进 SVG 根级 `<style>`（`prepareExportEnFaces`），独立文档也认得这个字族，没用到时一字不增 | core, visuals |；导出时**图片边框**（`<img>` 外再套一层 div，样式由 `frameBoxStyle` 现算）与**便利贴**（文字外框带纸色底 + 内高光 + 落地影 + 右下折角）一起画进去，方形画册按 1:1 出页 |
@@ -79,18 +79,18 @@ index.html
 | 8 | `io-example.js` | 125 | 首次使用的自动导入：列出 `example/` 下的手帐本文件（目录列表优先，`manifest.json` 兜底），逐个导入并写标记保证只导一次；帮助与反馈邮件入口 | core, storage, io-import | |
 | 9 | `io-photobook.js` | 411 | 一键成书：一次选多张图片 → 按文件名自然序排好 → **一张图一页**做成一本 |
 | 10 | `state.js` | 115 | 运行时状态 `state`、当前游标 `cur / pageCount`；页面与手帐本的构造 `mkPage / newText / newJournal`（新建带 `pageBg: ''`）；老预置本的识别 `isLegacyDefault`（**改过内页底色也算用户的**，不再被摘掉）；**文字贴字号范围 `TS_SIZE_MIN / TS_SIZE_MAX / TS_SIZE_DEFAULT`**（占纸宽百分比，`#tsSize` 滑块与四角等比缩放共用同一份）、**贴合算法版本 `TEXT_FIT_V`**（老本子的方框首绘时收紧一次）；**上下层 `ensureZ / nextZ`**（一页里的图片与文字共用一个 `z`，越大越靠上；老数据按「先图后字」补一套） | core, visuals |；**新建本子带 `style: BOOK_STYLE_DEFAULT`** |
-| 11 | `home-view.js` | 336 | 主页渲染：封面 `coverHTML`、单本书 `bookItemHTML`、书架 `renderShelf`（**逐本试放换行**：方形画册比常规本宽 `210/148`，按「统一每行 N 本」算会让画册那排戳出搁板；各行的本数写进 `dataset.per`，逗号分隔）、多选模式 `enterPickMode / togglePick`、多选模式 `enterPickMode / togglePick`、**单层书架** `spineItemHTML`（书脊宽随页数 `spineWidthRatio`；高矮与几何装饰由 `spineSeed` 散列 `id`，**绝不掺下标** —— 掺了下标的话排序 / 增删后整排高矮与装饰会重新洗牌）/ `renderSpineShelf` / `renderSpineDetail`（**下方是「预览图」不是常驻详情**：默认显示**选中的那一本**并摆在它书脊的正下方 —— `spineDetailShift()` 量出目标书脊中心、换算成「相对预览框中心的偏移」写进 `--px`（夹在框内，书排横滑时预览贴边不飞出去），横滑 / 换选中时重新对位；鼠标停在别的书脊上时临时切过去、移开回到选中的那本；无悬停能力的设备由 `#spineWrap.no-preview` 整块收掉）/ `syncSpineSelection`、总渲染 `renderHome`、展示模式切换 `syncViewToggle`（在容器上写 `data-vt` 驱动白钮滑块位移） | core, visuals, state, storage, carousel |；`coverHTML` 按 `j.style` 出**三种装帧**：`.s-classic`（笔记本，硬壳书脊 + 彩带）/ `.s-personal`（活页手帐，封面干干净净：不画环也不留压痕）/ `.s-square`（1:1 方开本）。已下线的 `ring`（11 环）由 `normBookStyle` 折算成 `personal` |
+| 11 | `home-view.js` | 336 | 主页渲染：封面 `coverHTML`、单本书 `bookItemHTML`、书架 `renderShelf`（**逐本试放换行**：方形画册比常规本宽 `210/148`，按「统一每行 N 本」算会让画册那排戳出搁板；各行的本数写进 `dataset.per`，逗号分隔）、多选模式 `enterPickMode / togglePick`、多选模式 `enterPickMode / togglePick`、**单层书架** `spineItemHTML`（书脊宽随页数 `spineWidthRatio`；高矮与几何装饰由 `spineSeed` 散列 `id`，**绝不掺下标** —— 掺了下标的话排序 / 增删后整排高矮与装饰会重新洗牌）/ `renderSpineShelf` / `renderSpineDetail`（**下方是「预览图」不是常驻详情**：默认显示**选中的那一本**并摆在它书脊的正下方 —— `spineDetailShift()` 量出目标书脊中心、换算成「相对预览框中心的偏移」写进 `--px`（夹在框内，书排横滑时预览贴边不飞出去），横滑 / 换选中时重新对位；鼠标停在别的书脊上时临时切过去、移开回到选中的那本；无悬停能力的设备由 `#spineWrap.no-preview` 整块收掉）/ `syncSpineSelection`、总渲染 `renderHome`、展示模式切换 `syncViewToggle`（在容器上写 `data-vt` 驱动白钮滑块位移） | core, visuals, state, storage, carousel |；`coverHTML` 按 `j.style` 出**三种装帧**：`.s-classic`（笔记本，有彩带只画平色带、透明档画立体断面压槽）/ `.s-personal`（活页手帐，封面干干净净：不画环也不留压痕）/ `.s-square`（1:1 方开本）。已下线的 `ring`（11 环）由 `normBookStyle` 折算成 `personal` |
 | 12 | `carousel.js` | 237 | 主页「左右滑动」轮播：按屏幕比例算书的大小与间距、跟手滑动、松手后落到最近的一本并居中吸附；对外暴露 `layoutCarousel / selectJournal`。**性能：每本书的中心 / 宽只在 `measure()` 里量一次存进 `mets`，`styleItems()` 只读不写**（原来边写 transform 边读 offsetWidth，n 本书每帧 n 次强制重排）；跟手那一下走 `schedulePaint()` 按帧合帧，松手落位才直接 `paint()` | core, state | |
 | 13 | `reader-view.js` | 256 | 阅读器渲染：单页 / 双页判定、书与中缝布局 `layoutBook`（`availH` 扣掉 `window.__sheetCov` 让编辑面板不压住纸面）、封面页与内页 `pageHTML`（`pageObjs` 把图片与文字按 `z` 混排 → `imgWrapHTML / textWrapHTML`，都挂上对象工具条 `objBarHTML`（**图片多「换图 / 边框」，文字贴多「字随框缩放」**）；**自定义内页底色写在模板底色之后**好盖住它，纸色深时给纸加 `.dark` 让页码转浅；**活页在每一页的纸面上补一列打孔** `pageHolesHTML`（孔必须跟着纸走，只挂在中缝的话翻页叶片一盖住中缝，正在翻起的那一页就没有孔）；**环的纵向位置 `ringTops`（上下两组、中间空一段 —— 实物活页夹中段是机构面板本身、没有环）由孔与环共用**；**中缝的环 `gutterRingsHTML` 每根拆成左右两个 D 形半环**（直边贴机构金属条、圆弧朝纸面拱出、弧顶压在孔心；不是一根横跨中缝的铁丝 —— 那看着像把纸串起来）；**活页内页底下垫一层「封面内侧」** `coverUnderStyle` + `.book-under`（内页是坐在封面上的，封面比内页大一圈、四周露一条边；由 `renderReader` 打 `has-under` 开关 —— 只有活页且已翻到内页时才开，封面态不能垫，否则是封面压封面）；**封面 / 内页分开取比例**（`coverRatioOf` / `pageRatioOf`）并乘 `pageHeightScaleOf` | core, visuals, state, carousel |；图片外面套一层 `.pframe` 画**边框**（样式见 `img-frame.js`），`layoutBook` 的纸张比例改按 `pageRatioOf(cur())` 取 |
 | 14 | `page-flip.js` | 141 | 翻页动画：贝塞尔缓动、沿书脊翻转的叶片与深度压暗、`flip(dir)` | core, state, reader-view | |
-| 15 | `page-edit.js` | 774 | 页面内容编辑（**所有拖动 / 拉伸 / 旋转都过 `track()`，它把 pointermove 攒到一帧只跑一次，松手时补跑最后那一下，位置不丢**）：拖拽移动、双指缩放（**不再拖到最上层**，上下层只由加入顺序决定）；图片**点一下即选中**并浮出工具条（`objAction`：完成 ✓ / 复制 / **换图** / 编辑 / 删除 —— 第三颗是换图（只有图片有）、第四颗是铺满 ⇄ 还原，删除后必定整页重绘；**换图在这里只负责记住要换哪一张（`state.swapTarget`）并唤出选图框，真正的替换在 media.js 的 `replaceImage`**；**行内打字时点工具条会先把字落盘**）；**旋转**（右侧那颗 `.hdl.rot` 绕中心转，Shift 每 15° 吸附，双击摆正；四角拉伸的位移会先换算回对象自己的方向）；**文字贴四角 = 整块等比缩放**：框宽、框高、字号 `size`、行宽上限 `ww` 同乘一个系数、对角钉死不动，换行位置不变（系数按手指位移在「对角 → 被拖角」上的投影算，受纸边 / `TS_SIZE_*` 夹逼；**文字贴的下限是「一个字宽 / 一行行高」，绝不能套图片的 `IMG_MIN_*=.1`** —— 一行字只有约 6% 页高，套上去手指刚动 4px 就放大 1.7 倍；拉伸期间只改 `.ptxt` 的 `font-size`、不整页重绘，首尾各调一次 `fitTextBox` 贴紧内容）；按住 Alt 拖或把工具条那颗「字随框缩放」点灭 = 回到图片那种自由拉伸（字号不动，Shift 仍锁原宽高比，并把拉出来的行宽记进 `ww`、置 `autoW=false`）；**首绘时按 `fitV` 把老数据的方框收紧一次**；**文字贴单击完全不响应**，双击才进编辑态（解锁 → 选中 → 落光标），编辑态里拖动 / 改大小 / 旋转 / 打字 / 工具条都能用 —— 双击判定要等松手：第二下按下时还分不清是双击还是翻页的一划，挪开就放行给翻页（`armTap` 同理，划过的那一按不给双击留记号）；右上角「添加」菜单（加页 / 图片 / 文字 / **本页底色** / 删本页）与目标页判定 —— **「本页底色」在这里只负责把目标页交给底部弹窗**（`openBgSheet`，见 `page-bg.js`） | core, state, media, text-sticker |；工具条多一颗**「边框」**钮（`frame` 档 → 开 `#frsheet`） |
-| 16 | `text-sticker.js` | 850 | 文字贴：① 底部（宽屏是右下角浮块）「编辑文字」面板 `.tsheet` —— 正文输入 + 字体 / 颜色 / 字号 / 格式四个标签页，改动即时画回纸面并记进面板会话内的撤销栈（连续打字 800ms 内合并一步）；② 面板打开即 `eflow` 编辑态（顶栏底栏让位、书整体上移避让；**底色弹窗借用同一套：`updateEflow` 认 `window.__bgSheetOpen`，`sheetLayout` 按「哪块面板开着」量避让高度，撤销 / 重做只在文字面板开时才露出来**）；③ 行内编辑（双击直接打字）保留，输入法收起自动结束；④ **框紧贴内容** `fitTextBox / textFitSize / refitVisibleTexts`（宽高都实量：`t.ww` 行宽上限、`t.w` 实际框宽、`t.autoW` 是否自动贴宽、`t.fitV` 算法版本；字体加载完成后补贴一次 —— 见下面「两个量高度的坑」）；⑤ `syncTextSizeUI` 把纸面上改动的字号同步回面板滑块 / px 数字 / 快捷档 | core, state, visuals |；**面板那套现在是通用的**：`updateEflow` / `sheetLayout` 由编辑文字、本页底色、图片边框、贴纸**四张面板**共用（见 `SHEET_SELS`） |
+| 15 | `page-edit.js` | 1045 | 页面内容编辑（**所有拖动 / 拉伸 / 旋转都过 `track()`，它把 pointermove 攒到一帧只跑一次，松手时补跑最后那一下，位置不丢**）：拖拽移动、双指缩放（**不再拖到最上层**，上下层只由加入顺序决定）；图片**点一下即选中**并浮出工具条（`objAction`：完成 ✓ / 复制 / **换图** / 编辑 / 删除 —— 第三颗是换图（只有图片有）、第四颗是铺满 ⇄ 还原，删除后必定整页重绘；**换图在这里只负责记住要换哪一张（`state.swapTarget`）并唤出选图框，真正的替换在 media.js 的 `replaceImage`**；**行内打字时点工具条会先把字落盘**）；**旋转**（右侧那颗 `.hdl.rot` 绕中心转，Shift 每 15° 吸附，双击摆正；四角拉伸的位移会先换算回对象自己的方向）；**文字贴四角 = 整块等比缩放**：框宽、框高、字号 `size`、行宽上限 `ww` 同乘一个系数、对角钉死不动，换行位置不变（系数按手指位移在「对角 → 被拖角」上的投影算，受纸边 / `TS_SIZE_*` 夹逼；**文字贴的下限是「一个字宽 / 一行行高」，绝不能套图片的 `IMG_MIN_*=.1`** —— 一行字只有约 6% 页高，套上去手指刚动 4px 就放大 1.7 倍；拉伸期间只改 `.ptxt` 的 `font-size`、不整页重绘，首尾各调一次 `fitTextBox` 贴紧内容）；按住 Alt 拖或把工具条那颗「字随框缩放」点灭 = 回到图片那种自由拉伸（字号不动，Shift 仍锁原宽高比，并把拉出来的行宽记进 `ww`、置 `autoW=false`）；**首绘时按 `fitV` 把老数据的方框收紧一次**；**文字贴单击完全不响应**；长按 420ms 进版式态（解锁 → 选中 → 放出四角 / 旋转手柄 → 抬手前就能拖着挪位置），双击进内容态（只落光标打字，手柄收起、不能移动 / 缩放 / 旋转）—— 双击判定要等松手：第二下按下时还分不清是双击还是翻页的一划，挪开就放行给翻页（`armTap` 同理，划过的那一按不给双击留记号）；右上角「添加」菜单（加页 / 图片 / 文字 / **本页底色** / 删本页）与目标页判定 —— **「本页底色」在这里只负责把目标页交给底部弹窗**（`openBgSheet`，见 `page-bg.js`） | core, state, media, text-sticker |；工具条多一颗**「边框」**钮（`frame` 档 → 开 `#frsheet`）；**纸面右键菜单 + 对象级剪贴板**：复制 / 剪切 / 粘贴整块文字贴或图片，右键落点就是粘贴中心，可跨页；工具条「复制」、右键、Ctrl+C/X/V 共用一份内存剪贴板，内部为空时读系统剪贴板（纯文本落成文字贴、图片落成图片对象）；**文字面板开着时也能直接拖动文字框**，解锁的文字贴不必再长按 420ms |
+| 16 | `text-sticker.js` | 947 | 文字贴：① 底部（宽屏是右下角浮块）「编辑文字」面板 `.tsheet` —— 正文输入 + 字体 / 颜色 / 字号 / 格式四个标签页，改动即时画回纸面并记进面板会话内的撤销栈（连续打字 800ms 内合并一步）；② 面板打开即 `eflow` 编辑态（顶栏底栏让位、书整体上移避让；**底色弹窗借用同一套：`updateEflow` 认 `window.__bgSheetOpen`，`sheetLayout` 按「哪块面板开着」量避让高度，撤销 / 重做只在文字面板开时才露出来**）；③ 行内编辑（双击直接打字）保留，输入法收起自动结束；④ **框紧贴内容** `fitTextBox / textFitSize / refitVisibleTexts`（宽高都实量：`t.ww` 行宽上限、`t.w` 实际框宽、`t.autoW` 是否自动贴宽、`t.fitV` 算法版本；字体加载完成后补贴一次 —— 见下面「两个量高度的坑」）；⑤ `syncTextSizeUI` 把纸面上改动的字号同步回面板滑块 / px 数字 / 快捷档；⑥ **空文字框**：DOM 里一个字都不放（淡提示画在 `.ptext-wrap.empty::before` 上，不进 `innerText` / 导出 / 存档），收面板或结束行内输入时仍是空的就把数据整条摘掉（便利贴 `t.note` 除外），刚添加的文字第一次收面板先不锁、留在可拖的版式态 `FRESH_TEXT_IDS` | core, state, visuals |；**面板那套现在是通用的**：`updateEflow` / `sheetLayout` 由编辑文字、本页底色、图片边框、贴纸**四张面板**共用（见 `SHEET_SELS`） |
 | 17 | `page-bg.js` | 147 | 「本页底色」底部弹窗：和「编辑文字」共用一套 `.tsheet` 视觉与 `eflow` 编辑态。标题「第 N 页底色」+ 当前色预览 + **九种颜色横排成列、每种竖着六档由浅到深**（上浅下深，组名挂列底；点一下即上色、面板不关可以连着试）+ **完成** / 自定义取色；**没有「跟随整本」这一档**（底色一律按页挑，本页没设就沿用整本 / 模板的纸色）；**点色块只是预览** —— `pickPageBg` 只改 `bgs.pick` 和 `window.__bgPv`，`pg.bg` 一个字节都不动（纸面借 `pageBgShown` 按预览色画）；只有 `commitBgSheet`（底部「完成」或左上角 ✓，挂在 `window.__bgOk` 上）才 `writePageBg` 落盘；关面板走 `closeBgSheet` = 取消，顺手清 `__bgPv` 并按原数据重绘，挑了色没按完成就自动回原样。`syncBgSheet` 刷选中态 / 预览文案（没按完成时显示 `· 待完成`）/ 完成键的点亮 | core, state, visuals, text-sticker, widgets | |
 | 18 | `media.js` | 296 | 图片：选图入口、压缩 `shrinkImageFile`（统一缩到长边像素上限；第三个参数 `opt = { q, bg }` 可给 JPEG 质量与打底色，一键成书那一路用）、按真实比例落位 `ensureImageHeights`、**换图 `replaceImage`**（只读文件 `readFileDataURL`）与换图专用的隐藏 input `#swapFile`、封面图片上传；对象外框 `applyBox / applyRot`（`--rot` + `transform` 一起写，旋转与位置尺寸同步落盘） | core |；`applyFillGeom(im, j)` 按这一本取纸比例（方形本也能算对） |
 | 19 | `widgets.js` | 431 | 通用控件：自定义取色盘（HSV 面板 + 色相条 + 手输色值）、**吸管取色**（现场取色、不弹窗：只取手账本里的内容，从 `elementsFromPoint` 逐层 alpha 合成取色，图片把屏幕坐标逆映射回原始像素采样）、背景设置面板（预设色 / 自定义色 / 背景图 / 恢复默认） | core, storage | |
 | 20 | `img-frame.js` | 221 | 图片边框：选中一张图 → 工具条上的「边框」→ 底部弹窗 `#frsheet`（复用 `.tsheet` 的深色玻璃底与 `eflow` 编辑态） —— 五档框（无 / 拍立得 / 纯色 / 细线 / 拟物相框）+ 八档预设色 + 自定义取色 + **一根 1~100 的粗细拖动条**（拖动时实时画到纸上）。**挑一档立刻画到纸上并当场存档**（跟「本页底色」那套「预览 + 完成」不一样：边框加在已选中的那张图上，一边挑一边看更直观，不想要了点回「无边框」）；再点一次同一档 = 取消。换框**不整页重绘**：`paintFrame` 只改那张图自己的两层节点，选中态 / 工具条 / 位置全保留 |
 | 21 | `stickers.js` | 316 | 贴纸：阅读器「＋ → 贴纸」→ 底部弹窗 `#stsheet`，三档标签。**便利贴 = 带便签纸皮肤的文字贴**（`t.note` 存纸色），落成后照旧打字 / 挪位置 / 旋转，默认歪 −2.5°；**装饰胶带 = 普通图片对象、我的贴纸 = 用户导入的图片**（SVG dataURL，`src` 以 `data:image/svg` 开头 → 渲染自动按贴纸处理）。胶带 SVG 用 `clipPath` 裁撕边、`<pattern>` 铺花纹；手绘那档同一条路径描两遍（第二遍挪开一点并转 1.6°）做出手抖的笔触 |
-| 22 | `editor.js` | 224 | 新建 / 编辑手帐本弹窗：**每一项设置都是一块 `.fold-sec` 折叠小节**（含新增的**装帧样式**三张卡）（名称 / 封面底色 / 封面图案（含图案色）/ 封面图片 / 彩带色（含透明档）/ 内页模板 / 页数），点标题收起或展开、收起时标题后跟当前取值 `ED_SEC_HINT`；**没有「整本内页底色」**（底色一律按页挑）；**图案颜色那一栏默认收起，选了封面图案才展开**（`#edPatColorWrap.fold`，用 `max-height` 收，展开不生硬）；**页数只在新建时给填**（编辑已有本子时整块 `.gone` 不显示，保存时也不读它，免得把本子截断）；图案区在上传封面图片时锁死收起 | core, visuals, state, widgets |；新增**装帧样式**折叠小节 `#edSecStyle`：四张卡片，卡里挂的是按各自装订方式渲染出来的真封面 |
+| 22 | `editor.js` | 224 | 新建 / 编辑手帐本弹窗：**每一项设置都是一块 `.fold-sec` 折叠小节**（含新增的**装帧样式**三张卡）（名称 / 封面底色 / 封面图案（含图案色）/ 封面图片 / 彩带色（含透明档）/ 内页模板 / 页数），点标题收起或展开、收起时标题后跟当前取值 `ED_SEC_HINT`；**没有「整本内页底色」**（底色一律按页挑）；**图案颜色那一栏默认收起，选了封面图案才展开**（`#edPatColorWrap.fold`，用 `max-height` 收，展开不生硬）；**页数只在新建时给填**（编辑已有本子时整块 `.gone` 不显示，保存时也不读它，免得把本子截断）；图案区在上传封面图片时锁死收起 | core, visuals, state, widgets |；新增**装帧样式**折叠小节 `#edSecStyle`：四张卡片，卡里挂的是按各自装订方式渲染出来的真封面；文件尾部是**自定义封面独立页面**（阅读器同款 `cover.diym = {bg,images,texts}` 草稿 + `foreignObject` 合成 `cover.img`），入口是封面图案栏最后一格 |
 | 23 | `home-events.js` | 841 | 主页交互：轮播点击、书架长按 / 单击、书架**拖动排序**（FLIP 位移 + 布局坐标命中判定；搬 DOM 节点时按 `dataset.per` 里**每行的本数**分配，各行的本数可能不同）、书架滚动时浮层按钮让开 `floatBarsAway`、菜单与分享菜单、多选选择条、删除二次确认、搜索面板（**书架模式下点搜索结果 = 直接翻开**：先 `shelfPick` 再把它滚进视口才 `openReader`，否则开书动画量到屏幕外坐标、封面从画面外飞进来）；**单层书架**：书脊悬停预览（委托在 `#spineWrap` 上的 `pointerover / pointerout`，只认 mouse / pen，整排重画也不会漏掉）、长按 380ms 拖动排序（单排只按横向区间命中，节点按新顺序 `appendChild` 回同一行 + FLIP 让位，边缘自动横滚；**排序中途绝不重建 DOM**，否则触摸手势连同 `touchmove / touchend` 被浏览器整条丢掉）、长按原地松手 = 开编辑 | core, state, home-view, editor, io-* | |
 | 24 | `reader-flow.js` | 358 | 阅读器交互与**开合书动画**：封面飞入放大成书、合书、连翻回封面、缩回主页封面 | core, state, reader-view, page-flip | |
 | 25 | `scrub.js` | 213 | 页数轴：长按页码唤出、拖动 / 点选快速跳页；键盘左右键翻页；点纸面收起对象选中（工具条 / 面板上的点击不算，刚关面板 450ms 内也不翻页） | core, state, reader-view | |
@@ -208,9 +208,9 @@ index.html
 
 | 档位 | 名称 | 封面（宽×高） | 内页（宽×高） | 装订表现 |
 |---|---|---|---|---|
-| `classic` | 笔记本 | A5 148×210 | A5 148×210 | 硬壳书脊 + 彩带（**只有这一档有彩带**） |
+| `classic` | 笔记本 | A5 148×210 | A5 148×210 | 左侧彩带（**只有这一档有彩带**）；有彩带时不叠压槽，彩带设「透明」时改画**带立体断面的压槽**（去掉上下折边 / 外围黑影 / 槽沿浅白线） |
 | `personal` | 活页手帐 | B6 125×176 | 95×170（比封面短 6mm） | 封面**干干净净**（不画环、也不留装订压痕）；环画在翻开的内页中缝，且两页之间留一道缝 |
-| `square` | 方形画册 | 1 : 1 | 1 : 1 | 方开本硬壳 |
+| `square` | 方形画册 | 1 : 1 | 1 : 1 | 方开本硬壳 + 左侧压槽（没有彩带） |
 
 ⚠️ 三档高度仍要摆得齐：封面宽度基准都是 `--cover-w`，高度由 `aspect-ratio` 撑
 （方形画册反过来把**宽**写成 `--cover-w × 210/148`）。B6 比 A5 矮 0.8%（约 2px），肉眼齐平。
@@ -219,10 +219,23 @@ index.html
 封面渲染（`coverHTML`）与导出都按它画；编辑器里那一整节「封面彩带颜色」在非笔记本档直接 `gone`
 （见 `syncEditor`）—— 挑了也不会有反应，藏着比显示出来好。
 
+**封面左侧：有彩带不叠压槽，没彩带才画压槽**（2026-11-09 用户澄清，⚠️ 别搞反）：
+
+- 有彩带（笔记本且 `ribbon` 不是 `none`）→ 左侧一条平色彩带，右侧落两层柔和接触影
+  （`.spine:not(.ghost)` 的 `box-shadow`，00:05 用户要求「彩带加上阴影」），不生成任何凹槽断面；
+  ⚠️ 只加外投影，上下折边暗边 / 槽沿 1px 浅白线仍是不要的；
+- 没彩带（「透明」档）/ 方形画册 → **画压槽**（`.spine.ghost`），保留带暗槽底＋亮槽沿的
+  立体断面（23:02 用户复评「之前的更逼真」）；
+  仍然去掉三样：上下两端折边暗边、四周黑色投影、槽沿那条 1px 浅白线；
+  23:15 方向改为「左亮右暗」，23:32 又把**亮槽沿加宽、暗槽底收窄**：
+  屏幕 / 导出色标写成 `.30白 22%~38% 平台 + .34黑 50% / .26黑 56% / .08黑 62%`，
+  缩略图写成 `.28白 20%~40% + .32黑 50% / .07黑 60%`，
+  都按**视觉位置**从左到右写 `90deg`（不再做 270deg 镜像换算）；
+- 活页 → 整列不输出。
+
+`home.css` 的 `.spine` / `color-picker.css` 的 `.pspine` / `io-doc.js` 导出封面三处同源。
 **活页的环只画在内页中缝**：真活页本的环在里侧，封面是一张干净硬壳 —— 所以 `coverHTML` 与导出
-（`io-doc.js`）都不画环，只留 `.spine.ghost` 那道压痕。
-封面连**装订压痕**也不画（活页不是精装本，没有那条凹进去的书脊沟，所以 `isRingStyle` 那一档直接不输出
-`.spine`）；导出同样。翻开后一双页面是穿在同一组环上的，所以 `renderReader` 给 `#book` 加 `ringed`，
+（`io-doc.js`）都不画环、也不留装订压痕。翻开后一双页面是穿在同一组环上的，所以 `renderReader` 给 `#book` 加 `ringed`，
 中缝那一列画出 `gutterRingsHTML()`（环数 = `BOOK_STYLES.rings`）。少了它，翻开的内页跟封面不像同一本。
 
 **一颗环 = 左右两个镂空洞 + 一道浅弧形钢丝**。`.hole` 是纸上被打穿的洞，压在金属下面；
@@ -298,13 +311,13 @@ index.html
 |---|---|---|---|
 | 1 | `base.css` | 109 | CSS 变量（色板、毛玻璃、圆角、阴影、**默认界面背景 `--app-bg`**、**文字贴字族 `--font-hand` / `--font-kai`**、**滚动条 `--sb-*`**）与全屏骨架；`#app` 高度由 JS 锁定。**`--app-bg` 是主页 / 阅读器 / body 三处共用的那一份默认背景**（阅读器不再自己写深色渐变，否则默认档下主页是暖白、阅读器是深蓝，两个画面）。顶部 `@font-face` 加载项目自带的 `assets/font/carnet-hand.woff2`（2.55MB，GB2312 全覆盖子集；另备一份 `.woff` 兜底）与 `assets/font/en/` 下四款英文字体（各自不到 62KB，懒加载）。**文件名必须是纯 ASCII**：非 ASCII 名在部分静态托管上会被回落成 index.html，字体请求看着 200、内容是 HTML，字族静默失效（症状：字母仍是手写体——退到了系统自带字体，中文变成楷体 / 雅黑）。排查直接看控制台自检，或手动跑 `window.carnetFontOK()`。字族名 `CarnetHand`，排在 `--font-hand` 回退链最前；旧的 `851tegakizatsu.ttf`（28MB）已弃用、不再被引用。**滚动条全项目只此一份**：用 `*` 兜住所有滚动容器，改浓淡只动 `--sb-size / --sb-track / --sb-thumb(-hi/-act)` 四个变量；别再往各样式文件里单独写 `::-webkit-scrollbar`（那边选择器更具体会盖掉这里），书架 `.shelf-wrap` 是唯一例外——它故意藏起来 | |
 | 2 | `controls.css` | 22 | 通用控件：输入框、按钮、标签 | |
-| 3 | `home.css` | 124 | 主页容器（**没有顶栏底栏**：两条栏都是 `position:absolute` 浮层，不占布局高度，栏本身 `pointer-events:none` 只有按钮收点击；滑动时 `#home.bars-away` 整块淡出让开）、封面（书脊、图案层、高光、页数徽章；透明彩带走 `.spine.ghost`，只留装订压痕；**尺寸 `clamp(158px,min(44vw,40vh),246px)`：窄屏按宽度走占满屏、矮屏按高度让一让**）、底栏毛玻璃圆钮；浮层高度记在 `--topbar-h / --botbar-h` 供正文避让 | |
-| 4 | `book-style.css` | 110 | 装帧样式与封面拟物：光泽与明暗 `.gloss`、暗角与内描边 `::after`；**封面圆角是不对称的小圆角**（`3px 9px 9px 3px`，画册 `4px 8px 8px 4px`：书脊侧近乎直角、翻口侧一小点圆弧；开太大就成圆角卡片而不是一本书）；硬壳的书脊 `.spine`；活页封面**不画环**（`rings` 只决定内页中缝的环数，环在 reader.css 的 `.grings`）；弹力绑带 `.band`；方形画册 1:1 开本 `.s-square`；编辑器里的样式选择卡 `.sty-*`；**左右滑动模式的落地影 `.carousel .book-item .cover`**（五层由实到虚：接触影 → 近 / 中 / 远 → 环境影，x 偏移逐层加大模拟左上光源的半影外扩，色偏冷灰蓝而非纯黑；`.active` 那本再压深一档做远近关系）。改阴影注意：这条选择器比 `.cover` 那条更具体，两边都要看 |
+| 3 | `home.css` | 124 | 主页容器（**没有顶栏底栏**：两条栏都是 `position:absolute` 浮层，不占布局高度，栏本身 `pointer-events:none` 只有按钮收点击；滑动时 `#home.bars-away` 整块淡出让开）、封面（左侧彩带 / 压槽、图案层、高光、页数徽章；**有彩带不叠压槽**，没彩带时 `.spine.ghost` 画原来那套立体断面压槽（上下折边暗边 / 四周黑影 / 槽沿浅白线不画，断面本身保留），活页整列不输出；**尺寸 `clamp(158px,min(44vw,40vh),246px)`：窄屏按宽度走占满屏、矮屏按高度让一让**）、底栏毛玻璃圆钮；浮层高度记在 `--topbar-h / --botbar-h` 供正文避让 | |
+| 4 | `book-style.css` | 110 | 装帧样式与封面拟物：光泽与明暗 `.gloss`、暗角与内描边 `::after`；**封面圆角是不对称的小圆角**（`3px 9px 9px 3px`，画册 `4px 8px 8px 4px`：书脊侧近乎直角、翻口侧一小点圆弧；开太大就成圆角卡片而不是一本书）；硬壳左侧的彩带 `.spine`（透明档改画立体断面压槽，见 `home.css`）；活页封面**不画环**（`rings` 只决定内页中缝的环数，环在 reader.css 的 `.grings`）；弹力绑带 `.band`；方形画册 1:1 开本 `.s-square`；编辑器里的样式选择卡 `.sty-*`；**左右滑动模式的落地影 `.carousel .book-item .cover`**（五层由实到虚：接触影 → 近 / 中 / 远 → 环境影，x 偏移逐层加大模拟左上光源的半影外扩，色偏冷灰蓝而非纯黑；`.active` 那本再压深一档做远近关系）。改阴影注意：这条选择器比 `.cover` 那条更具体，两边都要看 |
 | 5 | `reader.css` | 162 | 书籍骨架、左右页、翻页叶片、中缝折痕与纸光、**活页：两页之间的缝 `--ggap` + 机构金属条 `.gutter::after`（上下两端各一颗铆钉；`z-index:28` 压在环之上，环脚被条盖住才像从机构里长出来的）+ 中缝金属环 `.grings`（一根环 = 左右两个 D 形半环）+ 每页纸面上的打孔 `.page-hole`**（孔画在纸里而不是中缝：翻页叶片会盖住中缝，孔挂在那儿的话翻到一半那页就没孔了。孔位 / 孔径 / 打孔列宽由 `.book` 上的 `--hole-x / --hole-d / --hole-col` 统一给，环径 `--ring-d`；半环宽就是 `--hole-x`（拱出多远由孔的位置决定）、高是 `--ring-d / .6`（SVG 里那个 D 只占 60% 的高度），`.l` / `.r` 各贴金属条的一侧，弧顶才压在孔心；**打孔那一列 `.bind-left / .bind-right` 给 `.tplbg` 加遮罩，网格 / 点阵 / 横线都不铺进这一列**（遮的是 `--hole-col - --pmx`，两处留白各算各的）；**活页那圈封面露边 `--bleed`（左右）/ `--bu-t` `--bu-b`（上下，下沿比上沿宽一档）**；**单页态没有缝，机构条改占 `--bleed` 那条边（宽度统一走 `--mech-w`），那一页也有环**—— `.book` 这个盒子本身就是封面外框，页槽 / 叶片 / 中缝整体往里缩，非活页两者恒为 0 所以行为不变）、纸张底色与内页模板（网格 / 点阵 / 横线 / 牛皮纸）；编辑态下舞台按 `--stage-shift` 上移避让面板；**`#reader` 背景走 `var(--app-bg)` 跟主页同一份**（自定义背景由 `applyBg` 写内联样式覆盖） | |
 | 6 | `image-tools.css` | 103 | 四角拉伸手柄（热区只向外扩，避免抢按钮；`locked` 时隐藏、`.tiny` 时缩小）、**旋转手柄 `.hdl.rot`（挂在右边外侧正中，上方是工具条的位置、四角是拉伸手柄，只有这里空着；里面放一个转圈箭头图标 + 一根细线连回对象。图标用绝对定位居中，不能给 `.hdl.rot` 设 `display:flex` —— 会压过「选中才显示」那条规则，手柄就一直露在外面了）**、**内页四周的空白页边 `--pmx / --pmy`**（模板层 `.tplbg` 内缩这一圈，露出来的就是干净纸边；导出那份是内联样式拼的、认不到 CSS 变量，所以 `io-doc.js` 里按同一套比例自己内缩了一次）、纸张底色与内页模板纹理、选中 / 固定 / 铺满三态的描边（**按钮本身已收进 `.objbar`，见 `text.css`**）；`lockPulse` 关键帧里必须带 `rotate(var(--rot))`，否则固定那一瞬间会先把角度抹掉 | |
-| 7 | `text.css` | 264 | ① 文字贴本体与选中态（**行内打字时只让工具条让位，四角与旋转手柄都留着**，好一边打字一边把框拉到合适大小）；② `.objbar` 对象工具条（毛玻璃胶囊，长在对象内部、`--ob-x` 横向纠偏、`bar-below` 翻到下方、**图片六颗钮 / 文字贴五颗，`.pimg-wrap.tiny` 时缩一号免得占满小图**、**末尾再 `rotate(calc(-1 * var(--rot)))` 把角度转回来，对象怎么转工具条都是正的**）；③ `.tsheet` 编辑面板（窄屏贴底全宽 / `≥620px` 变右下角浮块）与左上角完成 / 撤销 / 重做 `.eflow-top`（**撤销 / 重做只在文字面板开时才露出来，底色弹窗借用编辑态但没有撤销栈**）；④ 右上角「添加」菜单、双页选页那一行（**「本页底色」那排内联小色块 `.am-bg` 已随弹窗撤掉**）；⑤ 深色纸时页码转浅 `.paper.dark .pnum` | |
+| 7 | `text.css` | 264 | ① 文字贴本体与选中态（**长按版式态 `.boxmode` 才显示四角 / 旋转手柄；双击的内容态 `.editing` 把手柄全收起、只留工具条**，两种手势各管一件事）；② `.objbar` 对象工具条（毛玻璃胶囊，长在对象内部、`--ob-x` 横向纠偏、`bar-below` 翻到下方、**图片六颗钮 / 文字贴五颗，`.pimg-wrap.tiny` 时缩一号免得占满小图**、**末尾再 `rotate(calc(-1 * var(--rot)))` 把角度转回来，对象怎么转工具条都是正的**）；③ `.tsheet` 编辑面板（窄屏贴底全宽 / `≥620px` 变右下角浮块）与左上角完成 / 撤销 / 重做 `.eflow-top`（**撤销 / 重做只在文字面板开时才露出来，底色弹窗借用编辑态但没有撤销栈**）；④ 右上角「添加」菜单、双页选页那一行（**「本页底色」那排内联小色块 `.am-bg` 已随弹窗撤掉**）；⑤ 深色纸时页码转浅 `.paper.dark .pnum` | |
 | 8 | `page-bg.css` | 40 | 「本页底色」弹窗 `#bgsheet`：复用 `.tsheet` 的深色玻璃底与升起动画（`max-height:78%`），里面是顶部当前色预览 + **九种颜色横排**（`.bs-col` 一列一种颜色、列内六档竖排由浅到深，组名 `.bs-cn` 挂列底）+ **完成 / 自定义** 两个按钮（`.bs-btn.done` 是主按钮，挑了新色才 `on` 点亮） | |
-| 9 | `scrub.css` | 84 | 页数轴（玻璃滑块 + 粉色焦点线）与浮在轴上方的页码；封面页铺满时各图案贴片按 `--pw` 折算尺寸（小花贴片非正方形，两维都必须折算） | |
+| 9 | `scrub.css` | 84 | 页数轴（玻璃滑块 + 粉色焦点线）与浮在轴上方的页码；封面页铺满时各图案贴片按 `--pw` 折算尺寸 | |
 | 10 | `modal.css` | 107 | 通用弹窗：毛玻璃滚动条、吸底操作栏、色块网格、模板网格、上传区；编辑器折叠小节 `.fold-sec / .fold-head / .fold-body / .fold-caret / .fold-hint`（收起时正文整块隐藏、标题后跟取值）；「跟随 / 自动」档色块 `.paper-auto .pat-auto`、小节里的补充说明 `.ed-note`；「一键成书」的进度胶囊 `.mkbusy`（居中玻璃胶囊 + 转圈，压在确认框之上） | |
 | 11 | `color-picker.css` | 149 | 自定义取色盘：饱和度 / 明度面板、色相条、吸管入口；**吸管现场取色**：整层不吃指针事件的放大镜 + 底部细操作条、浮层让位用的 `.ep-duck`；手输色值时键盘弹起把面板顶上去 | |
 | 12 | `search.css` | 49 | 搜索条与结果列表（含 `scrollbar-gutter` 防抖动）以及结果里的封面缩略图 | |
@@ -312,7 +325,7 @@ index.html
 | 14 | `book-anim.css` | 75 | 开合书动画：封面飞入放大成书、`.cover-ghost` **窗口 + `.cover-ghost-fit` 内容层**（窗口用 width/height 展开、内容只做等比 scale，所以封面全程不变形）、合书退场、封面单独成页态。⚠️ `ghostOut` 关键帧里**不能再动画 `border-radius`**：CSS 动画层级高于内联样式，会把 JS 给细长书脊设的 1.5px 小圆角顶掉 | |
 | 15 | `view-toggle.css` | 43 | 展示模式切换按钮（三格：多层书架 = 一摞书 `books` / 单层书架 = 一排书脊 `rows` / 左右滑动 = 一本合着的书 `book-2`，图标写在 `index.html` 里，Tabler 描边风格）：浅色毛玻璃胶囊 + **白色圆钮滑块**（容器 `data-vt` 驱动 `translateX`，每格 32px、加一格就多一档位移），选中那格的图标吃深色 `#20222c` | |
 | 16 | `shelf.css` | 137 | 书架模式：成排的书 + 亚克力搁板（含金属螺丝）、拖动排序时的淡坑与悬浮副本；书架吃满整屏高度，上下内边距用 `--topbar-h / --botbar-h` 让每排都能滑出浮层按钮的遮挡区 | |
-| 17 | `menus.css` | 85 | 向上弹出的分享 / 导出菜单、书架多选时的底部选择条、封面上的勾选圈 | |
+| 17 | `menus.css` | 98 | 向上弹出的分享 / 导出菜单、书架多选时的底部选择条、封面上的勾选圈、纸面右键菜单 `.addmenu.pmenu`（fixed 跟随鼠标，挂在 `#reader` 直属子节点上，避开 `.book` 那层 filter） | |
 | 18 | `decor.css` | 152 | 图片边框 `.pframe`（边框画在它的 padding 上）与**图片边框**面板 `#frsheet`（`.fr-*` 六档小样 / 颜色 / 粗细）；**贴纸**面板 `#stsheet`（`.st-grid` 便利贴 / 胶带 / 手绘三档格子）；便利贴皮肤 `.ptext-wrap.note .ptxt`（纸色底 + 内高光 + 落地影 + 右下折角） |
 | 19 | `background.css` | 235 | 背景设置面板，以及**浅色背景时整套界面换「白玻璃」**那一套（`bg-light`）：面板底色走 `--frost / --frost-bd / --frost-fx` 三个变量（下拉菜单 / 确认框 / 取色盘一次全变），遮罩、弹窗、搜索栏、底部面板那些写死底色的逐个换；面板内文字一律换深色。⚠️ **选择器挂 `#home` 还是 `#reader` 要看元素真长在哪**：`.rbot`（底栏）和 `.scrub`（页数轴）是阅读器里的，写 `#home.bg-light .rbot …` 永远命中不了 | |
 | 20 | `spine-shelf.css` | 194 | 单层书架模式：底边对齐、只留一条细缝（`gap:clamp(1px,.16vw,3px)`）的一排书脊，窄屏横向滑动；**书脊宽度按页数走**：`width = --spine-min-w + (--spine-max-w - --spine-min-w) × --spine-p`，`--spine-p` 由 `spineWidthRatio()` 按 `log2(1+页数)/log2(65)` 算（越厚越宽、64 页封顶，再薄也有 `--spine-min-w` 保底）；高低错落由 `id` 散列（`spineSeed`，不掺下标）出 `--spine-h` 与 `deco-N`；排序中 `#spineWrap.sorting` 把整排压回**基础档**（`transform:none` + 基础 `filter` / 投影、`.active::after` 白边收掉），否则手指经过 / 选中的那本会抬起、变亮；下方预览框 `#spineDetail`（默认跟着 `state.sel` 走并**横移对到那根书脊底下**：封面 `position:absolute` + `transform:translateX(calc(var(--px) - 50%))`，`--px` 由 `spineDetailShift()` 量；悬停别的书脊时临时切过去，`.empty` 时不吃点击）；长按拖动排序的淡坑 `.spine-item.lifted` 与悬浮副本 `.spine-ghost`（**必须 `transition:none`**，否则克隆来的副本会带着书脊那套 hover 过渡从屏幕左上角飘到手指下）；点书脊翻开时的**抽出动画** `.spine-item.pulling / .gone`（起飞点量的是抬起**之后**的实时 rect，见 reader-flow.js 的 `coverRect`）；`#spineWrap.no-preview`（无悬停能力的设备）把预览框整块收掉；**矮屏 / 横屏各有一档放大**（`max-height:620px` 与 `orientation:landscape and max-height:560px`），横屏下书脊又短又细，要把高度和 `--spine-min-w / --spine-max-w` 一起提上来 | | **手机竖屏（`@media (max-width:520px) and (orientation:portrait)`）单独调比例与居中**：屏幕又窄又高时书脊按 vh 给长度会拉成 ~1:26 的细长条，这一档把宽度提到 `9.5vw / 14vw`、长度收到 `50vh`，比例落在 ~1:7（接近真实书脊）；整排书作为**一块**垂直居中（`.spine-scroll` 变 flex + `align-items:center`、row 收成 `height:auto`），row 内部仍 `align-items:flex-end` 让书站同一条底线；横向用 `justify-content:safe center` —— 书少时居中、书多要横滑时自动退回 `flex-start`，否则普通 `center` 溢出后左边几本滚不到
@@ -337,10 +350,13 @@ index.html
 {
   id: 'x1a2b3c…',              // 内部唯一 id
   name: '旅行手记',
-  cover: { type: 'solid|gradient', value: '#f4a9b8', pattern: 'heart', patColor: '#e0668a', img: null },
+  cover: { type: 'solid|gradient', value: '#f4a9b8', pattern: 'heart', patColor: '#e0668a',
+           img: null, diym: null },  // diym = {bg,images,texts} 封面草稿（阅读器同款对象）；img = 合成后的成品封面图
   ribbon: '#c98a8a',           // 封面彩带（书脊）颜色；'none' = 透明，不画书脊
   style: 'classic',            // 装帧样式：classic 精装 / ring 活页 / personal Personal 活页 / square 方形画册
-  template: 'grid',            // 内页模板：blank / grid / dots / line / kraftplain …
+  template: 'grid',            // 内页模板：blank / lined / grid / dots / kraftplain / kraft / custom
+  tplImg: '',                  // template==='custom' 时的图片（base64 位图 dataURL），随手帐本一起导出
+  tplFit: 'cover',             // 自定义图的铺法：cover 铺满 / stretch 拉伸 / tile 平铺
   pageBg: '#f7f1e3',           // 整本的内页底色（旧字段：没有设置入口了，但老数据 / 导入数据仍生效）
   created: 1730000000000,
   pages: [                     // 第 0 页起，每页是一张纸
@@ -391,6 +407,29 @@ index.html
 （牛皮纸模板本身约 .84）** —— 再浅就跟没设一样、屏幕上也看不出换了色；末尾「灰 / 墨」两组的深色档给深色手帐用。
 改色阶时注意：写字用的那些档 `hexLum` 要留在 `LUM_DARK`（.55）以上，低于它 `pageBgDarkShown` 会把页码转浅。
 （编辑器的整本设置早已撤掉，从色阶派生的 `PAPER_COLORS` 已随 2026-10-02 的整理删除，色阶 `PAPER_RAMPS` 是唯一数据源。）
+
+**自定义封面（DIY 独立页面）**：编辑器「封面图案」栏最后一格跳到与 `#home / #reader` 平级的
+全屏页面 `#diyPage`（见 `editor.js` 尾部 / `style/diy-cover.css`），进入时编辑器弹窗让位、完成/返回后交还。
+`cover.diym = { bg, images:[…], texts:[…] }` 是**可继续编辑的草稿**，结构与阅读器一页的
+`pg.images / pg.texts` 完全相同：坐标 `x/y/w/h` 占纸比例、`z` 上下层、`rot` 角度、
+文字 `size` 是占纸宽百分比；底色 `bg` 可以是 hex 纯色或 GRADS 渐变。
+纸面直接调 `imgWrapHTML / textWrapHTML / objBarHTML / rotHandleHTML`，新建文字用 `newText()`、
+上下层用 `nextZ()`、盒子下发用 `applyBox() / applyRot()`，图片边框复用 `FRAMES / frameBoxStyle`，
+贴纸复用 `stickers.js` 的便利贴 / 胶带 / 我的贴纸库，文字面板复用 `TEXT_*` 色板与字体档 ——
+**添加图片、文字、贴纸的逻辑与阅读器一致**（拖动、四角缩放、旋转手柄、工具条、双击改字都在）。
+「完成」把纸面塞进 SVG `foreignObject` 栅格化成一张图写进 `cover.img` —— 主页 / 阅读器 /
+PDF / 长图 / 源文件导出本来就有「有封面图就铺图」这一条路，所以这些渲染点一个字节都不用改。
+⚠️ 合成用的 `diyExportHTML()` 必须全内联（foreignObject 读不到本页 CSS），`<img>` 要自闭合 `/>`。
+草稿与成品图都随手帐数据走，导入时 `normalizeJournal` 只做结构校验，打开页面时 `normDiyCover`
+再逐字段洗（含把上一版 `items` 老草稿换算成 images/texts）。
+从 DIY 切回内置图案会撤掉 `cover.img` 但**保留草稿**，随时能回页面接着改。
+
+**自定义内页模板**：编辑器「内页模板」多一格「自定义」，选一张图存进 `j.tplImg`（`packTemplateImage()`
+缩到长边 1200 的 PNG，保留透明通道），`j.template = 'custom'`，`j.tplFit` 决定铺法。
+样式源仍是 `tplStyle(k, j)` —— 编辑器缩略图、阅读器 `.tplbg`、PDF / 长图导出三处共用，
+所以导出不会跟屏幕上差一圈留白：自定义这一档 `.paper.t-custom .tplbg` 把 `inset` 归零（满版），
+`io-doc.js` 同步把版心留白设成 0。图片在手帐数据里，跟封面图片一样随源文件 / PDF / 长图一起走，
+导入时 `normalizeJournal()` 只收 base64 位图 dataURL，标了 `custom` 却没图的一律落回 `blank`。
 
 ## 七、导入导出
 
@@ -453,7 +492,7 @@ index.html
   文字用 Range 行盒判断是否压在字上，字间空隙不会被误判成字色。
   放大镜跟着指针显示周围 9×9 屏幕像素；Esc 或「取消」退出。吸完只是把颜色填进面板，
   还能用 HSV 再微调，不会一下定死 |
-| 阅读器 | 点上任意图片 / 文字贴 | 图片：选中并浮出工具条（完成 ✓ / 复制 / **换图** / 铺满 / 删除），接着就能拉角旋转；**文字贴要双击**才进编辑态，单击不动它 |
+| 阅读器 | 点上任意图片 / 文字贴 | 图片：选中并浮出工具条（完成 ✓ / 复制 / **换图** / 铺满 / 删除），接着就能拉角旋转；**文字贴长按调版式（挪位置 / 改大小）、双击只改文字**，单击不动它 |
 | 上下层 | 不用管 | 先加的在下、后加的盖在上面（图片与文字混在一起排）；拖动 / 缩放不会改变层次 |
 | 旋转 | 拖对象右边外侧那颗带转圈箭头的手柄 | 绕中心转；按住 Shift 每 15° 吸附；双击手柄摆正 |
 | 文字框大小 | 不用管 | **框始终紧贴文字**：短句框就那么宽、一行字框就那么高，打字变长跟着长、删字跟着收回去；长段落到行宽上限才折行。拖四角时框宽高与字号同比缩放，换行位置不变，既不留空白也不裁字 |
@@ -462,11 +501,11 @@ index.html
 | 图片工具条 | 点第 5 颗「边框」 | 升起「图片边框」面板：五档框（无 / 拍立得 / 纯色 / 细线 / 拟物相框）+ 八档预设色 + 自定义取色 + **一根粗细拖动条**。**挑一档立刻画到纸上并存档**（不整页重绘，选中态与位置全保留），再点同一档 = 取消；不想要就点回「无边框」 |
 | 图片工具条 | 点第 4 颗 | 铺满整页 ⇄ 还原（铺满时自动固定，长按纸面可解锁） |
 | 文字贴 | **单击** | **完全没反应**：不选中、不画虚线框 —— 手势照旧归翻页（横划一下照样翻页） |
-| 文字贴 | **长按 420ms** | **解除固定并进选中态**（虚线框 + 工具条），手指不用抬就能**直接拖着挪位置**（跟图片长按同一个手势、同一档时长）；同样支持跨页拖到另一页。没按够就松手或中途划开 = 单击，手势交回翻页 |
-| 文字贴 | **双击** | 进入编辑态：**打字 + 拖动挪位置 + 拖四角整块缩放 + 右边那颗转 + 上方工具条**（完成 ✓ / 复制 / **字随框缩放** / 编辑 / 删除）全在这一个状态里做完；点纸面空白处收尾并固定 |
-| 文字贴 | **拖四角** | **框宽、框高、字号同比变化**，对角钉死不动，整块像贴纸一样放大缩小，换行位置不变，**拖多小就变多小（不会一碰就撑大）**；按住 **Alt** 拖（桌面）或点灭工具条那颗开关 = 只改框、字号不动，拉出来的宽度记成手动行宽，之后打字不再自动收窄（图片的四角一直是这种自由拉伸）。倍数受纸边、字号 2.2~22 夹逼，字不会先撞到上限把比例拉歪 |
+| 文字贴 | **长按 420ms** | **版式态**：解除固定 → 选中（虚线框 + 工具条 + **四角 / 旋转手柄**），手指不用抬就能**直接拖着挪位置**（跟图片长按同一个手势、同一档时长）；抬手后**拖四角改大小、拖右边那颗转**；同样支持跨页拖到另一页。没按够就松手或中途划开 = 单击，手势交回翻页 |
+| 文字贴 | **双击** | **内容态**：只改文字 —— 落光标打字、拖选一段字、改字体颜色字号都行；**不能移动文本框、不能改大小、不能旋转**，四角 / 旋转手柄全部收起，只留上方工具条（完成 ✓ / 复制 / **字随框缩放** / 编辑 / 删除）；点纸面空白处收尾并固定。想动位置或大小请改用长按 |
+| 文字贴 | **拖四角**（先长按进版式态） | **框宽、框高、字号同比变化**，对角钉死不动，整块像贴纸一样放大缩小，换行位置不变，**拖多小就变多小（不会一碰就撑大）**；按住 **Alt** 拖（桌面）或点灭工具条那颗开关 = 只改框、字号不动，拉出来的宽度记成手动行宽，之后打字不再自动收窄（图片的四角一直是这种自由拉伸）。倍数受纸边、字号 2.2~22 夹逼，字不会先撞到上限把比例拉歪 |
 | 文字贴工具条 | 点「字随框缩放」那颗（默认点亮） | 在「字随框缩放 ⇄ 只改框」之间切；状态跟着这张文字贴存盘，触屏没有 Alt 也能用。切回「开」再拖一次四角即恢复自动贴合 |
-| 文字贴编辑态 | 工具条「编辑」 | 打开「编辑文字」面板（会先把行内打的字落盘） |
+| 文字贴编辑态 | 工具条「编辑」 | 打开「编辑文字」面板（会先把行内打的字落盘；面板期间同样不显示手柄、不能移动 / 缩放文本框） |
 | 编辑文字面板 | 字体 / 颜色 / 字号 / 格式 四页 | 中文 4 档（手写 / 楷 / 宋 / 默认）+ 英文 8 档（跟随中文 / 衬线 / 等宽 / 手写 4 档系统字体，打字机 / 复古等宽 / 像素 / 旧打字机 4 档项目自带 woff2）；文字色与高亮色；字号滑块 + 4 个快捷档（范围 2.2~22，占纸宽百分比；这一页是**单独调字号**，框会按新字号重新贴紧文字，拖四角才是整块缩放）；粗 / 斜 / 下划线 / 删除线 + 对齐 |
 | 编辑态左上角 | ✓ / 撤销 / 重做 | 完成并固定；撤销 / 重做只在这一次面板会话内有效（连续打字 800ms 合并成一步） |
 | 编辑态 | 点纸面空白处 | 收起面板并固定对象（刚关面板 450ms 内不会误翻页） |

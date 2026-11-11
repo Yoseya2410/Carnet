@@ -105,18 +105,48 @@
   position:relative;background:#eee;transition:transform .15s,border-color .2s
 }
 .pat:hover,.tpl:hover{transform:translateY(-2px)}
-.pat.on,.tpl.on{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.3)}
+/* 选中态改黑色边框：白玻璃弹窗里白色边框跟底子融在一起、完全看不出选中（用户 2026-11-11 指出）。
+   外面留一圈浅白，切回深色毛玻璃主题时也分得清。 */
+.pat.on,.tpl.on{border-color:var(--accent);box-shadow:0 0 0 2px rgba(255,255,255,.55)}
 .pat .pv{position:absolute;inset:0;background-size:cover;background-position:center}
+/* 与主页封面同一套：有彩带时缩略图左侧只画一条平色彩带、不叠压槽；
+   透明彩带时**恢复原来那套暗槽底＋亮槽沿的立体断面**（用户复评更逼真），
+   仍不画上下折边暗边、四周黑影和槽沿那条 1px 浅白线。 */
 .pat .pspine{
-  position:absolute;left:0;top:0;bottom:0;width:9.5%;z-index:2;
-  box-shadow:2px 0 7px rgba(0,0,0,.3),inset -1px 0 0 rgba(255,255,255,.16)
+  position:absolute;left:0;top:0;bottom:0;width:9.5%;z-index:2;pointer-events:none;
+  box-shadow:none
 }
-/* 彩带选「透明」时，图案预览里只留一道压痕（不画颜色带） */
-.pat .pspine.ghost{
-  background:none;
-  box-shadow:2px 0 5px rgba(0,0,0,.2),inset -1px 0 0 rgba(255,255,255,.14)
+/* 彩带：缩略图**纯色**带（ribbonSpine 不给渐变了）。
+   右侧那点接触影＝彩带压在封面上的投影，用户明确要保留（比屏幕那版收窄一档，小卡本来就窄）。 */
+.pat .pspine:not(.ghost){
+  box-shadow:1px 0 3px -1px rgba(0,0,0,.17),1px 0 1px rgba(0,0,0,.05)
+}
+/* 有彩带：凹槽断面不生成；::after（槽沿浅白线）任何时候都不画 */
+.pat .pspine:not(.ghost)::before,
+.pat .pspine::after{content:none}
+/* 透明彩带：完整的压槽断面，只有断面本身的明暗。
+   与 home.css 同一套「左亮右暗」+ 亮沿加宽（20%~40%）/ 暗底收窄（50%~60%），
+   色标按视觉位置写 90deg，缩略图窄所以过渡档数少一些。 */
+.pat .pspine.ghost{background:none}
+.pat .pspine.ghost::before{
+  content:"";position:absolute;inset:0;
+  background:linear-gradient(90deg,
+    rgba(0,0,0,.02) 0%,rgba(0,0,0,.05) 10%,
+    rgba(255,255,255,.28) 20%,rgba(255,255,255,.28) 40%,
+    rgba(0,0,0,.32) 50%,rgba(0,0,0,.07) 60%,
+    rgba(255,255,255,.16) 100%)
 }
 .pat .pspine.hid{display:none}
+/* ---- 封面图案 · 最后一格「自定义」----
+   没做过封面：一张白纸，中间一个大「＋」，底下灰条写「自定义」（跟内页模板那格同款）。
+   做过之后：整格铺合成好的封面图，＋ 收起来。这一格不画书脊 / 彩带 —— 它不是一个图案档，
+   是通往独立编辑页的入口，画上彩带会让人误以为它是可选图案。 */
+.pat.diy-pat{background:#fffdf8}
+.pat.diy-pat .pat-plus{
+  position:absolute;inset:0;display:grid;place-items:center;z-index:2;
+  font-style:normal;font-size:27px;font-weight:300;color:rgba(43,53,80,.5)
+}
+.pat.diy-pat.has-img .pat-plus{display:none}
 .pat.on::after{
   content:"✓";position:absolute;top:4px;right:5px;width:16px;height:16px;border-radius:50%;
   background:#fff;color:#2b2f3d;font-size:10px;font-weight:800;line-height:1;
@@ -125,11 +155,65 @@
 .pat span,.tpl span{position:absolute;bottom:0;left:0;right:0;font-size:9.5px;text-align:center;
   padding:2px 0;background:rgba(0,0,0,.34);letter-spacing:.04em;z-index:3}
 .tpl{aspect-ratio:3/4;border-radius:8px}
+/* ---- 内页模板 · 自定义图片 ----
+   每张上传的图各占一格（缩略图直接吃 tplStyle('custom') 的同一套 background），
+   末尾「＋」格继续添加。上传入口就在这里，弹窗下面不再放「选择图片」按钮。 */
+.tpl-img{cursor:pointer}
+.tpl-add{background:#fffdf8;cursor:pointer}
+.tpl-add .tpl-plus{
+  position:absolute;inset:0;display:grid;place-items:center;z-index:2;
+  font-style:normal;font-size:27px;font-weight:300;color:rgba(43,53,80,.5)
+}
+/* 移除某张模板：右上角小 ×，不占格内空间、也不参与选中 */
+.tpl-del{
+  position:absolute;top:3px;right:3px;width:17px;height:17px;border-radius:50%;
+  display:grid;place-items:center;z-index:4;font-style:normal;font-size:13px;line-height:1;
+  color:#2b2f3d;background:rgba(255,255,255,.9);box-shadow:0 1px 4px rgba(20,22,40,.3);
+  opacity:0;transition:opacity .15s;cursor:pointer
+}
+.tpl-img:hover .tpl-del,.tpl-img.on .tpl-del{opacity:1}
+.tpl-del:hover{background:#fff;color:#b5533f}
+/* 铺法 / 说明：紧贴模板网格，颜色沿用弹窗里那套半透明白 */
+.tpl-up{margin-top:12px}
+.tpl-fit{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.tpl-fit.fold{display:none}
+.tpl-fit>span{font-size:12px;opacity:.65;letter-spacing:.04em;margin-right:2px}
+.tpl-fit button{
+  padding:6px 13px;border-radius:9px;font-size:12px;color:#fff;
+  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);
+  transition:background .18s,border-color .18s
+}
+.tpl-fit button:hover{background:rgba(255,255,255,.2)}
+.tpl-fit button.on{background:var(--accent);border-color:rgba(255,255,255,.34);font-weight:600}
+.tpl-note{margin:9px 0 0;font-size:11.5px;line-height:1.6;opacity:.58}
+/* 封面圆角那一小节：滑杆 + 数值 + 恢复默认，一行摆开（跟内页模板铺法同一套视觉） */
+.ed-r-row{display:flex;align-items:center;gap:10px}
+.ed-range{flex:1 1 110px;min-width:80px;accent-color:var(--accent);cursor:pointer}
+.ed-r-val{flex:0 0 46px;text-align:right;font-size:12px;opacity:.72;font-variant-numeric:tabular-nums}
+#edRadiusReset[disabled]{opacity:.4;cursor:default}
+/* 封面内侧预览：一块按封面比例铺的小色板，样式直接由 coverInsideStyle() 写进两层 div */
+.ed-inside-pv{
+  position:relative;height:64px;margin:11px 0;border-radius:8px;overflow:hidden;
+  border:2px solid rgba(255,255,255,.18);background:#fffdf8
+}
+#edInsideCustomBox.fold{display:none}
+/* 封面主色候选：从封面里提取的最多五个色块，点一个就用作内衬 */
+.ed-inside-pal{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:10px 0}
+.ed-inside-pal.fold{display:none}
+.ed-inside-pal button{
+  width:30px;height:30px;flex:0 0 auto;border-radius:8px;cursor:pointer;
+  border:2px solid rgba(40,44,66,.18);box-shadow:inset 0 0 0 1px rgba(0,0,0,.06);
+  transition:transform .15s,border-color .15s
+}
+.ed-inside-pal button:hover{transform:scale(1.09)}
+.ed-inside-pal button.on{border-color:var(--accent);box-shadow:0 0 0 2px rgba(17,19,24,.22)}
+.ed-inside-pal .tip{font-size:11.5px;line-height:1.45;color:rgba(43,47,61,.62)}
 .editor-preview{display:flex;justify-content:center;margin-bottom:4px}
 /* ⚠️ 用高度当基准（不是宽度）：几种装帧开本宽窄不同，统一高度才摆得下、也才对得上「一样高」。
    常规 A5 148:210 → 宽 = 182 × 148/210 ≈ 128px（跟原来的 130px 基本一致）；方形画册自动变 182px 宽 */
 /* ⚠️ 只设 --cover-w，别直接写 width —— 方形画册要按它把宽放大 210/148 倍才能跟别的本子一样高 */
-.editor-preview .cover{--cover-w:130px;box-shadow:0 18px 32px -14px rgba(0,0,0,.65)}
+/* 编辑器顶部预览 130px 宽，圆角按 130/246 ≈ .53 折算才跟主页封面同一个弧度 */
+.editor-preview .cover{--cover-w:130px;--cr-scale:.53;box-shadow:0 18px 32px -14px rgba(0,0,0,.65)}
 /* 操作按钮吸底：滚动内容时也一直贴在弹窗底部 */
 .modal-actions{
   position:sticky;bottom:0;z-index:6;display:flex;gap:12px;margin-top:22px;

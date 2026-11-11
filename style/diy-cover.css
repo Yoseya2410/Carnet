@@ -1,0 +1,310 @@
+/* =====================================================================
+ * Carnet · 自定义封面独立页面   （样式 21 / 21）
+ * ---------------------------------------------------------------------
+ * 与 #home / #reader 平级的全屏页面（不再是弹窗），纸面上的图片 / 文字 / 贴纸
+ * 都是阅读器同款对象：直接复用 .pimg-wrap / .ptext-wrap / .hdl / .objbar
+ * 那套 CSS（image-tools.css / text.css），这里只负责页面骨架与工具面板。
+ * ⚠️ 整页固定白底深字，不跟主页背景走 —— 这是「弹窗一律白色」的约定。
+ *
+ * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
+ * ===================================================================== */
+.diy-page{
+  position:absolute;inset:0;z-index:130;display:flex;flex-direction:column;min-height:0;
+  color:#2b2f3d;background:rgba(255,255,255,.97);
+  -webkit-backdrop-filter:blur(14px) saturate(120%);backdrop-filter:blur(14px) saturate(120%)
+}
+/* 竖屏：这两个壳都不生成盒子，让顶栏 / 画布 / 底栏 / 面板仍以 .diy-page 为 flex 父级，
+   ⚠️ 别删：横屏媒体查询（文件末尾）会把它们变成真正的左右两栏。 */
+.diy-main,.diy-side{display:contents}
+/* 拖宽度的把手：只有横屏的 .diy-side 变成真盒子时才出现 */
+.diy-resizer{display:none}
+/* 工具按钮的两层分组壳：竖屏全部 contents，按钮仍直接排进 .diy-bar 的一排里 */
+.diy-bar-group,.diy-bar-grid{display:contents}
+.diy-bar-cap,.diy-bar button svg{display:none}
+/* ---- 顶栏 ---- */
+.diy-top{
+  flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:10px 14px;
+  border-bottom:1px solid rgba(40,44,66,.1);background:rgba(255,255,255,.9)
+}
+.diy-top .icon-btn{
+  width:38px;height:38px;color:#2b2f3d;background:rgba(40,44,66,.06);
+  border:1px solid rgba(40,44,66,.14);border-radius:50%;display:grid;place-items:center;cursor:pointer
+}
+.diy-top .icon-btn:hover{background:rgba(40,44,66,.13)}
+.diy-tt{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px}
+.diy-tt b{font-size:15px;font-weight:600;letter-spacing:.04em}
+.diy-tt small{font-size:10.5px;color:rgba(43,47,61,.56);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.diy-done{
+  flex:0 0 auto;padding:9px 18px;border-radius:999px;font-size:13px;font-weight:600;
+  color:#fff;background:var(--accent);border:1px solid rgba(40,44,66,.2);cursor:pointer
+}
+.diy-done:hover{filter:brightness(1.12)}
+.diy-done:disabled{opacity:.5}
+/* ---- 中间的纸 ---- */
+.diy-stage{
+  flex:1 1 auto;min-height:0;display:grid;place-items:center;overflow:hidden;padding:14px;
+  background:radial-gradient(120% 80% at 50% 24%,rgba(43,47,61,.045),transparent 72%)
+}
+.diy-paper{
+  /* 圆角跟真封面同一本：--cr 是主页 246px 宽封面上的 px，画布按 --cr-scale 同比缩；
+     左侧书脊两角固定（活页 6px、其它 3px），右侧翻口两角跟 cover.radius 走。 */
+  position:relative;overflow:hidden;background:#fffdf8;
+  border-radius:calc(var(--cr-left,3px) * var(--cr-scale,1))
+                calc(var(--cr,10px) * var(--cr-scale,1))
+                calc(var(--cr,10px) * var(--cr-scale,1))
+                calc(var(--cr-left,3px) * var(--cr-scale,1));
+  box-shadow:0 20px 46px -14px rgba(30,32,48,.38),0 0 0 1px rgba(40,44,66,.14);
+  touch-action:none
+}
+/* ---- 装订那一列（画布装饰，按装帧分派）----
+   跟 home.css 的 .cover .spine.ghost::before 同一套 90deg 立体断面：
+   亮槽沿 22%~38% → 窄暗槽底 50%~62% → 右边回亮，让画布看起来是一张真封面而不只是白纸。
+   ⚠️ 只画在编辑器画布上、不要烘进 diyExportHTML / cover.img：成品封面由 coverHTML()
+      按「彩带 / 透明 / 活页 / 精装书」自己画那一列，烘进去会叠成两道。
+   ⚠️ 不加上下的折边暗边、四周黑投影、槽沿 1px 浅白线（那三样用户明确不要）。 */
+.diy-paper::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:6.5%;z-index:4;
+  pointer-events:none;
+  border-radius:calc(var(--cr-left,3px) * var(--cr-scale,1)) 0 0 calc(var(--cr-left,3px) * var(--cr-scale,1));
+  background:linear-gradient(90deg,
+    rgba(0,0,0,.02) 0%,rgba(0,0,0,.07) 12%,
+    rgba(255,255,255,.30) 22%,rgba(255,255,255,.30) 38%,
+    rgba(255,255,255,.20) 44%,
+    rgba(0,0,0,.34) 50%,rgba(0,0,0,.26) 56%,rgba(0,0,0,.08) 62%,
+    rgba(255,255,255,.04) 78%,rgba(255,255,255,.18) 100%)
+}
+/* 精装书：书槽比笔记本宽一档；方形画册更宽 → 竖条百分比同比收窄。
+   两处数值与 home.css / book-style.css / io-doc.js 同源，别只改一边。 */
+.diy-paper.s-hardcover::before{width:8%}
+.diy-paper.s-square::before{width:6%}
+/* 笔记本选了彩带：**纯色**带（这里本来就是纯色，不带明暗渐变），不叠压槽（同 coverHTML）。
+   右侧两层柔和接触影＝彩带压在封面上的投影，用户明确要保留。
+   彩带选「透明」时 no-ribbon 命中，落回上面的压槽断面。 */
+.diy-paper.s-classic:not(.no-ribbon)::before{
+  background:var(--diy-ribbon,#c98a8a);
+  box-shadow:2px 0 6px -2px rgba(7,9,16,.18),1px 0 2px rgba(7,9,16,.06)
+}
+/* 活页：成品封面是一张干净硬壳（金属环在里侧，不画在封面上），
+   画布也整列不画，只保留 B6 比例与更大的圆角 —— 别跟 coverHTML 画成两样。 */
+.diy-paper.s-personal::before{display:none}
+/* ⚠️ 这里刻意不设 z-index：一旦给 #diyContent 建层，它的整棵子树（含 z-index:18 的
+   .objbar）都会被压在 .diy-paper::before 那道 z-index:4 的压槽下面，工具条左端会被划一道。
+   不建层时各对象直接以自身 z-index 参与 .diy-paper 的层叠：普通对象 3 < 压槽 4（压槽盖在照片上，
+   跟真封面一样），选中对象 6 / 编辑态 7 / 工具条 18 / 手柄 12 全在压槽之上，UI 不被遮。 */
+.diy-pcontent{position:absolute;inset:0}
+/* 铺满整页：导出（diyExportHTML）一直是 object-fit:fill，屏幕这条也必须一样。
+   阅读器内页的 .fill 用 contain 是「尽量保比例、允许留白」，但封面铺满的含义就是满版，
+   这里覆盖掉；老草稿只有 fill 没有 fit 时靠这条兜底，不会出现「画布有白边、成品没有」。 */
+.diy-paper .pimg-wrap.fill .pimg{object-fit:fill;background:transparent;border-radius:0}
+/* 选中框 / 手柄 / 工具条全都沿用阅读器那套；只把工具条上的文字压深一点，别在白纸上看不清 */
+.diy-paper .pimg-wrap,.diy-paper .ptext-wrap{cursor:grab}
+/* 封面里字号始终跟着框走，没有「字随框缩放」开关：这颗按钮在阅读器里有用、
+   在 DIY 里点了没反应，收起来免得用户以为坏了 */
+#diyContent .objbar [data-ob="fslink"]{display:none}
+/* ---- 底部工具条 ---- */
+.diy-bar{
+  flex:0 0 auto;display:flex;gap:8px;justify-content:center;align-items:center;
+  padding:10px 12px calc(12px + env(safe-area-inset-bottom));
+  border-top:1px solid rgba(40,44,66,.1);background:rgba(255,255,255,.94)
+}
+.diy-bar button{
+  flex:1 1 0;max-width:130px;padding:9px 4px;border-radius:11px;font-size:12.5px;
+  display:flex;align-items:center;justify-content:center;gap:5px;
+  color:#2b2f3d;background:rgba(40,44,66,.06);border:1px solid rgba(40,44,66,.14);cursor:pointer
+}
+.diy-bar button svg{
+  width:18px;height:18px;flex:0 0 18px;fill:none;stroke:currentColor;
+  stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round
+}
+.diy-bar button:hover{background:rgba(40,44,66,.13)}
+.diy-bar button.on{background:var(--accent);color:#fff;border-color:rgba(40,44,66,.3)}
+/* ---- 底部工具面板（底色 / 文字 / 贴纸 / 图层共用）---- */
+/* ⚠️ 必须是 flex 子项（排在底栏之后），不能 absolute 浮在页面底部：
+   浮层会正好盖住 .diy-bar 那排按钮，面板一开就再也点不了「＋文字 / ＋贴纸」。
+   作为子项时它会挤压 .diy-stage，纸自动缩小居中，跟阅读器开面板时书上移一个意思。 */
+.diy-sheet{
+  flex:0 0 auto;position:relative;max-height:46%;display:flex;flex-direction:column;
+  color:#2b2f3d;background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(255,255,255,.95));
+  border-top:1px solid rgba(40,44,66,.14);
+  box-shadow:0 -12px 32px -18px rgba(30,32,48,.34)
+}
+.diy-sheet-head{
+  flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
+  padding:11px 14px 7px;font-size:13px;font-weight:600;letter-spacing:.04em
+}
+.diy-sheet-head button{
+  width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:12px;
+  color:#2b2f3d;background:rgba(40,44,66,.07);border:1px solid rgba(40,44,66,.12);cursor:pointer
+}
+.diy-sheet-body{flex:1 1 auto;min-height:0;overflow-y:auto;padding:6px 14px 16px}
+.diy-row{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin-bottom:10px}
+.diy-row:last-child{margin-bottom:0}
+.diy-lab{flex:0 0 42px;font-size:11.5px;color:rgba(43,47,61,.62);letter-spacing:.04em}
+/* 「英文字体」四个字比两字标签长，给它多留一点宽，别把按钮挤到下一行 */
+.diy-lab.wide{flex:0 0 58px}
+.diy-chips{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+.diy-sw{
+  width:25px;height:25px;border-radius:7px;border:2px solid rgba(40,44,66,.16);cursor:pointer;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.06);transition:transform .15s
+}
+.diy-sw:hover{transform:scale(1.12)}
+.diy-sw.on{border-color:var(--accent);box-shadow:0 0 0 2px rgba(17,19,24,.28)}
+.diy-sw.grad{width:33px}
+/* ---- 封面设置：圆角滑块（彩带「透明」档已移除，色板只用 .diy-sw 纯色）---- */
+.diy-range{flex:1 1 100px;min-width:80px;accent-color:var(--accent);cursor:pointer}
+.diy-rval{flex:0 0 40px;font-size:11.5px;text-align:right;color:rgba(43,47,61,.7)}
+.diy-mini[disabled]{opacity:.42;cursor:default}
+.diy-mini[disabled]:hover{background:rgba(40,44,66,.07)}
+.diy-mini{
+  padding:6px 11px;border-radius:9px;font-size:11.5px;white-space:nowrap;cursor:pointer;
+  color:#2b2f3d;background:rgba(40,44,66,.07);border:1px solid rgba(40,44,66,.14)
+}
+.diy-mini:hover{background:rgba(40,44,66,.14)}
+.diy-mini.on{background:var(--accent);color:#fff;border-color:rgba(40,44,66,.3)}
+.diy-mini.big{padding:9px 15px;font-size:12.5px}
+.diy-hint{font-size:11px;color:rgba(43,47,61,.56);line-height:1.55}
+.diy-input{
+  flex:1 1 150px;min-width:100px;padding:8px 11px;border-radius:9px;font-size:13px;
+  color:#2b2f3d;background:rgba(255,255,255,.9);border:1px solid rgba(40,44,66,.18);outline:none
+}
+.diy-input:focus{border-color:rgba(17,19,24,.55)}
+.diy-range{flex:1 1 110px;min-width:80px;accent-color:var(--accent)}
+.diy-tabs{display:flex;gap:6px;margin-bottom:11px}
+.diy-tabs button{
+  flex:1;padding:7px 4px;border-radius:9px;font-size:12px;cursor:pointer;
+  color:rgba(43,47,61,.7);background:rgba(40,44,66,.06);border:1px solid rgba(40,44,66,.12)
+}
+.diy-tabs button.on{background:var(--accent);color:#fff;border-color:rgba(40,44,66,.3);font-weight:600}
+/* 贴纸格子：跟阅读器「我的贴纸」一样的方形缩略格 */
+.diy-st-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px}
+/* 导入按钮是文字按钮，塞进 64px 的贴纸方格里会把字挤成两行 / 溢出格子。
+   让它横跨整行，文字居中，横竖屏侧栏多窄都不会错位。 */
+.diy-st-grid>.diy-hint{grid-column:1 / -1}
+.diy-st-grid>.diy-mini.big{grid-column:1 / -1;justify-self:stretch;text-align:center}
+.diy-st{
+  position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;cursor:pointer;
+  background:rgba(40,44,66,.05);border:1px solid rgba(40,44,66,.12)
+}
+.diy-st:hover{background:rgba(40,44,66,.12)}
+.diy-st img{width:100%;height:100%;object-fit:contain;display:block}
+.diy-st .del{
+  position:absolute;right:2px;top:2px;width:17px;height:17px;border-radius:50%;
+  display:grid;place-items:center;font-size:11px;font-style:normal;color:#fff;background:#e0668a
+}
+.diy-st.note{display:grid;place-items:center}
+.diy-st .st-note{width:58%;height:58%;border-radius:3px;background:var(--nc,#ffe066);box-shadow:0 3px 8px -3px rgba(30,32,48,.55)}
+.diy-layers{display:flex;flex-direction:column;gap:5px;margin-bottom:10px}
+/* 图层行：整行可拖（鼠标）/ 抓 .diy-lgrip 拖（触摸，免得把面板滚动吞掉）。
+   插入位置用 ::before / ::after 画一条线，拖动过程中不重排 DOM。 */
+.diy-layer{
+  /* 行宽有限：缩略图 / 把手 / 三个按钮都压到最小，把宽度尽量让给名称，
+     否则窄横屏里「文字 1」「文字 2」会一起被截成「文字…」，又分不清了 */
+  position:relative;display:flex;align-items:center;gap:4px;padding:6px 5px;
+  border-radius:9px;cursor:grab;touch-action:pan-y;user-select:none;-webkit-user-select:none;
+  background:rgba(40,44,66,.05);border:1px solid transparent
+}
+.diy-layer.on{border-color:rgba(17,19,24,.5);background:rgba(40,44,66,.12)}
+.diy-layer.dragging{opacity:.5;cursor:grabbing}
+.diy-layer.drop-before::before,.diy-layer.drop-after::after{
+  content:'';position:absolute;left:5px;right:5px;height:2px;border-radius:2px;
+  background:var(--accent);z-index:2
+}
+.diy-layer.drop-before::before{top:-4px}
+.diy-layer.drop-after::after{bottom:-4px}
+.diy-lgrip{
+  flex:0 0 8px;width:8px;align-self:stretch;cursor:grab;touch-action:none;
+  display:grid;place-items:center;font-size:11px;line-height:1;letter-spacing:-2px;
+  color:rgba(43,47,61,.4)
+}
+.diy-lthumb{
+  flex:0 0 22px;width:22px;height:22px;border-radius:6px;overflow:hidden;
+  display:grid;place-items:center;font-size:11px;font-weight:700;
+  color:rgba(43,47,61,.6);background:rgba(40,44,66,.1)
+}
+.diy-lthumb img{width:100%;height:100%;object-fit:cover;display:block}
+.diy-lthumb.tnote{background:var(--nc,#ffe066);color:rgba(43,47,61,.7)}
+.diy-lmeta{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:1px}
+.diy-lname{
+  min-width:0;font-size:11.5px;line-height:1.3;cursor:text;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+}
+.diy-lsub{
+  min-width:0;font-size:10px;line-height:1.3;color:rgba(43,47,61,.5);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+}
+.diy-layer .diy-mini{flex:0 0 auto;padding:3px 5px;font-size:11px;line-height:1.2}
+.diy-rename{
+  flex:1 1 auto;min-width:0;padding:3px 6px;border-radius:6px;font-size:11.5px;
+  color:#2b2f3d;background:#fff;border:1px solid rgba(17,19,24,.55);outline:none
+}
+.diy-hint.ren{margin-bottom:8px}
+@media (max-height:720px){
+  .diy-sheet{max-height:46%}
+  .diy-tt small{display:none}
+}
+
+/* ===== 横屏：画布在左、工具栏在右 =====
+   竖屏是「工具条贴底 + 面板从底部升起」；横屏卡的恰恰是高度，贴底这两块会把
+   本来就不多的高度吃掉一大半，纸被压小。横屏宽度有富余，所以反过来：
+   顶栏仍横跨整宽，下面 .diy-main 分成左右两栏，.diy-side 是一条从顶到底的
+   工具侧栏（按钮竖排在上，展开的面板吃掉剩余高度），画布独占左边整块高度。
+   ⚠️ 这里不跟阅读器的 SIDE_SHEET_MQ 一样加 min-width:620px：DIY 的纸由
+      diySizePaper() 按 #diyStage 实际尺寸等比缩放，窄横屏也不会被压坏。
+   ⚠️ 必须排在 @media (max-height:720px) 之后，才能把 .diy-sheet 的 46% 上限顶掉。 */
+@media (orientation:landscape){
+  .diy-main{
+    display:flex;flex-direction:row;flex:1 1 auto;min-height:0;min-width:0
+  }
+  .diy-stage{flex:1 1 auto;min-width:0}
+  .diy-side{
+    display:flex;flex-direction:column;flex:0 0 auto;min-height:0;position:relative;
+    width:var(--diy-side-w,clamp(190px,30vw,300px));
+    border-left:1px solid rgba(40,44,66,.12);
+    background:rgba(249,249,252,.72)
+  }
+  /* 左边缘拖拽把手：--diy-side-w 由 resizer 的 pointer 手势写在 #diyPage 上 */
+  .diy-resizer{
+    display:block;position:absolute;left:-6px;top:0;bottom:0;width:12px;z-index:6;
+    cursor:ew-resize;touch-action:none
+  }
+  .diy-resizer::after{
+    content:'';position:absolute;left:5px;top:50%;transform:translateY(-50%);
+    width:2px;height:42px;border-radius:2px;background:rgba(40,44,66,.22);
+    transition:height .15s,background .15s
+  }
+  .diy-resizer:hover::after,.diy-resizer.on::after{background:var(--accent);height:76px}
+  /* 两组图标按钮：列数跟着侧栏宽度自动变（拖宽了自然多一列）。
+     ⚠️ 别改成单列竖排：横屏高度本来就紧张，5 个按钮竖着排要吃掉 250px+，
+        展开的面板会被压到只剩一百来像素，内容根本放不下。 */
+  .diy-bar{
+    flex:0 0 auto;display:grid;grid-template-columns:minmax(0,1fr);gap:10px;
+    align-content:start;
+    padding:12px;border-top:0;border-bottom:1px solid rgba(40,44,66,.1);
+    background:transparent
+  }
+  .diy-bar-group{display:block}
+  .diy-bar-cap{
+    display:block;margin-bottom:7px;font-size:10px;font-weight:600;letter-spacing:.12em;
+    color:rgba(43,47,61,.45)
+  }
+  /* 列数由 --diy-btn-cols 统一给（拖宽时 JS 一起改），两组才不会一列宽一列窄 */
+  .diy-bar-grid{display:grid;grid-template-columns:repeat(var(--diy-btn-cols,2),minmax(0,1fr));gap:8px}
+  .diy-bar button{
+    width:100%;max-width:none;padding:9px 3px;font-size:11.5px;
+    flex-direction:column;gap:3px;line-height:1.2
+  }
+  .diy-bar button svg{display:block;width:19px;height:19px;flex-basis:19px}
+  /* 面板不再是「从底部浮起的一块」，而是侧栏下半段，自己内部滚动 */
+  .diy-sheet{
+    flex:1 1 auto;min-height:0;max-height:none;
+    border-top:0;box-shadow:none;background:transparent
+  }
+  .diy-sheet-head{padding:12px 14px 6px}
+  /* 没展开面板时，让按钮组在整条侧栏里竖直居中（:has 不支持时退回靠上，不影响使用） */
+  .diy-side:has(> .diy-sheet[hidden]) .diy-bar{flex:1 1 auto;align-content:center}
+}
+/* 窄横屏：侧栏只有两列宽，副标题先收起来，名称（尤其末尾的序号）要能显示完整。
+   完整摘要仍在 .diy-lname / .diy-lsub 的 title 里，拖宽侧栏也不会自动冒出来，无副作用。 */
+@media (orientation:landscape) and (max-width:780px){
+  .diy-lsub{display:none}
+}

@@ -45,7 +45,7 @@
 .swatches{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
 .swatch{width:34px;height:34px;border-radius:10px;border:2px solid rgba(255,255,255,.22);transition:transform .15s,box-shadow .2s;position:relative}
 .swatch:hover{transform:scale(1.09)}
-.swatch.on{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.35)}
+.swatch.on{border-color:var(--accent);box-shadow:0 0 0 2px rgba(255,255,255,.55)}
 /* 自定义颜色：＋ 色块点开页面自带的取色盘 */
 .swatch.custom{overflow:hidden;background:conic-gradient(from 210deg,#f4a9b8,#f3c98b,#cfe3c9,#9fc9b6,#bcd4f0,#c9b8ec,#f4a9b8)}
 .swatch.custom .cus-ico{position:absolute;inset:0;display:grid;place-items:center;font-size:15px;font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.55);pointer-events:none}
@@ -54,7 +54,7 @@
   color:#7d8394;background:linear-gradient(135deg,#ffffff 46%,#c3c7d4 54%)}
 /* 小节里的补充说明：比正文小一号、压暗，说明这一档设置的作用范围 */
 .cus-tip{font-size:12px;opacity:.6;letter-spacing:.04em;font-variant-numeric:tabular-nums}
-/* 彩带「透明」档：白底 + 一道红斜杠，表示不画书脊 */
+/* 彩带「透明」档：白底 + 一道红斜杠，表示不画彩带（改画压槽） */
 .swatch.ribbon-none{background:linear-gradient(135deg,#fbfbfd 46%,#c9cdda 54%)}
 .swatch.ribbon-none::after{
   content:"";position:absolute;left:15%;right:15%;top:50%;height:2px;margin-top:-1px;

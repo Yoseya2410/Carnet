@@ -13,18 +13,37 @@
    造型：浅色胶囊 + 一颗白色圆钮，钮滑到哪一格哪一格就是当前模式 ——
    选中的图标落在白钮上是深色，没选中的直接浮在胶囊上、是半透明白。 */
 .view-toggle{
+  /* 白钮可以拖着换模式：别让触摸滚动 / 选中文字把手势抢走 */
   position:relative;display:flex;gap:3px;padding:4px;border-radius:999px;flex:0 0 auto;
+  touch-action:none;user-select:none;-webkit-user-select:none;
   background:rgba(255,255,255,.17);border:1px solid rgba(255,255,255,.24);
   backdrop-filter:blur(16px) saturate(1.6);-webkit-backdrop-filter:blur(16px) saturate(1.6);
   /* 底部投影要浅：它是贴在界面上的一枚小胶囊，影子重了会看着像浮起来的按钮。
      做法是「铺得开、浓度低」—— 面积大一点才看得出离地，浓度低才不显重 */
   box-shadow:0 8px 18px -10px rgba(6,8,20,.24), inset 0 1px 0 rgba(255,255,255,.24)
 }
-/* 白钮：.view-toggle[data-vt] 由 syncViewToggle() 同步（shelf = 第一格，carousel = 第二格） */
+/* 那颗可拖动的圆钮：跟主页顶栏 / 底栏一样是**透明白玻璃**，不再是实心白圆。
+   .view-toggle[data-vt] 由 syncViewToggle() 同步（shelf 第一格、spine 第二格、carousel 第三格）。
+   ⚠️ 保留 1px 白边 + 柔影：浅底上才分得清它跟胶囊，深底上也不至于消失。 */
 .vt-thumb{
   position:absolute;left:4px;top:4px;width:36px;height:36px;border-radius:50%;z-index:0;
-  background:#fff;box-shadow:0 2px 6px -2px rgba(6,8,20,.26),0 1px 2px rgba(6,8,20,.14);
+  background:rgba(255,255,255,.26);
+  border:1px solid rgba(255,255,255,.62);
+  backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);
+  box-shadow:0 2px 8px -2px rgba(6,8,20,.22),inset 0 1px 0 rgba(255,255,255,.5);
   transition:transform .32s cubic-bezier(.34,1.24,.44,1)
+}
+/* 拖动中直接写 inline transform，必须关掉过渡，否则白钮追不上手指 */
+.vt-thumb.dragging{transition:none}
+/* 防御：拖动时 .on 临时跟着拇指走，确保它始终不带底色 / 描边 / 投影。
+   常态的白底已经在 background.css 收干净了，这里再兜一次 —— 万一以后有人
+   把白底加回来，也不会重现「拖动时旧格还留一个白圆」那个 bug。
+   ⚠️ 只收底，**保留 .on 的深色图标色**（玻璃钮上的图标要看得见）。
+   选择器带 .dragging 提高特异性，别只写第一条。 */
+.view-toggle.dragging button.on,
+#home.bg-light .view-toggle.dragging button.on{
+  background:transparent;border-color:transparent;box-shadow:none;
+  backdrop-filter:none;-webkit-backdrop-filter:none
 }
 .view-toggle[data-vt="shelf"] .vt-thumb{transform:translateX(0)}
 .view-toggle[data-vt="spine"] .vt-thumb{transform:translateX(39px)}

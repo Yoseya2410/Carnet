@@ -85,7 +85,8 @@ function syncBgSheet() {
   if (tx) {
     tx.textContent = pick
       ? pick.toUpperCase() + (pick === bgs.orig ? ' · 本页' : ' · 待完成')
-      : (whole ? whole.toUpperCase() + ' · 整本' : '模板纸色');
+      : (whole ? whole.toUpperCase() + ' · 整本'
+        : (j.template === 'custom' && tplImgOf(j) ? '自定义图片模板' : '模板纸色'));
   }
   /* 挑了新色才把「完成」点亮，提醒这一档还没存 */
   const done = $('#bsDone');

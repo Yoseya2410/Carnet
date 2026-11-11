@@ -60,6 +60,9 @@ function layoutBook() {
   book.style.setProperty('--pw', pageW.toFixed(1) + 'px');
   book.style.setProperty('--ph', pageH.toFixed(1) + 'px');
   book.style.setProperty('--ggap', ggap.toFixed(1) + 'px');
+  /* 封面右侧两角的圆角（每本可自定义）：整本外框 / 内页纸角 / 叶片都吃这个 --cr，
+     reader.css 里 --book-r 系列与 --cover-r 由它推导。左侧两角在 CSS 里写死，不动。 */
+  book.style.setProperty('--cr', coverRadiusOf(cur()).toFixed(1) + 'px');
   /* 封面硬壳那张板（封面内侧 = 它的背面）在**内页坐标系**里的尺寸与偏移 ——
      宽 = 内页 + 外侧露边 + 半道中缝，高 = 内页 + 上下露边；
      板的左上角相对「左页 / 单页那一格」= -(外侧露边 or 半道缝, 上露边)。
@@ -83,25 +86,23 @@ function coverPageHTML() {
   const j = cur();
   return `<div class="paper coverpage">${coverHTML(j)}</div>`;
 }
-/* 封面硬壳那**一张板**（封面内侧就是它的背面：同一张皮、同一个图案）。
+/* 封面硬壳那**一张板**（封面内侧，翻开后躺在左边 / 垫在活页内页底下）。
    ⚠️ 板要按**封面的真实尺寸**铺（--cbrd-w × --cbrd-h，见 layoutBook），再按板的偏移摆好 ——
       图案贴片是 .cover 上的百分比背景，只有盒子跟封面同尺寸、同比例，贴片的大小 / 疏密
       才跟封面正面一模一样；直接把背景铺在「内页那一格」上，贴片会被放大 1.21 倍（活页封面的
       宽倍率），看着就是「封面和封面内侧是两个图案」。
    ⚠️ 不画光泽（.gloss）也不画装订（.spine）：背面是哑光的、也没有书脊沟；
-      压深与那层柔光交给宿主（.paper.cover-inside::after / .book-under::after）。 */
+      压深与那层柔光交给宿主（.paper.cover-inside::after / .book-under::after）。
+   ⚠️ 皮面样式只认 visuals.js 的 coverInsideStyle(j)：活页可自定义内衬
+      （封面主色 / 与封面一致 / 自定义颜色或图片），其它装帧仍是「背面就是封面」。 */
 function coverBoardHTML(j, extra) {
-  const st = bookStyleOf(j);
-  const bg = j.cover.img
-    ? `background-image:url('${j.cover.img}');background-size:cover;background-position:center;`
-    : `background:${j.cover.value};`;
-  /* 上传了封面图片就不叠图案（跟封面正面同一个取舍：图案压在照片上只会糊成一片） */
-  const pat = j.cover.img ? '' : patternStyle(j.cover.pattern, j.cover);
-  return `<div class="cover s-${st.k} cover-board${extra ? ' ' + extra : ''}" style="${bg}">`
-    + `<div class="pattern" data-pat="${j.cover.img ? 'none' : (j.cover.pattern || 'none')}" style="${pat}"></div>`
+  const st = bookStyleOf(j), ins = coverInsideStyle(j);
+  /* 板是封面的背面，圆角跟正面同一本（--cr）；宿主另有 border-radius:0 覆盖，见 reader.css */
+  return `<div class="cover s-${st.k} cover-board${extra ? ' ' + extra : ''}" style="${ins.bg}${coverRadiusVar(j)}">`
+    + `<div class="pattern" data-pat="${ins.patKey}" style="${ins.pat}"></div>`
     + `</div>`;
 }
-/* 封面内侧：就是封面的背面，翻开后躺在左边（用同一张封面色 / 封面图 / 封面图案） */
+/* 封面内侧：翻开后躺在左边那一页（PAGE_INSIDE_COVER = -2） */
 function insideCoverPageHTML() {
   return `<div class="paper cover-inside">${coverBoardHTML(cur())}</div>`;
 }
@@ -226,13 +227,15 @@ function imgWrapHTML(im, i) {
 }
 function textWrapHTML(t, i) {
   const st = textStyle(t);
-  const cls = (t.text || '').trim() ? '' : ' placeholder';
+  /* 空文字框不放任何占位文字：内容、innerText、导出三处都保持「真的没内容」。
+     .empty 只负责画一条淡淡的提示（见 text.css），保存时空白框会被整条摘掉 */
+  const empty = !(t.text || '').trim();
   /* 便利贴：就是一张带了便签纸皮肤的文字贴（t.note 存纸色）—— 照样能打字、挪位置、旋转 */
   const nc = normHex6(t.note);
   return `
-    <div class="ptext-wrap${nc ? ' note' : ''}${t.locked === false ? '' : ' locked'}" data-page="${i}" data-id="${t.id}"
+    <div class="ptext-wrap${nc ? ' note' : ''}${empty ? ' empty' : ''}${t.locked === false ? '' : ' locked'}" data-page="${i}" data-id="${t.id}"
          style="left:${(t.x * 100).toFixed(2)}%;top:${(t.y * 100).toFixed(2)}%;width:${(t.w * 100).toFixed(2)}%;height:${(t.h * 100).toFixed(2)}%;${nc ? `--nc:${nc};` : ''}${rotStyle(t)}">
-      <div class="ptxt${cls}${nc ? ' note' : ''}" style="${st}">${t.text ? esc(t.text) : '双击编辑文字'}</div>
+      <div class="ptxt${nc ? ' note' : ''}" style="${st}">${t.text ? esc(t.text) : ''}</div>
       ${objBarHTML('text', t)}
       ${rotHandleHTML()}
       <div class="hdl tl" data-h="tl"></div>
@@ -260,7 +263,13 @@ function pageHTML(i, side) {
   const n = j.pages.length;
   if (i === -1) return coverPageHTML();
   if (i === PAGE_INSIDE_COVER) return insideCoverPageHTML();
-  if (i < 0 || i >= n) return `<div class="paper endpaper"></div>`;
+  if (i < 0 || i >= n) {
+    /* 活页双页摊开翻到最后一跨时，右半边其实是**后封面内侧**，不是一张纸：
+       这一格要透明，露出底下 .book-under 铺的那张皮（含用户自定义的内衬），
+       不能再盖一张深蓝环衬。单页态 / 胶装本没有这层皮，仍按环衬画。 */
+    const see = bookStyleOf(j).rings && side === 'right';
+    return `<div class="paper endpaper${see ? ' see-through' : ''}"></div>`;
+  }
   const pg = j.pages[i];
   const inner = pageObjs(pg).map(o => o.k === 'img' ? imgWrapHTML(o.o, i) : textWrapHTML(o.o, i)).join('');
   const kraft = (j.template === 'kraft' || j.template === 'kraftplain') ? 'background:linear-gradient(160deg,#ecdec4,#e0cfae);' : '';
@@ -274,7 +283,7 @@ function pageHTML(i, side) {
   const ringed = !!bookStyleOf(j).rings;
   const bind = side === 'left' ? 'right' : 'left';
   return `<div class="paper t-${j.template}${dark}${ringed ? ' ringed bind-' + bind : ''}" style="${kraft}${shown ? 'background:' + shown + ';' : ''}">
-    <div class="tplbg" style="${tplStyle(j.template)}"></div>
+    <div class="tplbg" style="${tplStyle(j.template, j)}"></div>
     ${pageHolesHTML(j, side)}
     <div class="pcontent">${inner}</div>
     <div class="pnum">${i + 1}</div>
@@ -315,6 +324,15 @@ function renderReader() {
   commitTextEdit();                    // 重绘前先把正在编辑的文字存下来
   const book = $('#book');
   state.mode = isSpread() ? 'spread' : 'single';
+  /* 第三道防线：任何路径（快翻落定 / 页数轴 / 键盘 / 删页后 / 横竖屏切换）
+     都可能留下越界页码，统一在重绘前夹回合法范围。-1 是封面态，必须保留。
+     少了这一步，越界时 pageHTML 会把两页都画成深蓝环衬、页码显示成「3 / 2」。 */
+  const n0 = pageCount();
+  if (state.mode === 'spread') {
+    state.spread = clamp(state.spread, -1, Math.max(spreadCount(n0) - 1, -1));
+  } else {
+    state.page = clamp(state.page, -1, Math.max(n0 - 1, -1));
+  }
   /* 封面就是「合着的书」：单独一整页，左边不再配一张空页 */
   const cov = isCoverView();
   /* 封面单独成页：不再加 single / spread，改用 cover-only 的骨架（跨页尺寸 + 左页收起 + 整本左移半页） */
@@ -338,6 +356,10 @@ function renderReader() {
   if (bu) bu.innerHTML = under ? coverUnderBoardsHTML() : '';
   const n = pageCount();
   const [a, b] = currentIndices();
+  /* 活页最后一跨的右页越界 = 后封面内侧：整格透明，露出 .book-under 那张皮。
+     类名由这里统一管，page-flip.js 只负责动画期间同步一次。 */
+  book.classList.toggle('last-spread',
+    state.mode === 'spread' && !cov && ringed && b >= n);
   // 重建前先摘掉文字贴挂在 document 上的监听，避免节点被换掉后残留
   $$('#slotL .ptext-wrap, #slotR .ptext-wrap').forEach(x => {
     if (x.__outDown) { document.removeEventListener('pointerdown', x.__outDown, true); x.__outDown = null; }
@@ -390,8 +412,13 @@ function renderReader() {
     if (selText) {
       const w = $(`#slotL .ptext-wrap[data-id="${selText.iid}"], #slotR .ptext-wrap[data-id="${selText.iid}"]`);
       const t = textById(selText.pid, selText.iid);
-      /* 只有解锁状态才保留调整框（纸可能刚被面板压小过，工具条跟着重摆一次） */
-      if (w && t && t.locked === false) { w.classList.add('adjust'); fitObjBar(w); }
+      /* 只有解锁状态才保留调整框（纸可能刚被面板压小过，工具条跟着重摆一次）。
+         重绘前若是长按进的版式态，连四角 / 旋转手柄一起放回来（selText.box 见 page-edit.js） */
+      if (w && t && t.locked === false) {
+        w.classList.add('adjust');
+        if (selText.box) w.classList.add('boxmode');
+        fitObjBar(w);
+      }
     }
   } catch (_) {}
   syncTextBar();                       // 底栏跟着当前是否选中文字切换

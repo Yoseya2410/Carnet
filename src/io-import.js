@@ -29,7 +29,13 @@ function normalizeJournal(raw) {
       type: (cv.type === 'solid' || cv.type === 'gradient') ? cv.type : (/gradient/i.test(val) ? 'gradient' : 'solid'),
       value: val,
       pattern: normPat(cv.pattern),
-      img: (typeof cv.img === 'string' && cv.img) ? cv.img : null
+      img: (typeof cv.img === 'string' && cv.img) ? cv.img : null,
+      /* 自定义封面草稿：新版是阅读器同款 images / texts，老文件可能是 items。
+         结构合法才留（打开页面时 normDiyCover 还会再逐字段洗一遍、并把 items 换算过来）。
+         成品封面图走上面的 img，跟普通上传封面完全同一条渲染 / 导出路径 */
+      diym: (cv.diym && typeof cv.diym === 'object'
+        && (Array.isArray(cv.diym.images) || Array.isArray(cv.diym.texts) || Array.isArray(cv.diym.items)))
+        ? cv.diym : null
     },
     /* 彩带：'none' 是「透明」那一档，要原样留住；不是合法色值才回落到默认色 */
     ribbon: String(j.ribbon || '') === RIBBON_NONE ? RIBBON_NONE
@@ -39,6 +45,13 @@ function normalizeJournal(raw) {
     /* 已下线的「日历」模板映射到现在的空白牛皮纸，导入老文件时页面不丢 */
     template: j.template === 'calendar' ? 'kraftplain'
       : (TEMPLATES.some(t => t.k === j.template) ? j.template : 'blank'),
+    /* 自定义内页模板：图片只认 base64 位图 dataURL，铺法只认三档之一。
+       图跟封面图片一样随手帐本走，导进另一台设备也能照原样铺出来。
+       tplImgs 是「素材库」（可存多张，tplImgsOf 会逐张校验 / 去重 / 限数量，
+       并把只有 tplImg 的老数据那张兜底并进来）；当前模板仍是唯一张 tplImg。 */
+    tplImg: tplImgOf(j),
+    tplImgs: tplImgsOf(j),
+    tplFit: normTplFit(j.tplFit),
     pages: j.pages.map(pg => {
       const p = (pg && typeof pg === 'object') ? pg : {};
       return {
@@ -53,6 +66,27 @@ function normalizeJournal(raw) {
     }),
     created: Number(j.created) || Date.now()
   };
+  /* 封面翻口圆角：只认合法数字，越界夹回范围；老文件没这个字段就删掉，
+     让它按装帧走默认档（coverRadiusOf）。乱填的字符串 / null 都不留进数据。 */
+  if (cv.radius !== undefined && cv.radius !== null && cv.radius !== '' && Number.isFinite(Number(cv.radius)))
+    out.cover.radius = clamp(Number(cv.radius), COVER_R_MIN, COVER_R_MAX);
+  else delete out.cover.radius;
+  /* 活页封面内侧：只认合法模式 / hex 色 / base64 位图；老文件没这个字段就删掉（走 auto 主色）。
+     ⚠️ 别把 insideDominant 之类的派生缓存写进来，主色一律在运行时按封面现算。 */
+  if (cv.inside && typeof cv.inside === 'object') {
+    const o = { mode: normInsideMode(cv.inside.mode) };
+    const c = normHex6(cv.inside.color); if (c) o.color = c;
+    if (isImgData(cv.inside.img)) o.img = cv.inside.img;
+    /* 候选主色的选择序号：只认 0~4 的整数，乱填就当没选（回落到占比最多的那一个） */
+    const pk = Number(cv.inside.pick);
+    if (Number.isFinite(pk)) o.pick = clamp(Math.round(pk), 0, INSIDE_PALETTE_MAX - 1);
+    out.cover.inside = o;
+  } else delete out.cover.inside;
+  /* 书槽开关：只有显式 false 才存（缺省就是开启，别把 true 写进老数据） */
+  if (cv.groove === false) out.cover.groove = false;
+  else delete out.cover.groove;
+  /* 标了 custom 却没带图（手工改过的文件 / 老版本）：落回空白纸，别留一张看不见图的空模板 */
+  if (out.template === 'custom' && !out.tplImg) out.template = 'blank';
   return out;
 }
 /* 兼容三种写法：本应用导出的单本、裸手帐本对象、多本数组。

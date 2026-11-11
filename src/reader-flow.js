@@ -65,14 +65,20 @@ function flyCover(from, to, reverse) {
   fit.style.height = to.height + 'px';
   ghost.appendChild(fit);
   /* 起点圆角跟着起飞物走：从书脊出发时它就是一根窄条（书脊的圆角只有 1.5~2.5px），
-     套用封面的 13px 大圆角会在细条上糊成一团 */
+     套用封面的大圆角会在细条上糊成一团。从封面起飞时右侧两角按这一本自定义的圆角走
+     （默认 10px → 13px，跟原来的起点一致），左侧书脊两角固定 5px。 */
   const spineStart = (state.prefs && state.prefs.view) === 'spine';
-  const rStart = spineStart ? '1.5px 2.5px 2px 1.5px' : '5px 13px 13px 5px';
-  /* 落地那一下的圆角照**这一本真实封面**的来：活页封面的圆角比其它档大
-     （见 book-style.css 的 .cover.s-personal），写死一组值的话活页落地时会被"削尖"一下 */
-  const cvEl = $(`#carousel .book-item[data-i="${state.sel}"] .cover`)
-    || $(`#shelfWrap .book-item[data-i="${state.sel}"] .cover`) || $('.book-item .cover');
-  const rEnd = (cvEl && getComputedStyle(cvEl).borderRadius) || '5px 13px 13px 5px';
+  const rHome = coverRadiusOf(j);
+  const rStart = spineStart ? '1.5px 2.5px 2px 1.5px'
+    : `5px ${(rHome * 1.3).toFixed(1)}px ${(rHome * 1.3).toFixed(1)}px 5px`;
+  /* 落地圆角必须等于**这一本合书态整本外框**的 --book-r：
+     笔记本 / 画册 5px 16px 16px 5px、活页 5px 25px 25px 5px（翻开后改为四角统一、
+     但角度仍是同一个 --cr-round；飞入时先落到合着的封面，所以取合书那一档）。
+     ⚠️ 现在 --book-r 是带 calc()/var() 的公式，读 getComputedStyle 拿到的可能是
+        未解析的变量串（塞给 ghost 的 border-radius 就作废了），所以直接由
+        bookRadiusOf(j) 算同一组合书态数值：右侧两角跟着本子的封面圆角走，左侧固定 5px。 */
+  const rr = bookRadiusOf(j).toFixed(1);
+  const rEnd = `5px ${rr}px ${rr}px 5px`;
   ghost.style.width = a.width + 'px';
   ghost.style.height = a.height + 'px';
   ghost.style.borderRadius = reverse ? rEnd : rStart;
@@ -206,7 +212,7 @@ function foldBook() {
         $('#pager').textContent = '封面';            // 底栏页码跟上（整体重绘会破坏合拢形态，这里只改文字）
         /* 形态改到「封面单独成页」再按封面态重算尺寸：活页封面比内页大一圈
            （--pw 从内页宽变成封面宽），不重算的话收拢出来的是内页大小的一张封面 */
-        book.classList.remove('spread', 'first-spread', 'has-under', 'folding', 'cover-flip');
+        book.classList.remove('spread', 'first-spread', 'last-spread', 'has-under', 'folding', 'cover-flip');
         book.classList.add('cover-only');
         layoutBook();
         book.classList.add('folded');              // 收成一本合着的书

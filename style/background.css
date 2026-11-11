@@ -65,15 +65,23 @@
 .bg-light .text-input:focus{background:rgba(255,255,255,.74);box-shadow:0 0 0 3px rgba(17,19,24,.18)}
 /* 色块：浅底上描边要换成深色才勾得出来（白色描边压在白玻璃上等于没有） */
 .bg-light .swatch{border-color:rgba(40,44,66,.2)}
-.bg-light .swatch.on{border-color:#fff;box-shadow:0 0 0 2px rgba(40,44,66,.3)}
+.bg-light .swatch.on{border-color:var(--accent);box-shadow:0 0 0 2px rgba(17,19,24,.18)}
 .bg-light .btn.ghost{color:#2b2f3d;background:rgba(255,255,255,.5);border-color:rgba(40,44,66,.16)}
 /* 吸底操作栏：原本是深蓝渐变，在白玻璃弹窗上会变成一条突兀的深蓝带 */
-.bg-light .modal-actions{background:linear-gradient(180deg,rgba(255,255,255,0),rgba(255,255,255,.86) 30%,rgba(255,255,255,.97) 62%)}
+.bg-light .modal-actions{background:linear-gradient(180deg,rgba(255,255,255,0),rgba(255,255,255,.4) 30%,rgba(255,255,255,.4) 62%)}
 /* 装帧样式选择卡 */
 .bg-light .sty{background:rgba(40,44,66,.05);border-color:rgba(40,44,66,.12)}
 .bg-light .sty:hover{background:rgba(40,44,66,.1)}
-.bg-light .sty.on{border-color:rgba(40,44,66,.45);background:rgba(40,44,66,.1)}
+.bg-light .sty.on{border-color:var(--accent);background:rgba(40,44,66,.1)}
 .bg-light .sty-d{color:rgba(43,47,61,.8)}
+/* 内页模板自定义：铺法那排「半透明白底 + 白字」在浅玻璃弹窗上会淡到看不见，
+   跟 .btn.ghost 一样反成深字浅底；选中的那一档仍是黑白强调色 */
+.bg-light .tpl-fit>span{color:rgba(43,47,61,.72);opacity:1}
+.bg-light .tpl-fit button{color:rgba(43,47,61,.8);background:rgba(40,44,66,.06);border-color:rgba(40,44,66,.16)}
+.bg-light .tpl-fit button:hover{background:rgba(40,44,66,.12)}
+.bg-light .tpl-fit button.on{background:var(--accent);color:#fff;border-color:rgba(40,44,66,.4)}
+.bg-light .tpl-note{color:rgba(43,47,61,.68);opacity:1}
+.bg-light .upload-thumb{border-color:rgba(40,44,66,.2)}
 
 /* ---- 确认框 ---- */
 .bg-light .confirm-box{color:#2b2f3d;border-color:rgba(255,255,255,.7)}
@@ -112,7 +120,7 @@
 .bg-light .ts-chips button:hover{background:rgba(40,44,66,.12)}
 .bg-light .ts-chips button.on{border-color:rgba(40,44,66,.5);background:rgba(40,44,66,.12);color:#2b2f3d}
 .bg-light .ts-dots button{border-color:rgba(40,44,66,.32)}
-.bg-light .ts-dots button.on{border-color:#fff;box-shadow:0 0 0 2.5px rgba(40,44,66,.3)}
+.bg-light .ts-dots button.on{border-color:var(--accent);box-shadow:0 0 0 2.5px rgba(17,19,24,.2)}
 .bg-light .ts-dots button.none{background:rgba(40,44,66,.1)}
 .bg-light .ts-dots button.none::after{border-color:rgba(40,44,66,.42)}
 .bg-light .ts-range::-webkit-slider-runnable-track{background:rgba(40,44,66,.2)}
@@ -144,7 +152,7 @@
 .bg-light .bs-now-sw{border-color:rgba(40,44,66,.18)}
 .bg-light .bs-cn{color:rgba(43,47,61,.62)}
 .bg-light .bs-sw{border-color:rgba(40,44,66,.14)}
-.bg-light .bs-sw.on{border-color:#fff;box-shadow:0 0 0 2.5px rgba(40,44,66,.3)}
+.bg-light .bs-sw.on{border-color:var(--accent);box-shadow:0 0 0 2.5px rgba(17,19,24,.2)}
 .bg-light .bs-btn{color:rgba(43,47,61,.78);background:rgba(40,44,66,.06);border-color:rgba(40,44,66,.14)}
 .bg-light .bs-btn.on{border-color:rgba(40,44,66,.5);background:rgba(40,44,66,.12);color:#2b2f3d}
 .bg-light .bs-btn.done{color:#2b2f3d;background:rgba(40,44,66,.1)}
@@ -169,17 +177,15 @@
   backdrop-filter:blur(1px) saturate(150%);-webkit-backdrop-filter:blur(16px) saturate(150%)
 }
 #home.bg-light .view-toggle button{color:#2b2f3d}
-#home.bg-light .view-toggle button:hover{background:rgba(255,255,255,.3)}
-/* 浅色背景下：玻璃偏白一点、图标换深色，不然白玻璃+白图标会糊成一片 */
+/* hover 只把图标压深，别铺白底盖住那颗玻璃圆钮 */
+#home.bg-light .view-toggle button:hover{background:transparent;color:#111318}
+/* 选中态只由那颗**玻璃圆钮**表示：按钮自己不再铺一层白玻璃底。
+   以前两者叠在一起就是一个发白的实心圆，拖动时旧格还会留下第二个白圆
+   （用户 2026-11-11 报的「两个按钮」）。这里只留深色图标色，圆钮是唯一指示器。 */
 #home.bg-light .view-toggle button.on{
   color:#2b2f3d;
-  background:rgba(255,255,255,.14);
-  border-color:rgba(255,255,255,.6);
-  backdrop-filter:blur(6px) saturate(140%) contrast(1.05) brightness(1.12);
-  -webkit-backdrop-filter:blur(6px) saturate(140%) contrast(1.05) brightness(1.12);
-  box-shadow:
-    0 4px 12px -5px rgba(40,44,66,.35),
-    inset 0 0 0 .5px rgba(255,255,255,.7)
+  background:transparent;border-color:transparent;
+  backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none
 }
 #reader.bg-light .rtitle h2{color:#2b2f3d}
 #reader.bg-light .rtitle .pages{color:#3a3f52}
@@ -217,3 +223,51 @@
   mask-image:linear-gradient(90deg,transparent 0,#000 9%,#000 91%,transparent 100%)
 }
 #home.bg-light .shelf-board .screw{z-index:2}
+
+/* ============ 剩下的深色浮层统一改「白玻璃」 ============
+   前面 .bg-light 把 --frost 换成了白，但下面这几处把深色**写死**了 / 压根没写背景，
+   在浅底上依旧是一块黑板：取色盘（含背景设置面板）、吸管操作条、一键成书进度胶囊、
+   确认框。这里一次性改成不透白的玻璃，并把里面的白字反成深字。
+   ⚠️ 只改浮层本身，不动取样用的色板 / 色相条（那些得保持原色才取得准）。 */
+.bg-light .cp-mask{
+  background:rgba(246,246,249,.34);
+  backdrop-filter:blur(9px) saturate(120%);-webkit-backdrop-filter:blur(9px) saturate(120%)
+}
+.bg-light .cp-panel{
+  color:#2b2f3d;
+  background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(255,255,255,.88));
+  border-color:rgba(255,255,255,.9);
+  box-shadow:0 30px 60px -18px rgba(30,32,48,.34)
+}
+.bg-light .cp-head,.bg-light .cp-hex,.bg-light .cp-eye{color:#2b2f3d}
+.bg-light .cp-hex{
+  background:rgba(255,255,255,.72);border-color:rgba(40,44,66,.18)
+}
+.bg-light .cp-hex:focus{border-color:rgba(17,19,24,.5);background:#fff}
+.bg-light .cp-x,.bg-light .cp-eye,.bg-light .ep-btn{
+  color:#2b2f3d;background:rgba(40,44,66,.07);border-color:rgba(40,44,66,.16)
+}
+.bg-light .cp-x:hover,.bg-light .cp-eye:hover,.bg-light .ep-btn:hover{background:rgba(40,44,66,.14)}
+.bg-light .cp-sv,.bg-light .cp-hue,.bg-light .cp-prev{border-color:rgba(40,44,66,.16)}
+/* 吸管现场取色那条细操作条 */
+.bg-light .ep-bar{
+  color:#2b2f3d;background:rgba(255,255,255,.94);border-color:rgba(40,44,66,.16);
+  box-shadow:0 10px 30px -8px rgba(30,32,48,.32)
+}
+.bg-light .ep-btn.ok{background:var(--accent);color:#fff;border-color:rgba(40,44,66,.3)}
+/* 一键成书的进度胶囊 */
+.bg-light .mkbusy{
+  color:#2b2f3d;background:rgba(255,255,255,.95);border-color:rgba(40,44,66,.16);
+  box-shadow:0 18px 40px -16px rgba(30,32,48,.34)
+}
+.bg-light .mk-spin{border-color:rgba(40,44,66,.2);border-top-color:var(--accent)}
+/* 确认框：--frost 已经是白的了，这里再压实一点并修掉图标那圈的深色底 */
+.bg-light .confirm-box{
+  color:#2b2f3d;
+  background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(255,255,255,.88));
+  border-color:rgba(255,255,255,.9);
+  box-shadow:0 34px 70px -22px rgba(30,32,48,.34)
+}
+.bg-light .confirm-box .ci{
+  color:#2b2f3d;background:rgba(40,44,66,.07);border-color:rgba(40,44,66,.16)
+}

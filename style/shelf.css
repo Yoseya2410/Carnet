@@ -39,7 +39,8 @@
   box-shadow:0 16px 26px -14px rgba(18,20,34,.62),0 5px 12px -6px rgba(18,20,34,.34)
 }
 /* ⚠️ 只设 --cover-w，别直接写 width —— 方形画册要按这个基准把宽放大 1.35 倍才能跟别的本子一样高 */
-.shelf-books .cover{--cover-w:var(--sbw,120px)}
+/* 书架上的书宽 --sbw（默认 120px），圆角同比缩到主页封面的 .49 倍 */
+.shelf-books .cover{--cover-w:var(--sbw,120px);--cr-scale:.49}
 /* 没碰到的手帐本：页数与编辑按钮都藏着，只留干净的封面。
    选择器要写满三层 —— 否则会被前面 .book-item.active .gear 的同权重规则压过去，
    当前选中的那本会一直挂着编辑按钮 */
@@ -131,6 +132,9 @@
   transition:none
 }
 .shelf-ghost .cover{
+  /* 克隆体挂在 body 下、丢了 .shelf-books 祖先，得自己补回书架的缩放系数，
+     否则手上的副本圆角比原位那本圆一倍 */
+  --cr-scale:.49;
   width:100%!important;height:100%!important;aspect-ratio:auto!important;
   box-shadow:0 26px 46px -18px rgba(20,22,40,.62),0 6px 14px rgba(20,22,40,.28)
 }

@@ -8,19 +8,53 @@
  * ④ 行内编辑（双击直接打字）startTextEdit / stopTextEdit
  * ⑤ 框紧贴内容 fitTextBox / textFitSize / refitVisibleTexts（宽高都实量，字体到位后再补一次）
  * ⑥ 对象工具条自动避让 fitObjBar：贴边 / 顶栏 / 底栏 / 面板 / 键盘挡住时自己换个地方待
+ * ⑦ 空文字框：DOM 里不放占位文字；收面板 / 结束行内输入时还是空的，就把这条数据摘掉
+ *    （等于没有添加过）；刚「添加文字」出来的那一段第一次收面板不锁，留在可拖的版式态
  *
  * 对外接口：openTextSheet, closeTextSheet, startTextEdit, stopTextEdit, commitTextEdit, pageBusy,
  *           syncBar, fitObjBar, refitObjBars, syncTextSizeUI, fitTextBox,
  *           refitVisibleTexts, updateEflow, sheetLayout,
  *           isSideSheet, resetSheetSpace, openSheetEl,
- *           armSheetOutside, disarmSheetOutside, scheduleSheetLayout
+ *           armSheetOutside, disarmSheetOutside, scheduleSheetLayout,
+ *           markFreshText, dropEmptyText, textHasContent
  *
  * 依赖模块：core, state, visuals（widgets / scrub / page-bg 后置，只在运行时调用）
  *
  * 说明：模块间共用全局作用域，加载顺序即依赖顺序（见 index.html 与 README）。
  * ===================================================================== */
 /* ==================== 文字贴：编辑面板 ==================== */
-let selText = null;                     // {pid, iid}
+let selText = null;                     // {pid, iid, box?}
+/* 刚「添加文字 / 便利贴」出来、还没收过第一次面板的文字贴。
+   只活在内存里（不写进存档）：第一次收面板时先别锁，留在能直接拖动的版式态，
+   免得新加的文字还得再长按 420ms 才能挪位置。 */
+const FRESH_TEXT_IDS = new Set();
+function markFreshText(id) { FRESH_TEXT_IDS.add(id); }
+function takeFreshText(id) { const on = FRESH_TEXT_IDS.has(id); FRESH_TEXT_IDS.delete(id); return on; }
+/* 内容判定统一走这一句：空白（含纯换行 / 空格）都算「没有内容」 */
+function textHasContent(t) { return !!((t && t.text) || '').trim(); }
+/* 便利贴是有皮肤的一张贴纸，空着也留着；普通文字框空了就等于没添加过 */
+function dropEmptyText(pid, iid) {
+  const j = cur(); const pg = j && j.pages[pid];
+  if (!pg) return false;
+  const arr = pageTexts(pg);
+  const k = arr.findIndex(x => x.id === iid);
+  if (k < 0) return false;
+  const t = arr[k];
+  if (textHasContent(t) || t.note) return false;
+  arr.splice(k, 1);
+  if (selText && selText.iid === iid) selText = null;
+  FRESH_TEXT_IDS.delete(iid);
+  save();
+  return true;
+}
+/* 把数据画回纸面：只写真正的正文，空框一个字都不写（提示由 CSS 伪元素画）。
+   顺便把 .empty 标到包裹层上，便利贴的 .note 皮肤类不能在这里被抹掉。 */
+function paintTextEl(w, el, t) {
+  if (!el || !w) return;
+  el.className = 'ptxt' + (w.classList.contains('note') ? ' note' : '');
+  el.textContent = t.text || '';
+  w.classList.toggle('empty', !textHasContent(t));
+}
 /* 页面里正忙：拖图 / 拉伸 / 打字 —— 这些时候不能重绘，否则会打断 */
 function pageBusy() {
   return !!(state.imgDragging || state.imgResizing || document.querySelector('.ptext-wrap.editing'));
@@ -265,6 +299,8 @@ function showTextBar(w, pid, iid) {
 }
 function hideTextBar() {
   closeTextSheet(false);
+  /* 收掉选中态时别把长按的版式标记（四角 / 旋转手柄）留在旧节点上 */
+  $$('.ptext-wrap.boxmode').forEach(x => x.classList.remove('boxmode'));
   selText = null;
   setEditBar(false);
   updateEflow();
@@ -324,10 +360,8 @@ function shPaint() {
   if (w) {
     const el = w.querySelector('.ptxt');
     if (el) {
-      const has = !!(t.text || '').trim();
-      el.className = 'ptxt' + (has ? '' : ' placeholder');
       el.setAttribute('style', textStyle(t));
-      el.textContent = has ? t.text : '双击编辑文字';
+      paintTextEl(w, el, t);
       fitTextBox(w, el, false);
     }
     syncBar(w, t);
@@ -398,7 +432,8 @@ let sheetOutside = null;
 function armSheetOutside(sel, close) {
   disarmSheetOutside();
   sheetOutside = ev => {
-    if (ev.target.closest && ev.target.closest(sel + ', #eflowTop, .cp-mask, #addMenu')) return;
+    if (ev.button > 0) return;          // 右键要弹纸面菜单，别顺手把面板收掉
+    if (ev.target.closest && ev.target.closest(sel + ', #eflowTop, .cp-mask, #addMenu, #paperMenu')) return;
     close();
   };
   document.addEventListener('pointerdown', sheetOutside, true);
@@ -503,7 +538,8 @@ function openTextSheet(pid, iid, focus) {
   selText = { pid, iid };
   t.locked = false; save();               // 编辑期间保持可选中态（框一直挂着）
   const w = textWrap(iid);
-  if (w) { w.classList.remove('locked'); w.classList.add('adjust'); syncBar(w, t); fitObjBar(w); }
+  /* 从长按的版式态点「编辑文字」进面板 = 切回内容态：收掉四角 / 旋转手柄 */
+  if (w) { w.classList.remove('locked', 'boxmode'); w.classList.add('adjust'); syncBar(w, t); fitObjBar(w); }
   const sheet = $('#tsheet');
   sheet.hidden = false;
   shTab('font'); shSync();
@@ -518,19 +554,24 @@ function openTextSheet(pid, iid, focus) {
 }
 function closeTextSheet(commit) {
   if (!sh.open) return;
-  sh.open = false;
-  const t = textById(sh.pid, sh.iid);
-  const w = textWrap(sh.iid);
+  const pid = sh.pid, iid = sh.iid;
+  const t = textById(pid, iid);
+  const w = textWrap(iid);
   const inp = $('#tsInput');
   if (t && commit && inp) t.text = (inp.value || '').replace(/[\r\n]+$/, '');
-  if (t) {
-    t.locked = true;                      // 编辑完默认固定，免得随手一碰就把字挪走
+  sh.open = false;
+  /* 保存时还是空的普通文字框 = 当作没有添加过：整条数据摘掉 */
+  const dropped = !!(t && !textHasContent(t) && !t.note && dropEmptyText(pid, iid));
+  if (dropped) toast('空白文字框已撤销 · 相当于没有添加');
+  if (t && !dropped) {
+    /* 刚添加的文字第一次收面板先不锁：留在版式态，抬手就能直接拖走 / 拖四角。
+       其它情况照旧固定，免得随手一碰就把字挪走。 */
+    t.locked = takeFreshText(iid) ? false : true;
     if (w) {
       const el = w.querySelector('.ptxt');
-      const has = !!(t.text || '').trim();
-      if (el) { el.textContent = has ? t.text : '双击编辑文字'; el.className = 'ptxt' + (has ? '' : ' placeholder'); fitTextBox(w, el, false); }
+      if (el) { paintTextEl(w, el, t); fitTextBox(w, el, false); }
     }
-  }
+  } else FRESH_TEXT_IDS.delete(iid);
   save();
   const sheet = $('#tsheet');
   if (sheet) { sheet.hidden = true; sheet.style.transform = ''; sheet.style.maxHeight = ''; }
@@ -538,6 +579,10 @@ function closeTextSheet(commit) {
   markFlipSuppressed();
   sh.hist = []; sh.pos = -1; sh.pid = null; sh.iid = null;
   resetSheetSpace();
+  /* 刚添加的那一段继续选中（renderReader 会按 selText.box 把四角 / 旋转手柄放回来）；
+     其余一律清掉选中态，底栏恢复页码与翻页按钮 */
+  if (!dropped && t && t.locked === false && selText) selText.box = true;
+  else { selText = null; setEditBar(false); }
   updateEflow();
   if (window.__syncTypeShift) window.__syncTypeShift();
   if (window.__syncBotBar) window.__syncBotBar();
@@ -563,11 +608,10 @@ function buildSheet() {
   /* 中文字体：每档用自己那套字族显示，点之前就看得出写出来是什么样 */
   $('#tsFonts').innerHTML = TEXT_FONTS.map(f =>
     `<button data-f="${f.k}" title="${f.n}" style="font-family:${f.css || 'inherit'}">${f.abbr}</button>`).join('');
-  /* 英文字体：同样用自己那套字族显示（项目自带的四档会在这一刻触发 woff2 下载）。
-     自带字体只有拉丁字形，光写中文名的话按钮上一点都看不出字体长什么样，
-     所以那几档前面补一个 'Aa' 样例；新档位带 hint 时用它当悬浮说明，写着原字体名。 */
+  /* 英文字体：每档都补一个套了对应字族的 Aa 样例（含衬线 / 等宽 / 手写这些系统字体档），
+     否则按钮上只有中文名，点之前看不出字体效果。自带四档会在这一刻触发 woff2 下载。 */
   $('#tsEnFonts').innerHTML = EN_FONTS.map(f =>
-    `<button data-ef="${f.k}" title="${f.hint || f.n}" style="${f.css ? 'font-family:' + f.css : ''}">${f.face ? 'Aa ' : ''}${f.n}</button>`).join('');
+    `<button data-ef="${f.k}" title="${f.hint || f.n}" style="${f.css ? 'font-family:' + f.css : ''}">${enFontSample(f)}${f.n}</button>`).join('');
   $('#tsColors').innerHTML = TEXT_COLORS.map(c =>
     `<button data-c="${c}" style="background:${c}" title="${c}"></button>`).join('')
     + '<button class="custom" data-c="__custom" title="自定义颜色"></button>';
@@ -721,13 +765,16 @@ function textFitSize(el, capWPx) {
            minW: fs * .8, minH: lh + padY + edgeY, fs, lh, lines: nLines };
 }
 /* 把框对齐到内容：growOnly 时只长不缩；返回是否真的改了数据（好让调用方决定要不要存盘）。
-   tObj 可选：四角拉伸那边手里就握着对象实例，直接传进来最稳妥（selText 可能指向另一段文字）。 */
-function fitTextBox(w, el, growOnly, tObj) {
+   tObj 可选：四角拉伸那边手里就握着对象实例，直接传进来最稳妥（selText 可能指向另一段文字）。
+   pageElArg 可选：自定义封面那张纸叫 .diy-paper（不叫 .paper），由调用方直接把纸传进来，
+   这样阅读器与 DIY 共用同一套「宽高都按文字实量 + 换行」的算法，别各写一份。
+   ⚠️ 这个可选参数只影响纸的量取，阅读器原有调用完全不变。 */
+function fitTextBox(w, el, growOnly, tObj, pageElArg) {
   /* 优先认框自己的 data-page / data-id（跨页拖迁时会一起更新），selText 只作兜底 */
   const t = tObj || textById(+w.dataset.page, w.dataset.id)
     || (selText ? textById(selText.pid, selText.iid) : null);
   if (!t || !el) return false;
-  const pageEl = w.closest('.paper'); if (!pageEl) return false;
+  const pageEl = pageElArg || w.closest('.paper'); if (!pageEl) return false;
   const pr = pageEl.getBoundingClientRect();
   /* 用 offset* 而不是 getBoundingClientRect：后者量的是「转过之后的外接框」 */
   const ww = w.offsetWidth, wh = w.offsetHeight, wt = w.offsetTop;
@@ -746,10 +793,20 @@ function fitTextBox(w, el, growOnly, tObj) {
   }
   const capW = Math.max(1, Math.min(t.ww * pr.width, roomW * pr.width));
   const m = textFitSize(el, capW); if (!m) return false;
+  /* 行内打字时数据还没落盘，空 / 非空要看 DOM 自己的字 */
+  const has = !!((el.textContent || el.innerText || '').trim());
+  w.classList.toggle('empty', !has);
   const autoW = t.autoW !== false;
-  const nw = autoW ? clamp(m.w, Math.min(m.minW, capW), capW) : capW;
+  let nw = autoW ? clamp(m.w, Math.min(m.minW, capW), capW) : capW;
+  let nh = Math.max(m.h, m.minH);
+  /* 空框一个字都没有，量出来的宽高趋近于 0 —— 给一块看得见、点得到的虚线占位
+     （约 30% 页宽、一行半高）。一打字 fitTextBox 立刻收回贴合尺寸。 */
+  if (!has) {
+    nw = clamp(Math.max(nw, Math.min(capW, pr.width * .30)), Math.min(m.minW, capW), capW);
+    nh = Math.max(nh, m.lh * 1.5);
+  }
   const maxH = pr.height - Math.max(0, wt);   // 不许越过纸的下边缘
-  const nh = Math.min(Math.max(m.h, m.minH), Math.max(maxH, m.minH));
+  nh = Math.min(nh, Math.max(maxH, m.minH));
   const ox = t.x ?? 0, oy = t.y ?? 0, ow = t.w ?? ww / pr.width, oh = t.h ?? wh / pr.height;
   let fw = clamp(nw / pr.width, .006, 1), fh = clamp(nh / pr.height, .006, 1);
   if (growOnly) { fw = Math.max(fw, ow); fh = Math.max(fh, oh); }
@@ -839,6 +896,7 @@ function startTextEdit(w, pid, iid, pt) {
   // 点纸面空白处不会触发 contentEditable 的 blur，得自己兜住
   // 编辑面板上的按键自己会保住焦点，不能在这里先提交掉
   w.__docDown = ev => {
+    if (ev.button > 0) return;          // 右键：纸面菜单要用，别把正在打的字提交掉
     if (w.contains(ev.target)) return;
     if (ev.target.closest && ev.target.closest('.rbot, #tsheet, #bgsheet, #eflowTop, #addMenu, #confirmMask, .cp-mask')) return;
     /* 直接去点另一个文本框：先存下这个，但不要整页重绘 ——
@@ -860,7 +918,7 @@ function stopTextEdit(w, commit, noRender) {
   if (el && w.__onInput) { el.removeEventListener('input', w.__onInput); w.__onInput = null; }
   /* 收尾会同步贴一次框并重绘整页，排队中的那一帧直接丢掉，别重复量布局 */
   if (w.__fitQ) { w.__fitQ.cancel(); w.__fitQ = null; }
-  w.classList.remove('editing', 'adjust', 'sel');
+  w.classList.remove('editing', 'adjust', 'sel', 'boxmode');
   w.classList.add('locked');                       // 编辑完文字默认自动固定
   if (el) {
     el.contentEditable = 'false';
@@ -870,11 +928,14 @@ function stopTextEdit(w, commit, noRender) {
   if (commit) {
     /* 落盘认框自己的 data-page / data-id，不认 selText ——
        点纸面空白处时「取消选中」会先把 selText 清掉，只看它这里就白打字了 */
-    const t = textById(+w.dataset.page, w.dataset.id)
+    const pid = +w.dataset.page, iid = w.dataset.id;
+    const t = textById(pid, iid)
       || (selText ? textById(selText.pid, selText.iid) : null);
     if (t) { t.text = (el.innerText || '').replace(/[\r\n]+$/, ''); t.locked = true; }
     markFlipSuppressed();          // 结束行内打字的这一下，同样不该顺手翻页
     save();
+    /* 删光了字 / 一直没写：保存时这条空文字框就当作没有添加过 */
+    if (dropEmptyText(pid, iid)) toast('空白文字框已撤销 · 相当于没有添加');
   }
   if (!noRender && w.isConnected) renderReader();
   hideTextBar();                          // 退出输入：底栏恢复页码与翻页
@@ -886,3 +947,51 @@ function commitTextEdit() {
   const w = document.querySelector('.ptext-wrap.editing');
   if (w) stopTextEdit(w, true, true);
 }
+
+/* ==================== 底部面板 · grab 小条下拉关闭 ====================
+ * 四张 .tsheet（编辑文字 / 本页底色 / 图片边框 / 贴纸）顶部都有一条 .ts-grab，
+ * 但只有移动端竖屏显示（宽屏 ≥620px、横屏都在 text.css 里 display:none）。
+ * 以前它只是个装饰：这里让它真能把面板往下拉着关掉 —— 按下跟着手指走，
+ * 松手超过阈值关闭，没拉够靠 CSS 过渡弹回。
+ * ⚠️ 关闭必须走各自模块的 closeXxxSheet()：它们要撤预览、落盘文字、清
+ *    resetSheetSpace / updateEflow / 重新 layoutBook，直接 hidden=true 会留脏状态。
+ *    这些函数定义在**后面的脚本**里，运行时按 window[name] 取，别在加载期解引用。 */
+(function sheetGrabToClose() {
+  const CLOSE = {
+    tsheet: 'closeTextSheet', bgsheet: 'closeBgSheet',
+    frsheet: 'closeFrameSheet', stsheet: 'closeStickerSheet'
+  };
+  $$('.ts-grab').forEach(grab => {
+    let g = null;
+    grab.addEventListener('pointerdown', e => {
+      if (e.button > 0 || g) return;
+      const sh = grab.closest('.tsheet');
+      if (!sh || sh.hidden || !CLOSE[sh.id]) return;
+      g = { id: e.pointerId, y: e.clientY, dy: 0, sh };
+      sh.classList.add('grab-dragging');
+      try { grab.setPointerCapture(e.pointerId); } catch (_) {}
+      /* 别让 #reader 上的翻页 / 纸面手势把这个下拉抢走 */
+      e.preventDefault(); e.stopPropagation();
+    });
+    grab.addEventListener('pointermove', e => {
+      if (!g || e.pointerId !== g.id) return;
+      g.dy = Math.max(0, e.clientY - g.y);
+      g.sh.style.transform = 'translateY(' + g.dy.toFixed(1) + 'px)';
+    });
+    const finish = (e, cancel) => {
+      if (!g || (e.pointerId !== undefined && e.pointerId !== g.id)) return;
+      const d = g; g = null;
+      try { grab.releasePointerCapture(d.id); } catch (_) {}
+      d.sh.classList.remove('grab-dragging');
+      d.sh.style.transform = '';
+      if (cancel) return;
+      const threshold = Math.min(110, d.sh.offsetHeight * .26);
+      if (d.dy < threshold) return;         // 没拉够：清 inline transform，靠过渡弹回
+      const fn = window[CLOSE[d.sh.id]];
+      /* closeTextSheet 要传 commit=true 才把输入框里正在打的字落盘 */
+      if (typeof fn === 'function') fn(d.sh.id === 'tsheet' ? true : undefined);
+    };
+    grab.addEventListener('pointerup', e => finish(e, false));
+    grab.addEventListener('pointercancel', e => finish(e, true));
+  });
+})();

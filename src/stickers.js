@@ -10,7 +10,8 @@
  * 全都复用图片那套；便利贴落下去是文字对象，接着就开编辑面板等你打字。
  *
  * 对外接口：openStickerSheet, closeStickerSheet, addSticker, addNoteTo,
- *           stickerLib, addStickerToLib, removeStickerFromLib
+ *           stickerLib, addStickerToLib, addStickersToLib, stickerImportMsg,
+ *           removeStickerFromLib
  *
  * 依赖模块：core, visuals, state（media / text-sticker / reader-view 后置，只在运行时用）
  *
@@ -125,6 +126,41 @@ async function addStickerToLib(file) {
   await saveStickerLib();
   return item;
 }
+/* ---- 批量导入 ----
+   一次选多张图时逐张压缩、但**只写一次贴纸库**：单张版每导一张就 await 一次 IndexedDB，
+   几十张会把面板卡住。返回统计给调用处拼一句汇总提示，别每张都弹一次 toast。
+   ⚠️ 上限 STICKER_LIB_MAX 按「库里已有 + 这次成功」算，装不下的图直接跳过并置 full。 */
+async function addStickersToLib(files) {
+  const list = Array.from(files || []).filter(f => f && (!f.type || /^image\//i.test(f.type)));
+  const res = { added: 0, failed: 0, full: false };
+  if (!list.length) return res;
+  const room = Math.max(0, STICKER_LIB_MAX - stickerLib().length);
+  const items = [];
+  let used = 0;
+  for (const f of list) {
+    if (items.length >= room) { res.full = true; break; }
+    used++;
+    let packed;
+    try { packed = await packSticker(f); }
+    catch (_) { res.failed++; continue; }
+    items.push({ id: uid(), src: packed.src, w: packed.w, h: packed.h, at: Date.now() });
+  }
+  if (used < list.length) res.full = true;       // 有没轮到的（库满 / 前面 break）
+  if (!items.length) return res;
+  if (!state.prefs.stickers) state.prefs.stickers = [];
+  state.prefs.stickers = items.concat(state.prefs.stickers);   // 按选图顺序排在最前
+  await saveStickerLib();
+  res.added = items.length;
+  return res;
+}
+/* 两处导入面板共用的一句汇总文案 */
+function stickerImportMsg(r) {
+  if (!r.added) return r.failed ? '这些图片读不出来，换几张试试' : '贴纸库已满，先删掉几张吧';
+  let s = '已导入 ' + r.added + ' 张贴纸';
+  if (r.failed) s += '；' + r.failed + ' 张读不出来';
+  if (r.full) s += '；贴纸库最多 ' + STICKER_LIB_MAX + ' 张';
+  return s;
+}
 async function removeStickerFromLib(id) {
   const lib = stickerLib();
   const i = lib.findIndex(x => x.id === id);
@@ -170,6 +206,8 @@ function addNoteTo(pid, color) {
   t.locked = false;
   t.z = nextZ(pg);
   pageTexts(pg).push(t);
+  /* 跟「添加文字」一样：便利贴第一次收面板也先别锁，落下去就能挪 */
+  if (typeof markFreshText === 'function') markFreshText(t.id);
   save();
   return t;
 }
@@ -212,18 +250,19 @@ function buildStickerSheet() {
       toast('胶带已加到第 ' + (sts.pid + 1) + ' 页');
     });
   }
-  /* 导入按钮：选一张图 → 压成贴纸存进库 → 立刻出现在「我的贴纸」里 */
+  /* 导入按钮：可一次选多张 → 批量压成贴纸存进库 → 立刻出现在「我的贴纸」里。
+     ⚠️ 清空 input.value 会把 FileList 一起清掉，得先拷成数组再交给批量函数。 */
   const imp = $('#stImport'), file = $('#stFile');
   if (imp && file) {
     imp.onclick = () => file.click();
     file.onchange = async () => {
-      const f = file.files && file.files[0];
-      file.value = '';                          // 清掉，同一张图可以连着导两次
-      if (!f) return;
-      const item = await addStickerToLib(f);
+      const fs = Array.from(file.files || []);
+      file.value = '';                          // 清掉，同一批图可以连着导两次
+      if (!fs.length) return;
+      const r = await addStickersToLib(fs);
       stTab('mine');
       renderMinePane();
-      if (item) toast('已存进贴纸库，点它就能贴到页面上');
+      toast(stickerImportMsg(r), (r.failed || r.full) ? 3400 : undefined);
     };
   }
   const tabs = $('#stTabs');
