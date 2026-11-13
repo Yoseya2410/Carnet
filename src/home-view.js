@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 主页渲染 · 书架与轮播骨架   （脚本 11 / 27）
+ * Carnet · 主页渲染 · 书架与轮播骨架   （脚本 12 / 28）
  * ---------------------------------------------------------------------
  * ① 封面 coverHTML / 单本书 bookItemHTML / 多层书架 renderShelf
  * ② 单层书架 spineItemHTML / renderSpineShelf / renderSpineDetail / syncSpineSelection
@@ -14,14 +14,16 @@
  * ===================================================================== */
 /* ==================== 封面渲染 ====================
    封面按 j.style 分成三种装帧（见 visuals.js 的 BOOK_STYLES）：
-     笔记本 —— 左侧一条封面彩带；彩带设「透明」时改画一道浅压槽
+     笔记本 —— 左侧一条封面彩带（= 书脊）；选「透明」时整列不画（彩带与书槽都没有）
      活页手帐 —— 左侧什么都不画（干净硬壳）
-     方形画册 —— 左侧一道浅压槽
+     方形画册 / 精装书 —— 左侧一道浅压槽
    共同的那几层（由下往上）：底色 → 图案 → 光泽 → 装订。
    ⚠️ **有彩带时不叠压槽**：带子只是一条平色带 + 右侧柔和接触影（见 home.css）；
-      只有没彩带（透明档）、方形画册和精装书才画压槽，
+      只有本来就没彩带的装帧（方形画册 / 精装书）才画压槽，
       且压槽保留原来那套暗槽底＋亮槽沿的立体断面（用户复评「之前的更逼真」），
       只去掉上下折边暗边、四周黑影与槽沿 1px 浅白线（见 home.css 的 .spine.ghost）。
+   ⚠️ 笔记本「透明」档与「没彩带的装帧」是两回事：透明由 coverNoSpine() 判，
+      整列直接不输出（不画彩带、也不补压槽）；画册 / 精装书仍画压槽。
    ⚠️ 活页那档**封面上不画金属环**：真活页本的环在里侧，封面就是干净的一张硬壳。
       环的舞台在翻开的内页中缝（reader-view.js 的 gutterRingsHTML + reader.css 的 .grings），
       那里才画得像「一根钢丝穿过左右两页的孔」。 */
@@ -34,13 +36,15 @@ function coverHTML(j) {
      ⚠️ 彩带只有笔记本这一档有（bookHasRibbon）：活页 / 画册 / 精装书都不画那条竖带，
         编辑器里那排颜色也一并藏了（见 editor.js 的 syncEditor）。用户 2026-11-11 定稿：
         「精装书和画册显示书槽不显示彩带，活页不显示彩带」。
-     ⚠️ 有彩带 → 只画彩带、不叠压槽；没彩带（透明档）/ 画册 / 精装书 →
+     ⚠️ 有彩带 → 只画彩带、不叠压槽；画册 / 精装书 →
         **画带立体断面的压槽**（精装书那列更宽，见 book-style.css）；
         活页 → 整列不画（活页不是精装本，环在里侧，没有那条凹进去的书脊沟）。 */
-  const spine = bookHasRibbon(j) ? ribbonSpine(j.ribbon) : '';   // 彩带选「透明」时为空
-  /* 书槽开关（cover.groove，缺省开）：关掉时整列都不画 —— 彩带与透明档的压槽都不画，
-     封面变成一整张干净的皮；颜色值仍留在数据里，重新打开就恢复。 */
-  const bind = !coverGrooveOn(j) ? ''
+  /* 笔记本选「透明」时 ribbonSpine 返回空串；画册 / 精装 / 活页这一支本来就取空 */
+  const spine = bookHasRibbon(j) ? ribbonSpine(j.ribbon) : '';
+  /* coverNoSpine：书槽关（cover.groove，老数据兼容）或笔记本选了「透明」——
+     这两种情况整列都不画，封面是一整张干净的皮，**不补压槽**。
+     其余：有彩带画平色带；没彩带的装帧（画册 / 精装书）画立体压槽；活页不画。 */
+  const bind = coverNoSpine(j) ? ''
     : spine ? `<div class="spine" style="background:${spine}"></div>`
     : isRingStyle(j.style) ? '' : `<div class="spine ghost"></div>`;
   /* 右侧两角的圆角写进 --cr（每本可自定义，见 visuals.js 的 coverRadiusOf）；
@@ -61,6 +65,7 @@ function bookItemHTML(j, i, sel) {
   return `
     <div class="book-item${i === s ? ' active' : ''}${on ? ' picked' : ''}" data-i="${i}" data-id="${j.id || ''}">
       ${coverHTML(j)}
+      ${lockNeedsKey(j) ? LOCK_FLAG_HTML : ''}
       <i class="pick" title="选择"></i>
       <div class="gear" data-gear="${i}" title="编辑">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.1"/><circle cx="8" cy="17" r="2.1"/></svg>
@@ -204,6 +209,7 @@ function spineItemHTML(j, i) {
     aria-pressed="false" style="--spine-p:${spineWidthRatio(j)};--spine-h:${h};--spine-ink:${ink};${bg}">
     <span class="spine-pattern" style="${pat}"></span>
     <span class="spine-title">${name}</span>
+    ${lockNeedsKey(j) ? LOCK_FLAG_HTML : ''}
   </button>`;
 }
 /* 下方那块是「预览图」：鼠标停在书脊上才显示那一本的封面，鼠标一离开就收起。

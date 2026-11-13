@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 阅读器渲染 · 书页与排版   （脚本 13 / 27）
+ * Carnet · 阅读器渲染 · 书页与排版   （脚本 14 / 28）
  * ---------------------------------------------------------------------
  * ① 单页 / 双页摊开判定 isSpread、书的尺寸与中缝布局 layoutBook
  * ② 封面页与内页渲染 coverPageHTML / pageHTML（图片与文字按 z 合排 pageObjs）
@@ -167,17 +167,21 @@ function pageHolesHTML(j, side) {
     + ringTops(st.rings).map(t => `<i class="page-hole" style="top:${t.toFixed(2)}%"></i>`).join('')
     + `</div>`;
 }
-/* 选中对象时浮在它上方的那条工具条（形状在 style/text.css 的 .objbar 里）。
+/* 选中对象时浮在它上方的那条胶囊工具条（形状在 style/text.css 的 .objbar 里）。
    直接挂进对象内部：拖动 / 拉伸 / 重绘都自动跟着走，不用另算坐标。
-   共用「完成 / 复制 / 编辑 / 删除」四颗：图片那颗编辑是「铺满整页 ⇄ 还原」，
-   文字贴那颗是「编辑文字」；图片另多「换图 / 边框」，文字贴另多「字随框缩放」。 */
+   共用「完成 / 复制 / 剪切 / 编辑 / 删除」：图片那颗编辑是「铺满整页 ⇄ 还原」，
+   文字贴那颗是「编辑文字」；图片另多「换图 / 边框」，文字贴另多「字随框缩放」。
+   ⚠️「复制」只把对象写进剪贴板、不就地生副本，要再执行「粘贴」才会多出一份
+      （触屏空白长按菜单 / 桌面右键 / Ctrl+V），见 page-edit.js 的 objAction('copy')。
+   ⚠️ 「剪切」带 .ob-cut，只在触屏 + 这个对象**被编辑过**时才露出来（刚添加的内容先收着）；
+      「粘贴」不放在工具条里 —— 空白纸面长按弹的那张菜单才是粘贴入口。桌面仍走纸面右键。 */
 function objBarHTML(kind, o) {
   const mid = kind === 'image'
     ? { t: o && o.fill ? '还原原比例' : '铺满整页', svg: o && o.fill ? RESTORE_SVG : FILL_SVG, cls: o && o.fill ? ' on' : '' }
     : { t: '编辑文字', svg: OB_EDIT_SVG, cls: '' };
   const swap = kind === 'image'
     ? `<button class="ob" data-ob="swap" title="换一张图">${OB_SWAP_SVG}</button>` : '';
-  /* 边框只有图片有：开底部那张「图片边框」面板（拍立得 / 纯色 / 细线 / 拟物相框，颜色可自定义）。
+  /* 边框只有图片有：开底部那张「图片边框」面板（拍立得 / 纯色 / 细线 / 相框 / 凹陷，颜色可自定义）。
      已经加了边框就把这颗点亮，一眼看得出这张图是带框的 */
   const frame = kind === 'image'
     ? `<button class="ob${hasFrame(o) ? ' on' : ''}" data-ob="frame" title="图片边框">${OB_FRAME_SVG}</button>` : '';
@@ -190,7 +194,8 @@ function objBarHTML(kind, o) {
     : '';
   return `<div class="objbar">
       <button class="ob" data-ob="close" title="完成">${OB_OK_SVG}</button>
-      <button class="ob" data-ob="copy" title="复制一份">${OB_COPY_SVG}</button>
+      <button class="ob" data-ob="copy" title="复制（粘贴后才会生成一份）">${OB_COPY_SVG}</button>
+      <button class="ob ob-cut" data-ob="cut" title="剪切这个文字框或图片">${OB_CUT_SVG}</button>
       ${swap}
       ${frame}
       ${fslink}
@@ -211,9 +216,9 @@ function imgWrapHTML(im, i) {
   /* 边框：把 <img> 塞进一层 .pframe，边框画在这一层上（padding 撑出来），图片一个字节都不改。
      样式由 frameBoxStyle 算出来 —— 导出用的是同一个函数，屏幕和 PDF / SVG 长得一模一样 */
   const pic = `<img class="pimg" draggable="false" decoding="async" src="${im.src}" alt="" style="${frameImgStyle(im)}">`;
-  const photo = hasFrame(im) ? `<div class="pframe" style="${frameBoxStyle(im)}">${pic}</div>` : pic;
+  const photo = hasFrame(im) ? `<div class="pframe" style="${frameBoxStyle(im)}">${pic}${frameInsetHTML(im)}</div>` : pic;
   return `
-    <div class="pimg-wrap${String(im.src).startsWith('data:image/svg') ? ' sticker' : ''}${im.locked ? ' locked' : ''}${im.fill ? ' fill' : ''}${im.fit ? ' fit' : ''}${tinyCls(im, hw)}" data-page="${i}" data-id="${im.id}"
+    <div class="pimg-wrap${String(im.src).startsWith('data:image/svg') ? ' sticker' : ''}${im.locked ? ' locked' : ''}${im.fill ? ' fill' : ''}${im.fit ? ' fit' : ''}${tinyCls(im, hw)}${objWasEdited(im.id) ? ' obj-edited' : ''}" data-page="${i}" data-id="${im.id}"
          style="left:${(im.x * 100).toFixed(2)}%;top:${(im.y * 100).toFixed(2)}%;width:${(im.w * 100).toFixed(2)}%;height:${(hw * 100).toFixed(2)}%;${rotStyle(im)}">
       <!-- decoding="async"：图片交给后台线程解码，翻页 / 重绘时主线程不等它，不会卡一下 -->
       ${photo}
@@ -233,7 +238,7 @@ function textWrapHTML(t, i) {
   /* 便利贴：就是一张带了便签纸皮肤的文字贴（t.note 存纸色）—— 照样能打字、挪位置、旋转 */
   const nc = normHex6(t.note);
   return `
-    <div class="ptext-wrap${nc ? ' note' : ''}${empty ? ' empty' : ''}${t.locked === false ? '' : ' locked'}" data-page="${i}" data-id="${t.id}"
+    <div class="ptext-wrap${nc ? ' note' : ''}${empty ? ' empty' : ''}${t.locked === false ? '' : ' locked'}${objWasEdited(t.id) ? ' obj-edited' : ''}" data-page="${i}" data-id="${t.id}"
          style="left:${(t.x * 100).toFixed(2)}%;top:${(t.y * 100).toFixed(2)}%;width:${(t.w * 100).toFixed(2)}%;height:${(t.h * 100).toFixed(2)}%;${nc ? `--nc:${nc};` : ''}${rotStyle(t)}">
       <div class="ptxt${nc ? ' note' : ''}" style="${st}">${t.text ? esc(t.text) : ''}</div>
       ${objBarHTML('text', t)}

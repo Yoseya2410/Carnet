@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 导出 · 单本序列化与落盘   （脚本 4 / 27）
+ * Carnet · 导出 · 单本序列化与落盘   （脚本 5 / 28）
  * ---------------------------------------------------------------------
  * ① 稳定序列化 stableStringify / 内容摘要 checksum / 资产计数 countAssets
  * ② 导出文件名 exportName、保存位置选择 pickSaveTarget
@@ -44,10 +44,10 @@ async function checksum(str) {
 /* 两本手帐是否「内容完全一样」：比对除 id / created 之外的一切
    （名字、封面、彩带、模板、自定义模板图与铺法、每页的图片与文字），用于导入去重 */
 async function journalFP(j) {
-  return checksum(stableStringify({
-    name: j.name, cover: j.cover, ribbon: j.ribbon,
-    template: j.template, tplImg: j.tplImg, tplImgs: j.tplImgs, tplFit: j.tplFit, pages: j.pages
-  }));
+  /* 加密本在库里是「外壳 + 密文」：外壳每次导出都一样、密文的 iv 每次都随机，
+     两头都不能拿来判断是不是同一本。改用加密时算好的内容摘要 lock.fp（稳定）。 */
+  if (j && j.lock && j.lock.fp) return j.lock.fp;
+  return lockContentFP(j);
 }
 /* 数一数文件里实际写了多少资产。注意这里数的是条目本身、不做有效性过滤：
    导入后 normalizeJournal 会剔掉 src 非法的图片，两边一减就知道丢了什么 */
@@ -146,9 +146,12 @@ async function exportJournal(j) {
   const target = await pickSaveTarget(name);
   if (target === 'cancel') { toast('已取消导出'); return; }
   try {
-    const sum = await checksum(stableStringify(j));
+    /* 加密本一律导出密文信封（已解锁的明文也会当场重新封好），明文一个字节都不出文件 */
+    const body = await exportJournalBody(j);
+    const sum = await checksum(stableStringify(body));
     const text = JSON.stringify({
-      app: EXPORT_TAG, version: EXPORT_VERSION, exportedAt: Date.now(), checksum: sum, journal: j
+      app: EXPORT_TAG, version: EXPORT_VERSION, exportedAt: Date.now(), checksum: sum,
+      encrypted: journalHasLock(j) || undefined, journal: body
     });
     const blob = new Blob([text], { type: 'application/json' });
     if (target) {
@@ -156,7 +159,7 @@ async function exportJournal(j) {
         const w = await target.createWritable();
         await w.write(blob);
         await w.close();
-        toast('已导出《' + j.name + '》· 已存到你选择的位置', 2600);
+        toast('已导出《' + j.name + '》' + (journalHasLock(j) ? '· 已用密钥加密' : '') + ' · 已存到你选择的位置', 2600);
         return;
       } catch (e) {
         if (e && e.name === 'AbortError') { toast('已取消导出'); return; }
@@ -167,7 +170,7 @@ async function exportJournal(j) {
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
         await navigator.share({ files: [file], title: j.name, text: `我的电子手帐《${j.name}》，共 ${j.pages.length} 页。` });
-        toast('已导出《' + j.name + '》', 2200);
+        toast('已导出《' + j.name + '》' + (journalHasLock(j) ? '· 已用密钥加密' : ''), 2200);
         return;
       } catch (e) {
         /* 用户主动取消就到此为止，不再谎报成功；其它错误才继续走下载 */
@@ -179,7 +182,7 @@ async function exportJournal(j) {
     a.href = url; a.download = name; a.style.display = 'none';
     document.body.appendChild(a); a.click();
     setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 2000);
-    toast('已导出《' + j.name + '》· 已存到浏览器下载目录', 2600);
+    toast('已导出《' + j.name + '》' + (journalHasLock(j) ? '· 已用密钥加密' : '') + ' · 已存到浏览器下载目录', 2600);
   } catch (e) {
     console.error('[export] 失败：', e);
     toast('导出失败：' + ((e && e.message) || e), 4200);

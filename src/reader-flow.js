@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 阅读器交互 · 开合书动画与增删页   （脚本 24 / 27）
+ * Carnet · 阅读器交互 · 开合书动画与增删页   （脚本 25 / 28）
  * ---------------------------------------------------------------------
  * ① 打开：封面飞入放大成书 flyCover / openReader
  * ② 关闭：合上书（只合一次，不再先连翻回封面）、书缩回主页封面 closeReader
@@ -108,6 +108,9 @@ function flyCover(from, to, reverse) {
 }
 function openReader() {
   if (flyBusy || !cur()) return;
+  /* 加密本还没解锁就先解密：本机记住过密钥时静默完成（不弹框），
+     从外部导入 / 点过「立即上锁」的才弹输入框；解锁成功后会重新跑一次 openReader。 */
+  if (!guardUnlocked(cur(), () => openReader())) return;
   cancelFlip();
   closeScrub();
   closeAddMenu();

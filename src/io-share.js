@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 导出 · 多选批量导出   （脚本 6 / 27）
+ * Carnet · 导出 · 多选批量导出   （脚本 7 / 28）
  * ---------------------------------------------------------------------
  * ① buildExportFile：造出一本要导出的文件（格式与单本导出一致，但不碰文件系统）
  * ② exportMany / exportPicked：书架多选后一本一个文件
@@ -16,15 +16,23 @@
    只是不碰文件系统，交给外面决定「写到哪」 */
 async function buildExportFile(j, kind) {
   if (kind !== 'json') {
+    /* PDF / SVG 是明文副本：未解锁的加密本不能出。批量循环里只静默用本机记住的钥匙解锁，
+       不弹窗打断「一本一个文件」的节奏；没有钥匙就跳过这本，由 exportMany 报出来。 */
+    if (!await autoUnlockQuiet(j))
+      throw new Error('《' + j.name + '》已加密，请先打开输入一次密钥再导出 PDF / SVG');
+    j = lkById(j.id);            // 解锁会把 state 里那一本换成明文对象，旧引用还是空壳
     await probeExportFont();          // 渲染前先探明手写体导不导得出，不行就按楷体
     /* 自带英文字体按这一本用到的档位备好写进 SVG 根。exportMany 是逐本 await 的，
        这个全局串不会在多本之间串台。 */
     await prepareExportEnFaces(j);
   }
   if (kind === 'json') {
-    const sum = await checksum(stableStringify(j));
+    /* 加密本一律导出密文信封，跟单本导出（exportJournal）完全同一份结构 */
+    const body = await exportJournalBody(j);
+    const sum = await checksum(stableStringify(body));
     const text = JSON.stringify({
-      app: EXPORT_TAG, version: EXPORT_VERSION, exportedAt: Date.now(), checksum: sum, journal: j
+      app: EXPORT_TAG, version: EXPORT_VERSION, exportedAt: Date.now(), checksum: sum,
+      encrypted: journalHasLock(j) || undefined, journal: body
     });
     return {
       name: exportBaseName(j) + '.json', mime: 'application/json',

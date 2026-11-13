@@ -22,7 +22,7 @@
 .bg-light{
   --frost:rgba(255,255,255,.42);
   --frost-bd:rgba(255,255,255,.68);
-  --frost-fx:blur(26px) saturate(150%);
+  --frost-fx:blur(4px) saturate(150%);
   --glass:rgba(255,255,255,.42);
   --glass-bd:rgba(255,255,255,.7);
 }
@@ -37,7 +37,10 @@
 .bg-light .search-panel .text-input{
   background:rgba(255,255,255,.55);border-color:rgba(40,44,66,.16);color:#2b2f3d
 }
-.bg-light .search-panel .text-input:focus{background:rgba(255,255,255,.78)}
+.bg-light .search-panel .text-input:focus{
+  background:rgba(255,255,255,.78);border-color:#000;
+  box-shadow:0 0 0 1px #000
+}
 .bg-light .search-close{color:#2b2f3d}
 /* 结果列表：每条是一片更亮的白玻璃，压在面板那层上才分得出层次 */
 .bg-light .sr-item{background:rgba(255,255,255,.3);border-color:rgba(255,255,255,.6)}
@@ -133,9 +136,9 @@
    深色底上刚好，浅底上会淡到看不见，这里把透明度提回来 */
 .bg-light .fr-hint{opacity:.78}
 .bg-light .fr-wval{opacity:.85}
-/* 边框小样 / 贴纸格子 */
-.bg-light .fr-demo{background-color:rgba(40,44,66,.05);
-  background-image:repeating-linear-gradient(45deg,rgba(40,44,66,.09) 0 6px,transparent 6px 12px)}
+/* 边框小样 / 贴纸格子。
+   ⚠️ 别给大预览容器加斜纹：预览底由 img-frame.js 铺当前内页的纸色，
+      加斜纹会让预览和纸面差一层花纹（以前 .bg-light .fr-demo 就是这么污染的）。 */
 .bg-light .fr-opt{background:rgba(40,44,66,.05)}
 .bg-light .fr-opt:hover{background:rgba(40,44,66,.11)}
 .bg-light .fr-opt.on{border-color:rgba(40,44,66,.5);background:rgba(40,44,66,.12)}
@@ -234,21 +237,21 @@
   backdrop-filter:blur(9px) saturate(120%);-webkit-backdrop-filter:blur(9px) saturate(120%)
 }
 .bg-light .cp-panel{
+  --cp-muted:rgba(40,44,66,.065);--cp-sub:#777a83;
+  --cp-field:rgba(255,255,255,.72);--cp-field-bd:rgba(40,44,66,.18);
   color:#2b2f3d;
   background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(255,255,255,.88));
   border-color:rgba(255,255,255,.9);
   box-shadow:0 30px 60px -18px rgba(30,32,48,.34)
 }
-.bg-light .cp-head,.bg-light .cp-hex,.bg-light .cp-eye{color:#2b2f3d}
-.bg-light .cp-hex{
-  background:rgba(255,255,255,.72);border-color:rgba(40,44,66,.18)
-}
-.bg-light .cp-hex:focus{border-color:rgba(17,19,24,.5);background:#fff}
-.bg-light .cp-x,.bg-light .cp-eye,.bg-light .ep-btn{
-  color:#2b2f3d;background:rgba(40,44,66,.07);border-color:rgba(40,44,66,.16)
-}
-.bg-light .cp-x:hover,.bg-light .cp-eye:hover,.bg-light .ep-btn:hover{background:rgba(40,44,66,.14)}
-.bg-light .cp-sv,.bg-light .cp-hue,.bg-light .cp-prev{border-color:rgba(40,44,66,.16)}
+.bg-light .cp-head,.bg-light .cp-hex,.bg-light .cp-num,.bg-light .cp-eye{color:#2b2f3d}
+.bg-light .cp-hex{background:rgba(255,255,255,.72);border-color:rgba(40,44,66,.18)}
+.bg-light .cp-hex:focus,.bg-light .cp-num:focus{border-color:rgba(17,19,24,.5);background:#fff}
+.bg-light .cp-x,.bg-light .cp-eye{color:#2b2f3d;background:transparent;border-color:transparent}
+.bg-light .cp-x:hover,.bg-light .cp-eye:hover{background:rgba(40,44,66,.07)}
+.bg-light .cp-prev{border-color:rgba(110,110,116,.58)}
+.bg-light .ep-btn{color:#2b2f3d;background:rgba(40,44,66,.07);border-color:rgba(40,44,66,.16)}
+.bg-light .ep-btn:hover{background:rgba(40,44,66,.14)}
 /* 吸管现场取色那条细操作条 */
 .bg-light .ep-bar{
   color:#2b2f3d;background:rgba(255,255,255,.94);border-color:rgba(40,44,66,.16);

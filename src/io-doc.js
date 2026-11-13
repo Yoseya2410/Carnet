@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 导出 · PDF 与 SVG 矢量   （脚本 5 / 27）
+ * Carnet · 导出 · PDF 与 SVG 矢量   （脚本 6 / 28）
  * ---------------------------------------------------------------------
  * ① 把每一页渲染成 XHTML：pageExportXHTML（PDF / SVG 共用这一份实现）
  * ② 纯前端拼 PDF：JPEG 转字节流、写 PDF 对象表 buildPdf
@@ -129,10 +129,11 @@ function pageExportHTML(j, idx, W, H) {
     const st = bookStyleOf(j);
     /* 装订那一列与屏幕封面严格一致（2026-11-09 用户定稿）：
        ① 有彩带 → 只画一条平色带，**不叠压槽**；
-       ② 没彩带（透明档）/ 画册 / 精装书 → **画压槽**，恢复原来那套暗槽底＋亮槽沿的立体断面
+       ② 没彩带的装帧（画册 / 精装书）→ **画压槽**，恢复原来那套暗槽底＋亮槽沿的立体断面
           （用户复评更逼真）；仍不画上下两端折边暗边、四周黑色投影、槽沿 1px 浅白线；
        ③ 活页 → 整列不画（不画环、也不留压痕）；
-       ④ 书槽关（cover.groove === false）→ 与活页一样整列不画。
+       ④ 书槽关（cover.groove === false）或笔记本选了「透明」彩带 → 与活页一样整列不画，
+          **不补压槽**（coverNoSpine，跟屏幕封面同源）。
        导出吃不到本页 CSS，所以断面渐变必须内联。 */
     const spine = st.ribbon ? ribbonSpine(j.ribbon) : '';
     /* 与 home.css / book-style.css 同一套：画册 6%、精装书 8%、其余 6.5% */
@@ -147,13 +148,13 @@ function pageExportHTML(j, idx, W, H) {
       + `rgba(255,255,255,.04) 78%,rgba(255,255,255,.18) 100%)`;
     /* 彩带是纯色带（ribbonSpine 已不给渐变，去掉彩带上的黑影）；
        右侧两层接触影是彩带压在封面上的投影，用户明确要保留。
-       ⚠️ 只加外投影，不加上下折边暗边 / 槽沿细线；透明档走 groove 分支，不吃这条。
+       ⚠️ 只加外投影，不加上下折边暗边 / 槽沿细线；没彩带的装帧走 groove 分支，不吃这条。
        阴影 px 按屏幕封面基准宽 246px（--cover-w 上限）等比放大到导出宽 W。 */
     const cs = W / 246;
     const ribbonShadow = `box-shadow:${(2 * cs).toFixed(1)}px 0 ${(6 * cs).toFixed(1)}px -${(2 * cs).toFixed(1)}px rgba(7,9,16,.18),`
       + `${(1 * cs).toFixed(1)}px 0 ${(2 * cs).toFixed(1)}px rgba(7,9,16,.06)`;
-    /* 书槽开关跟屏幕封面同源：关掉时这一列整个不画（彩带 / 压槽都不画） */
-    const bind = (st.rings || !coverGrooveOn(j)) ? ''
+    /* 跟屏幕封面同源：书槽关 / 笔记本透明档时这一列整个不画（彩带 / 压槽都不画） */
+    const bind = (st.rings || coverNoSpine(j)) ? ''
       : `<div style="position:absolute;left:0;top:0;bottom:0;width:${w}%;`
         + (spine ? `background:${spine};${ribbonShadow}` : groove) + `"></div>`;
     /* 封面右侧两角跟屏幕上同一本（cover.radius，基准 246px 宽等比放大到导出宽 W）；
@@ -191,7 +192,7 @@ function pageExportHTML(j, idx, W, H) {
     /* 有边框就套一层 .pframe 的等价物：样式由 frameBoxStyle 现算（跟屏幕上是同一个函数），
        sc = W / PAGE_W_DEFAULT 把阴影那几个 px 按导出尺寸放大，大图小图看起来一样 */
     return hasFrame(im)
-      ? `<div style="${box}"><div style="position:absolute;inset:0;box-sizing:border-box;${frameBoxStyle(im, W / PAGE_W_DEFAULT)}">${img}</div></div>`
+      ? `<div style="${box}"><div style="position:absolute;inset:0;box-sizing:border-box;${frameBoxStyle(im, W / PAGE_W_DEFAULT)}">${img}${frameInsetHTML(im, W / PAGE_W_DEFAULT)}</div></div>`
       : `<div style="${box}">${img}</div>`;
   };
   const txtHTML = t => {
@@ -306,6 +307,8 @@ function buildPdf(jpegs, pw, ph) {
 /* 导出 PDF：先趁手势有效挑好保存位置，再慢慢渲染（页多时渲染要好几秒，手势等不了那么久） */
 async function exportJournalPDF(j) {
   if (!j) return;
+  /* PDF 是明文副本：加密本必须先解锁。解锁成功后 state 里换成了新对象，按 id 重新取一次 */
+  if (!guardUnlocked(j, () => exportJournalPDF(lkById(j.id)))) return;
   await probeExportFont();
   await prepareExportEnFaces(j);        // 把这本用到的自带英文字体备进 SVG 根
   const pages = exportPages(j);
@@ -334,6 +337,8 @@ async function exportJournalPDF(j) {
    版式跟长图一致，但文字是真矢量，放大多少倍都不糊，也方便再拿去改 */
 async function exportJournalSVG(j) {
   if (!j) return;
+  /* 同上：SVG 长图也是明文副本，未解锁的加密本不能出 */
+  if (!guardUnlocked(j, () => exportJournalSVG(lkById(j.id)))) return;
   await probeExportFont();
   await prepareExportEnFaces(j);        // 把这本用到的自带英文字体备进 SVG 根
   const pages = exportPages(j);

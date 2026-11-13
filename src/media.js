@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 图片 · 上传压缩与落位   （脚本 18 / 27）
+ * Carnet · 图片 · 上传压缩与落位   （脚本 19 / 28）
  * ---------------------------------------------------------------------
  * ① 选图入口与压缩 shrinkImageFile（统一缩到长边像素上限）
  * ② 图片按真实比例落位、补齐高度 ensureImageHeights、「铺满整页」的等比几何 fillGeom
@@ -210,30 +210,28 @@ function ensureImageHeights() {
    几 MB 的截图压完通常只有几百 KB，存 IndexedDB 不心疼。
    opt = { q, bg }：q 是 JPEG 质量（默认 .82）、bg 是打底色（默认不打底）。
    「一键成书」那一路用更高质量，并先铺一层纸白 —— 透明 PNG 转 JPEG 会发黑 */
-function shrinkImageFile(file, maxSide, opt) {
+async function shrinkImageFile(input, maxSide, opt) {
   const q = (opt && opt.q) || .82;
   const bg = (opt && opt.bg) || '';
+  /* input 可以是 File，也可以是已经读好的 dataURL（移动端选图统一走 readPickedFiles） */
+  const src = await readFileDataURL(input);
+  if (!src) return null;
   return new Promise(res => {
-    const fr = new FileReader();
-    fr.onerror = () => res(null);
-    fr.onload = () => {
-      const im = new Image();
-      im.onerror = () => res(null);
-      im.onload = () => {
-        const k = Math.min(1, maxSide / Math.max(im.width, im.height));
-        const w = Math.max(1, Math.round(im.width * k));
-        const h = Math.max(1, Math.round(im.height * k));
-        const c = document.createElement('canvas');
-        c.width = w; c.height = h;
-        const ctx = c.getContext('2d');
-        if (bg) { ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h); }
-        ctx.drawImage(im, 0, 0, w, h);
-        try { res(c.toDataURL('image/jpeg', q)); }
-        catch (_) { res(fr.result); }          // 极端情况拿不到画布，退回原图
-      };
-      im.src = fr.result;
+    const im = new Image();
+    im.onerror = () => res(null);
+    im.onload = () => {
+      const k = Math.min(1, maxSide / Math.max(im.width, im.height));
+      const w = Math.max(1, Math.round(im.width * k));
+      const h = Math.max(1, Math.round(im.height * k));
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const ctx = c.getContext('2d');
+      if (bg) { ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h); }
+      ctx.drawImage(im, 0, 0, w, h);
+      try { res(c.toDataURL('image/jpeg', q)); }
+      catch (_) { res(src); }                 // 极端情况拿不到画布，退回原图
     };
-    fr.readAsDataURL(file);
+    im.src = src;
   });
 }
 /* ---- 自定义内页模板图片 ----
@@ -243,42 +241,58 @@ function shrinkImageFile(file, maxSide, opt) {
    输出一律是 base64 位图 dataURL —— 这串要塞进 .tplbg 的 style 和导出的 XHTML，
    svg / 外链 / 带引号的地址都不收（tplImgOf 会把它们挡掉）。失败返回 null。 */
 const TPL_IMG_MAX_EDGE = 1200;
-function packTemplateImage(file) {
+async function packTemplateImage(input) {
+  /* 同 shrinkImageFile：File 或已经读好的 dataURL 都收 */
+  const src = await readFileDataURL(input);
+  if (!src) return null;
   return new Promise(res => {
-    const fr = new FileReader();
-    fr.onerror = () => res(null);
-    fr.onload = () => {
-      const im = new Image();
-      im.onerror = () => res(null);
-      im.onload = () => {
-        const k = Math.min(1, TPL_IMG_MAX_EDGE / Math.max(im.width, im.height));
-        const w = Math.max(1, Math.round(im.width * k));
-        const h = Math.max(1, Math.round(im.height * k));
-        const c = document.createElement('canvas');
-        c.width = w; c.height = h;
-        const cx = c.getContext('2d');
-        cx.drawImage(im, 0, 0, w, h);
-        let alpha = false;
-        try {
-          const d = cx.getImageData(0, 0, w, h).data;
-          for (let i = 3; i < d.length; i += 4) { if (d[i] < 250) { alpha = true; break; } }
-        } catch (_) { alpha = true; }               // 取不到像素就保守按「有透明」处理
-        try { res(alpha ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', .88)); }
-        catch (_) { res(String(fr.result || '')); }    // 拿不到画布时退回原图（仍是 base64）
-      };
-      im.src = String(fr.result);
+    const im = new Image();
+    im.onerror = () => res(null);
+    im.onload = () => {
+      const k = Math.min(1, TPL_IMG_MAX_EDGE / Math.max(im.width, im.height));
+      const w = Math.max(1, Math.round(im.width * k));
+      const h = Math.max(1, Math.round(im.height * k));
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const cx = c.getContext('2d');
+      cx.drawImage(im, 0, 0, w, h);
+      let alpha = false;
+      try {
+        const d = cx.getImageData(0, 0, w, h).data;
+        for (let i = 3; i < d.length; i += 4) { if (d[i] < 250) { alpha = true; break; } }
+      } catch (_) { alpha = true; }               // 取不到像素就保守按「有透明」处理
+      try { res(alpha ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', .88)); }
+      catch (_) { res(src); }                     // 拿不到画布时退回原图（仍是 base64）
     };
-    fr.readAsDataURL(file);
+    im.src = src;
   });
 }
-/* 读一个图片文件 → dataURL。失败给回 null（不抛，调用处各自兜着） */
+/* 读一个图片文件 → dataURL。失败给回 null（不抛，调用处各自兜着）。
+   ⚠️ 也收已经读好的 dataURL 字符串：移动端选图链路会先把 File 读成字符串再往下传，
+      免得 input 被清空 / 移除之后底层 Blob 失效（见 readPickedFiles）。 */
 function readFileDataURL(f) {
+  if (typeof f === 'string') return Promise.resolve(f || null);
+  if (!f) return Promise.resolve(null);
   return new Promise(res => {
     const r = new FileReader();
     r.onload = () => res(r.result);
     r.onerror = () => res(null);
     r.readAsDataURL(f);
   });
+}
+/* ---- 移动端选图统一入口 ----
+   ⚠️ change 事件里必须**同步**把 FileList 交给 FileReader：iOS Safari 与部分安卓
+      WebView 在 input.value='' / input.remove() 之后会连底层 Blob 一起释放，之后再
+      await 读文件就会拿到空串或 onerror —— 表现正是「移动端选了图却什么都没发生」。
+   这里一次性把选中项全读成 dataURL 字符串，全部读完之后才清 input；后续压缩 /
+   落位只跟字符串打交道，与 input 彻底解耦。返回字符串数组（读失败的会被过滤掉）。 */
+async function readPickedFiles(e) {
+  const inp = e && e.target;
+  if (!inp) return [];
+  const files = Array.from(inp.files || []);
+  const srcs = await Promise.all(files.map(readFileDataURL));
+  try { inp.value = ''; } catch (_) {}
+  return srcs.filter(Boolean);
 }
 /* ---- 换图：把页面上已有的一张图换成另一张 ----
    只换图源：位置 x/y、旋转 rot、上下层 z 一个字节都不动。
@@ -302,19 +316,18 @@ async function replaceImage(pid, iid, file) {
   }
   toast('已换图 · 第 ' + (pid + 1) + ' 页');
 }
-$('#swapFile').addEventListener('change', e => {
-  const f = e.target.files[0]; e.target.value = '';
+$('#swapFile').addEventListener('change', async e => {
+  const [src] = await readPickedFiles(e);
   const t = state.swapTarget; state.swapTarget = null;   // 不管成不成，目标只消费一次
-  if (f && t) replaceImage(t.pid, t.iid, f);
+  if (src && t) replaceImage(t.pid, t.iid, src);
 });
 $('#filePicker').addEventListener('change', async e => {
-  const f = e.target.files[0]; if (!f) return;
+  if (!(e.target.files && e.target.files.length)) return;
   /* 双页态下没指定目标页时，落在当前跨页的右页（第一跨页就是第 1 页） */
   const pid = state.pendingPage
     ?? (state.mode === 'spread' ? Math.max(spreadIndices(state.spread)[1], 0) : state.page);
-  const src = await readFileDataURL(f);
-  e.target.value = '';
-  if (!src) return;
+  const [src] = await readPickedFiles(e);
+  if (!src) { toast('这张图读不出来，换一张试试'); return; }
   const j = cur();
   if (!j.pages[pid]) return;
   const w = 0.42;
@@ -323,13 +336,11 @@ $('#filePicker').addEventListener('change', async e => {
   save(); renderReader();
   toast('已添加到第 ' + (pid + 1) + ' 页');
 });
-$('#coverFile').addEventListener('change', e => {
-  const f = e.target.files[0]; if (!f) return;
-  const r = new FileReader();
+$('#coverFile').addEventListener('change', async e => {
+  const [src] = await readPickedFiles(e);
+  if (!src) return;
   /* 上传普通封面图 = 换掉整个封面，顺手清掉 DIY 草稿：
      留着它的话「图案栏锁死」的判断会以为这仍是 DIY 封面，栏就不收了 */
-  r.onload = () => { ed.temp.cover.img = r.result; delete ed.temp.cover.diym; syncEditor(); };
-  r.readAsDataURL(f);
-  e.target.value = '';
+  ed.temp.cover.img = src; delete ed.temp.cover.diym; syncEditor();
 });
 

@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 视觉素材 · SVG 图案 / 色板 / 字体 / 纸色   （脚本 2 / 27）
+ * Carnet · 视觉素材 · SVG 图案 / 色板 / 字体 / 纸色   （脚本 2 / 28）
  * ---------------------------------------------------------------------
  * ① 封面与纸面的 SVG 图案：圆、星、心、叶（三角 / 小花两档已下线）
  * ② 封面明暗 coverLum、图案层 patternLayers / faceLayers（缩略图统一自动色、成品保留预设色）、
@@ -10,10 +10,11 @@
  * ⑤ 内页底色色阶 PAPER_RAMPS、三级取值 pageBgOf，以及面板预览用的 pageBgShown
  * ⑥ 全项目共用的尺寸与阈值：PAGE_RATIO / PAGE_W_DEFAULT / LUM_DARK / 封面翻口圆角
  * ⑦ 装帧样式 BOOK_STYLES（笔记本 / 活页 / 方形画册 / 精装书）与内页比例 pageRatioOf
- * ⑧ 图片边框 FRAMES：边框盒样式 frameBoxStyle / 图片样式 frameImgStyle（屏幕与导出共用）
+ * ⑧ 图片边框 FRAMES：边框盒样式 frameBoxStyle / 图片样式 frameImgStyle /
+ *    凹陷的凹面柔影 frameInsetHTML（三者屏幕与导出共用，改一处四边同源）
  * ⑨ 活页封面内侧 coverInsideStyle（自动主色 / 与封面一致 / 自定义）、书槽开关 coverGrooveOn
  *
- * 对外接口：patternLayers, patternStyle, faceLayers, coverLum, isImgData, TEMPLATES, tplImgOf, TPL_IMGS_MAX, tplImgsOf, normTplFit, tplStyle, TEXT_FONTS, EN_FONTS, normFont, textFontVar, textFontStack, normEnFont, textEnVar, textEnStack, PAPER_RAMPS, pageBgOf, pageBgShown, OB_*_SVG, ROT_SVG, BOOK_STYLES, bookStyleOf, pageRatioOf, COVER_R_MIN, COVER_R_MAX, coverRadiusOf, coverRadiusVar, bookRadiusOf, INSIDE_MODES, INSIDE_PALETTE_MAX, normInsideMode, insideOf, insideModeOf, coverInsideStyle, dominantColorsOf, coverInsidePalette, enFontSample, coverGrooveOn, FRAMES, frameBoxStyle, frameImgStyle
+ * 对外接口：patternLayers, patternStyle, faceLayers, coverLum, isImgData, TEMPLATES, tplImgOf, TPL_IMGS_MAX, tplImgsOf, normTplFit, tplStyle, TEXT_FONTS, EN_FONTS, normFont, textFontVar, textFontStack, normEnFont, textEnVar, textEnStack, PAPER_RAMPS, pageBgOf, pageBgShown, OB_*_SVG, ROT_SVG, BOOK_STYLES, bookStyleOf, pageRatioOf, COVER_R_MIN, COVER_R_MAX, coverRadiusOf, coverRadiusVar, bookRadiusOf, INSIDE_MODES, INSIDE_PALETTE_MAX, normInsideMode, insideOf, insideModeOf, coverInsideStyle, dominantColorsOf, coverInsidePalette, enFontSample, coverGrooveOn, FRAMES, frameBoxStyle, frameImgStyle, frameInsetHTML
  *
  * 依赖模块：core
  *
@@ -104,6 +105,16 @@ const OB_DEL_SVG =
   + '<path d="M6.5 6.7l.85 11.7a1 1 0 001 .93h7.3a1 1 0 001-.93l.85-11.7"/>'
   + '<path d="M10.4 10.4v5.5"/>'
   + '<path d="M13.6 10.4v5.5"/></svg>';
+/* 胶囊工具条上的「剪切」：跟纸面右键菜单同一套图形，只在触屏且这个对象被编辑过时露出。
+   「粘贴」图形留着备用 —— 粘贴统一走空白纸面长按弹出的菜单，不进工具条。 */
+const OB_CUT_SVG =
+  '<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16">'
+  + '<circle cx="6.6" cy="18" r="2.5"/><circle cx="17.4" cy="18" r="2.5"/>'
+  + '<path d="M8.3 16.4L18.6 4M15.7 16.4L5.4 4"/></svg>';
+const OB_PASTE_SVG =
+  '<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16">'
+  + '<rect height="16.6" rx="2.3" width="13.6" x="5.2" y="4.4"/>'
+  + '<path d="M9.2 4.6V3.3h5.6v1.3M9 11h6M9 15h4"/></svg>';
 /* 图片工具条上的「换图」：两个反向的箭头，意思是把现在这张换成另一张 */
 const OB_SWAP_SVG =
   '<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16">'
@@ -372,13 +383,32 @@ const FRAMES = [
   { k: 'polaroid', n: '拍立得' },
   { k: 'color',    n: '纯色' },
   { k: 'line',     n: '细线' },
-  { k: 'photo',    n: '相框' }
+  { k: 'photo',    n: '相框' },
+  { k: 'inset',    n: '凹陷' }
 ];
 /* 边框预设色：白 / 米 / 墨 三档打头（最常用的边框色），后面几档是彩色纸框 */
 const FRAME_COLORS = ['#ffffff', '#f6efe2', '#1f2330', '#e0668a', '#84abdd', '#78c1a4', '#d6a236', '#8a5fbf'];
 const FRAME_DEFAULT_COLOR = {
-  polaroid: '#ffffff', color: '#ffffff', line: '#22242f', photo: '#c8a675'
+  polaroid: '#ffffff', color: '#ffffff', line: '#22242f', photo: '#c8a675', inset: '#ffffff'
 };
+/* ---- 「相框」档：整张金色雕花相框图片当 9-slice 边框（2026-11-13 用户指定素材） ----
+   素材在 assets/frame-gold.jpg，内嵌成 assets/frame-gold.js 里的 FRAME_PHOTO_URL。
+   border-image-slice 落在内窗边界上，中间那块白窗 CSS 默认不绘制，照片靠
+   frameImgStyle 挪进窗里露出来。
+   ⚠️ 四个百分比是量原图（1078×1447）得到的：内窗左 8.53% / 右 9.09% /
+      上 6.50% / 下 6.84%，取左右 8.8%、上下 6.7% 的对称值。换素材必须重新量，
+      slice、border-image-width、照片 inset 三处都用这两个数，别只改一边。 */
+const FRAME_PHOTO_SLICE_H = 8.8;   // 左右框条：占盒宽 %
+const FRAME_PHOTO_SLICE_V = 6.7;   // 上下框条：占盒高 %
+/* 粗细拖动条怎么作用到相框上：把上面两个百分比整体缩放。左右取原本「相框」那档
+   的 padding（base*1.55），上下按原图比例跟着走。frameBoxStyle 与 frameImgStyle
+   都调它 —— 框条内沿和照片边缘严丝合缝，拖粗细时不会错开一条白边。 */
+function framePhotoGeom(im) {
+  const base = +(2.4 + (frameWidth(im) / 100) * 6).toFixed(2);
+  const h = +(base * 1.55).toFixed(2);
+  const v = +(h * FRAME_PHOTO_SLICE_V / FRAME_PHOTO_SLICE_H).toFixed(2);
+  return { h, v, iw: +(100 - h * 2).toFixed(2), ih: +(100 - v * 2).toFixed(2) };
+}
 /* 粗细拖动条的默认值与取值域（1~100）。老数据里的 1/2/3 三档由 frameWidth 折算过来 */
 const FRAME_W_DEFAULT = 50;
 function normFrame(f) { return FRAMES.some(x => x.k === f) ? f : 'none'; }
@@ -409,13 +439,22 @@ function insideOf(j) {
 }
 function insideModeOf(j) { const v = insideOf(j); return v ? normInsideMode(v.mode) : 'auto'; }
 /* 书槽开关：只有笔记本（有彩带那一档）能关；缺省 / true = 显示，
-   关闭时封面左侧整列（彩带或透明档的压槽）都不画。
+   关闭时封面左侧整列（彩带或压槽）都不画。
    ⚠️ 方形画册 / 精装书 / 活页固定走「显示」这一支：画册与精装书常显压槽、
       活页本来就不画那一列（coverHTML 的 isRingStyle 分支），都跟
       「精装书和画册显示书槽、活页不显示彩带」这条规则一致。 */
 function coverGrooveOn(j) {
   if (!bookStyleOf(j).ribbon) return true;
   return !(j && j.cover && j.cover.groove === false);
+}
+/* 封面左侧那一列要不要**整列不画**（2026-11-13 透明档恢复）：
+   ① 老数据的书槽关 cover.groove === false；② 笔记本选了「透明」彩带 ——
+      彩带隐藏，且**不补压槽**（旧版透明会退成 .spine.ghost 压痕，用户不要那道槽）。
+   ⚠️ 别跟「本来就没彩带的装帧」混为一谈：方形画册 / 精装书仍要画立体压槽，
+      活页仍整列不画（coverHTML 的 isRingStyle 分支）。四处同源：
+      屏幕封面 / 图案缩略图 / DIY 画布 / 导出封面。 */
+function coverNoSpine(j) {
+  return !coverGrooveOn(j) || (bookHasRibbon(j) && ribbonIsNone(j && j.ribbon));
 }
 /* 纯色 / 渐变封面取第一个色标当主色（渐变没有「出现最多」可言） */
 function firstHexOf(v) {
@@ -546,32 +585,52 @@ function coverInsideStyle(j) {
   const hex = list[pick] || firstHexOf(cv.value) || INSIDE_FALLBACK;
   return { bg: `background:${hex};`, pat: '', patKey: 'none', palette: list, pick };
 }
-/* 木框 / 纸框表面那层极细的颗粒（封面曾也用这张，现已去掉，只剩边框在用）。
-   写在 JS 里是因为边框样式是内联下发的，导出也用同一串 —— 省得 CSS 与导出各存一份。
-   ⚠️ 这串要塞进 style="…" 属性，所以整段只能走 encodeURIComponent：
-      括号（url(#n) 里的）和引号都得转成 %xx，否则
-      ① 引号会把 HTML 属性提前截断（背景图整个失效，只留个底色）
-      ② 未加引号的 url() 里出现括号会被 CSS 判为非法
-      用的时候写 url('${GRAIN_URL}') —— 单引号：整串值还要塞进 style="…" 属性，双引号会把属性截断 */
-const GRAIN_URL = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
-  `<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'>`
-  + `<feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/>`
-  + `<feColorMatrix type='saturate' values='0'/></filter>`
-  + `<rect width='120' height='120' filter='url(#n)' opacity='.5'/></svg>`)
-  /* encodeURIComponent 不管单引号，而 CSS 的未加引号 url() 里单引号同样非法
-     （不许出现的字符是：空白、" ' ( ) 反斜杠）—— 单独补一道转义 */
-  .replace(/'/g, '%27');
+/* ⚠️ 行内样式里写 url() 的两条规矩（相框的 FRAME_PHOTO_URL 就走这条）：
+   ① 这串值还要塞进 style="…" 属性，url() 里只能用单引号 —— 双引号会把属性提前截断；
+   ② 未加引号的 url() 里出现括号会被 CSS 判为非法。相框是 base64 JPEG，天然没有
+      引号 / 括号；以后若换回 SVG data URL，记得先 encodeURIComponent 再补 %27 / %28 / %29。 */
 /* 粗细：1~100 的连续值（面板上是拖动条）。
-   老数据存的是 1/2/3 三档（<=5 一定是旧的），折算成 20/50/80，看上去跟原来差不多 */
+   老数据存的是 1/2/3 三档，折算成 20/50/80，看上去跟原来差不多。
+   ⚠️ 新版拖动条写入的值带 frwV=1 标记：1~5 就是真的 1~5，**不能**按老档位
+      折算 —— 否则拖到 5（或更小）松手时 syncFrSheet 回写滑块会弹到 20/50/80。 */
 function frameWidth(im) {
   const v = Math.round(+((im && im.frw) || 0));
+  if (im && im.frwV === 1) return clamp(v || FRAME_W_DEFAULT, 1, 100);
   if (!v) return FRAME_W_DEFAULT;
-  if (v <= 5) return [20, 50, 80][v - 1] || FRAME_W_DEFAULT;
+  if (v <= 3) return [20, 50, 80][v - 1] || FRAME_W_DEFAULT;
   return clamp(v, 1, 100);
 }
 function frameColor(im, k) {
   const c = normHex6(im && im.frc);
   return c || FRAME_DEFAULT_COLOR[k] || '#ffffff';
+}
+/* 凹陷档的坑壁厚度（百分比 padding）与柔影强度共用同一个 w。
+   2026-11-13 对齐参考图后柔影层直接铺满整个盒（inset:0），两条渐变各按 px
+   长度收口，不再需要用对象宽高比把「按盒宽的 padding%」换算成「按盒高的
+   top/bottom%」—— 那套换算既依赖纸张比例，又容易把上下柔影挪歪。 */
+function frameInsetGeom(im) {
+  const w = frameWidth(im) / 100;
+  return { w, p: +((2.4 + w * 6) * 1.15).toFixed(2) };
+}
+/* 凹面柔影：独立 <i> 盖在整块白卡上，屏幕 / PDF / SVG foreignObject 都吃同一段内联样式。
+   ⚠️ 用两条 linear-gradient，别用 inset box-shadow：后者一加模糊就会把灰渗到
+      下 / 右两边（实测右边缘被压到 234），而参考图的下 / 右是干净纯白。渐变只铺
+      上 / 左两条、长度 L px，不铺满整张照片，右下完全不画。
+   ⚠️ alpha 按参考图逐像素标定：边缘 .10 → 3px .082 → 5px .055 → 7px .031
+      → 9px .012 → 11px 0（最暗 230/255），别改回四边均匀的灰方框。 */
+function frameInsetStyle(im, sc) {
+  const g = frameInsetGeom(im), s = sc || 1, px = v => (v * s).toFixed(2) + 'px';
+  const L = 7 + g.w * 8, a = .075 + g.w * .05;   // 默认 11px / .10
+  const stops = [[0, 1], [.27, .82], [.45, .55], [.64, .31], [.82, .12], [1, 0]]
+    .map(([t, k]) => `rgba(0,0,0,${(a * k).toFixed(3)}) ${Math.round(t * 100)}%`).join(',');
+  const grad = `linear-gradient(to bottom,${stops}),linear-gradient(to right,${stops})`;
+  return `position:absolute;inset:0;z-index:2;pointer-events:none;border-radius:0;`
+    + `background-image:${grad};background-size:100% ${px(L)},${px(L)} 100%;`
+    + `background-position:top left,top left;background-repeat:no-repeat;`;
+}
+function frameInsetHTML(im, sc) {
+  return normFrame(im && im.fr) === 'inset'
+    ? `<i class="pinset-shade" aria-hidden="true" style="${frameInsetStyle(im, sc)}"></i>` : '';
 }
 /* 边框盒子的样式（写在包住 <img> 的那层 .pframe 上）。
    拍立得下边故意留厚一条（底下能写字，是拍立得的招牌），相纸是**光滑**的、不要颗粒。
@@ -581,15 +640,20 @@ function frameBoxStyle(im, sc) {
   if (k === 'none') return '';
   const s = sc || 1, w = frameWidth(im) / 100, c = frameColor(im, k);
   const px = v => (v * s).toFixed(2) + 'px';
-  const base = +(1.4 + w * 4).toFixed(2);              // 边框占盒子宽的百分比
+  /* 边框占盒子宽的百分比。2026-11-12 调厚一档：以前默认（frw=50）只有 3.4%，
+     白纸配白框时几乎看不出来，跟面板五档小样给人的印象差好几倍 —— 用户说的
+     「实际效果要和预览一样」就是这里。现在默认 5.4%，与小样的 6% 对齐。
+     ⚠️ 屏幕 / PDF / SVG / DIY 导出都走这个函数，改一处四边同源，别单独改某一边。 */
+  const base = +(2.4 + w * 6).toFixed(2);
   if (k === 'polaroid') {
     const p = base, b = +(p * 3.1).toFixed(2);
     /* 相纸是光滑的（带一层极淡的顶光就够了），加噪点反而像蒙了层脏东西 */
     return `padding:${p}% ${p}% ${b}%;background:#fff;`
       + `box-shadow:0 ${px(3 + w * 4)} ${px(9 + w * 16)} -${px(4)} rgba(24,26,44,.55),0 1px 2px rgba(0,0,0,.2);`;
   }
+  /* 纯色：就是一圈纯色，不要颗粒糙面（用户明确要「不是糙面的就是纯色」） */
   if (k === 'color') {
-    return `padding:${base}%;background-color:${c};background-image:url('${GRAIN_URL}');background-size:120px 120px;`
+    return `padding:${base}%;background-color:${c};`
       + `box-shadow:0 ${px(2)} ${px(7)} -${px(3)} rgba(24,26,44,.42);`;
   }
   /* 细线：用 border 描（inset 阴影会被 <img> 盖住，一条都看不见）。
@@ -598,28 +662,54 @@ function frameBoxStyle(im, sc) {
     return `padding:0;border:${px(0.7 + w * 2.6)} solid ${c};`
       + `box-shadow:0 ${px(1)} ${px(3)} -${px(2)} rgba(24,26,44,.3);`;
   }
-  /* 拟物相框：木色底 + 顺纹的深浅条 + 一层颗粒 + 「左上亮、右下暗」的斜面光 —— 四层叠出木框的质感。
-     少了纹理那两层，再好的斜面看着也只是一圈平涂的棕色 */
+  /* 相框：直接用一整张金色雕花相框图片做 9-slice 边框 —— 雕花、木纹、斜面全是图片
+     自带的，再往上叠渐变 / 颗粒只会糊成一坨棕色。
+     ⚠️ border-width 必须是 0、border-style 不能是 none：border-image-width 用百分比自己
+        决定框条多厚，不需要靠 border-width 占位；border-width 非 0 会把内容盒往里挤一圈，
+        照片和框之间就露一道白边（实测 10px 就是那条白边）。
+     ⚠️ 中间那块白窗 border-image 默认不绘制，照片由 frameImgStyle 定位到窗里。
+        这一串行内样式屏幕 / PDF / SVG / DIY 合成共用，SVG foreignObject 栅格化实测四边同源。 */
   if (k === 'photo') {
-    const p = +(base * 1.35).toFixed(2);
-    return `padding:${p}%;background-color:${c};`
-      + `background-image:url('${GRAIN_URL}'),`
-      + `repeating-linear-gradient(93deg,rgba(0,0,0,.24) 0 3px,rgba(255,255,255,.13) 3px 7px),`
-      + `linear-gradient(145deg,rgba(255,255,255,.6),rgba(255,255,255,0) 38%,rgba(0,0,0,.46));`
-      + `background-size:120px 120px,auto,auto;`
-      /* 斜面：外圈一道受光的亮边、内圈一道背光的暗边，再补上下两道内外阴影 —— 框条是凸出来的 */
-      + `box-shadow:inset 0 0 0 ${px(1)} rgba(255,255,255,.62),inset 0 0 0 ${px(2)} rgba(0,0,0,.3),`
-      + `inset 0 ${px(2)} ${px(3)} rgba(0,0,0,.42),inset 0 -${px(2)} ${px(3)} rgba(255,255,255,.24),`
-      + `0 ${px(4 + w * 6)} ${px(11 + w * 20)} -${px(5)} rgba(20,22,40,.6);`;
+    const g = framePhotoGeom(im);
+    return `padding:0;border-style:solid;border-width:0;`
+      + `border-image-source:url('${FRAME_PHOTO_URL}');`
+      + `border-image-slice:${FRAME_PHOTO_SLICE_V}% ${FRAME_PHOTO_SLICE_H}%;`
+      + `border-image-width:${g.v}% ${g.h}%;`
+      + `border-image-repeat:stretch;`
+      + `box-shadow:0 ${px(4 + w * 6)} ${px(11 + w * 20)} -${px(5)} rgba(20,22,40,.5);`;
+  }
+  /* 凹陷：整块白卡被轻轻压进纸里（2026-11-13 按参考图重做）。
+     ① 坑壁（padding 区）用纯白，与白照片连成一整块，不再透出纸色露一圈异色边；
+     ② 左上外侧一条柔和外投影落在纸上，下 / 右一律不画高光、不画亮线；
+     ③ 白卡左上内侧的两条柔影由 frameInsetHTML 那层渐变负责。
+     ⚠️ 别再给框壁加 inset 阴影 / 下右白高光：那会变成一圈凸起的灰框 —— 参考图
+        只有左上一条灰带，右下是干净的硬边。默认参数（w=.5）= -3px -3px 6px -2px /.26，
+        与 frameInsetStyle 的 11px 渐变一起按参考图逐像素标定过。 */
+  if (k === 'inset') {
+    const p = frameInsetGeom(im).p;
+    const d = 1.5 + w * 3, blur = 3 + w * 6, sp = 1 + w * 2;
+    return `padding:${p}%;background:#fff;`
+      + `box-shadow:-${px(d)} -${px(d)} ${px(blur)} -${px(sp)} rgba(0,0,0,${(.20 + w * .12).toFixed(2)});`;
   }
   return '';
 }
-/* 图片本体要不要跟着改一点：拍立得 / 相框的照片是硬边直角，再压一道极淡的内框线更像实物。
-   注意 <img> 的 inset 阴影是画在内容底下的（会被图盖住），所以一律用外描边 */
+/* 图片本体要不要跟着改一点：拍立得 / 相框保留极淡的外描边（<img> 的 inset
+   阴影会被图盖住）。凹陷什么都不加：别压 brightness()（整张照片会变成 252
+   灰白、像蒙了一层灰），也别给 <img> 加描边 —— 凹面柔影只由 frameInsetHTML
+   那一层独立的 <i> 负责，图片本身一个字节都不改。 */
 function frameImgStyle(im) {
   const k = normFrame(im && im.fr);
   if (k === 'polaroid') return 'border-radius:0;box-shadow:0 0 0 1px rgba(0,0,0,.1);';
-  if (k === 'photo') return 'border-radius:0;box-shadow:0 0 0 1px rgba(0,0,0,.26);';
+  /* 相框：照片挪进素材的内窗。left 的 % 按盒宽算、top 的 % 按盒高算，正好跟
+     border-image-width 的百分比同一套基准，四边严丝合缝。
+     ⚠️ width/height 必须写死百分比：绝对定位的 <img> 是替换元素，width:auto 会退回
+        素材原始像素（1078px），整张把框撑爆。 */
+  if (k === 'photo') {
+    const g = framePhotoGeom(im);
+    return `position:absolute;left:${g.h}%;top:${g.v}%;width:${g.iw}%;height:${g.ih}%;`
+      + `border-radius:0;box-shadow:0 0 0 1px rgba(0,0,0,.2);`;
+  }
+  if (k === 'inset') return 'border-radius:0;';
   return '';
 }
 /* 有没有边框（渲染与导出都要问一句） */
@@ -638,18 +728,27 @@ const GRADS = [
   'linear-gradient(160deg,#f0f0f2,#d8dae3 60%,#b9bdcb)',
 ];
 const RIBBONS = ['#2b3550','#c98a8a','#e0668a','#d9a94f','#6f9e7a','#4f7ab5','#8a5fbf','#b5533f','#333333','#f0e6d2','#0f6b6b','#7a5230'];
-/* 彩带那一档「透明」：不画颜色带，封面左侧改画带立体断面的压槽
-   （见 home.css 的 .spine.ghost；活页那档连压槽也不画）。
-   存成 'none' 而不是颜色值，导入导出和比对都按普通字符串走 */
+/* 彩带「透明」档（2026-11-13 用户要求恢复）：值就是 'none'。
+   笔记本选它时封面左侧**整列都不画** —— 彩带隐藏，也不补压槽（书槽也没有）。
+   ⚠️ 这是与更早那版最大的区别：旧版透明会退成 .spine.ghost 压痕，用户明确不要那道槽。
+   只有笔记本（bookHasRibbon）认这个值；画册 / 精装 / 活页照旧画压槽 / 不画。 */
 const RIBBON_NONE = 'none';
+function ribbonIsNone(ribbon) {
+  return String(ribbon || '').trim().toLowerCase() === RIBBON_NONE;
+}
+/* 默认彩带色：跟 newJournal() 的初值一致（RIBBONS[1]）。
+   空值 / 非法色值落到这里；'none' 是合法档位，不回落。 */
+const RIBBON_FALLBACK = RIBBONS[1];
 /* 彩带是**纯色**的一条带子（2026-11-12 用户定稿）：不要再叠左暗右亮的渐变，
    那条明暗会在带子上形成一道黑影（用户说的「彩带上的阴影」）。
    彩带贴在封面上压出来的那道投影由各处的 box-shadow 负责，要保留。
-   透明档 / 非法值都返回空串，由调用方决定画不画书脊。 */
+   ⚠️ 'none' 返回空串＝不画彩带；调用方还要用 coverNoSpine() 判「整列不画」，
+      别只靠空串去走压槽分支，否则透明档又会冒出一条书槽。 */
 function ribbonSpine(ribbon) {
   let r = String(ribbon || '').trim();
-  if (!r || r === RIBBON_NONE) return '';
-  if (!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(r)) return '';
+  if (ribbonIsNone(r)) return '';
+  if (!r) return RIBBON_FALLBACK;
+  if (!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(r)) return RIBBON_FALLBACK;
   if (r.length === 4) r = '#' + r.slice(1).split('').map(x => x + x).join('');
   return r;
 }

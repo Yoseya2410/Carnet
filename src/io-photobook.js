@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 一键成书 · 图片 / PDF / 跨页图 → 手帐本   （脚本 9 / 27）
+ * Carnet · 一键成书 · 图片 / PDF / 跨页图 → 手帐本   （脚本 10 / 28）
  * ---------------------------------------------------------------------
  * ① pickBookImages：一次选多张图片（多选文件框，选完即成书）
  * ② 排序：按文件名自然序（IMG_2 排在 IMG_10 前面）—— 文件框给回来的
@@ -57,6 +57,7 @@ function pbNameCmp(a, b) {
   catch (_) { return s < t ? -1 : (s > t ? 1 : 0); }   // 老浏览器不认 numeric
 }
 function fileToDataURL(f) {
+  if (typeof f === 'string') return Promise.resolve(f || null);
   return new Promise(res => {
     const r = new FileReader();
     r.onload = () => res(String(r.result || ''));
@@ -64,8 +65,14 @@ function fileToDataURL(f) {
     r.readAsDataURL(f);
   });
 }
-/* 读一张图进页面：小图原样进（省一次重编码），大图压完再进 */
+/* 读一张图进页面：小图原样进（省一次重编码），大图压完再进。
+   ⚠️ 也收已经读好的 dataURL 字符串：移动端选图时先读成字符串再移除 input，
+      免得 FileList 被清空后底层 Blob 失效（见 media.js readPickedFiles）。 */
 async function readPageImage(f) {
+  if (typeof f === 'string') {
+    if (f.length <= PB_KEEP_BYTES * 1.4) return f;
+    return (await shrinkImageFile(f, PB_MAX_SIDE, { q: PB_JPEG_Q, bg: PB_JPEG_BG })) || f;
+  }
   if (f && f.size && f.size <= PB_KEEP_BYTES) return await fileToDataURL(f);
   const s = await shrinkImageFile(f, PB_MAX_SIDE, { q: PB_JPEG_Q, bg: PB_JPEG_BG });
   if (s) return s;
@@ -96,14 +103,13 @@ function uniqJournalName(base) {
   return base;
 }
 /* 由一组图片 src 造一本：封面用第一张图，内页一图一页。
-   彩带默认走「透明」那一档：成书本来就是拿自己的照片 / PDF 当封面，
-   再硬加一条别的颜色的书脊会跟封面打架，不想要的心智负担全部去掉 */
+   彩带跟着 newJournal() 的默认色走，一键成书仍带一条书脊；
+   想要封面左侧干净的，成书后在编辑器彩带色板里挑「透明」档即可。 */
 function makePhotoBook(srcs, name) {
   const j = newJournal();
   j.name = uniqJournalName(name || pbDefaultName());
   j.template = 'blank';                 // 照片自己就是底，别再压网格 / 横线
   j.pageBg = '';
-  j.ribbon = RIBBON_NONE;
   j.pages = (srcs || []).filter(Boolean).map(mkPhotoPage);
   if (j.pages.length) j.cover.img = j.pages[0].images[0].src;
   j.created = Date.now();
@@ -155,19 +161,21 @@ async function buildPhotoBook(files) {
   await pbDeliver(j, (over > 0 ? ` · 只取前 ${PB_MAX_PAGES} 张` : '')
     + (skipped > 0 ? ` · ${skipped} 张读不出来已跳过` : ''));
 }
-/* 选图：多选文件框。取消选择不会触发 change，靠 cancel 事件把临时 input 收掉 */
+/* 选图：多选文件框。取消选择不会触发 change，靠 cancel 事件把临时 input 收掉。
+   ⚠️ 临时 input 也别用 display:none（移动端会拒绝程序化 click），走 .file-input；
+      并且先把 File 同步读成 dataURL 再移除节点，否则移动端读图全落空。 */
 function pickBookImages() {
   if (pbBusy) return;
   const inp = document.createElement('input');
   inp.type = 'file'; inp.accept = 'image/*'; inp.multiple = true;
-  inp.style.display = 'none';
+  inp.className = 'file-input';
   document.body.appendChild(inp);
   const drop = () => { if (inp.parentNode) inp.remove(); };
   inp.addEventListener('cancel', drop);
-  inp.onchange = () => {
-    const files = [...(inp.files || [])];
+  inp.onchange = async e => {
+    const srcs = await readPickedFiles(e);
     drop();
-    buildPhotoBook(files);
+    buildPhotoBook(srcs);
   };
   inp.click();
 }
@@ -234,15 +242,16 @@ async function renderPdfPage(page, maxSide) {
   catch (_) { return null; }
   finally { c.width = c.height = 0; }        // 画布还给浏览器，别让上百张一直挂着
 }
-async function buildPdfBook(file) {
-  if (pbBusy || !file) return;
+async function buildPdfBook(input) {
+  if (pbBusy || !input) return;
   pbBusy = true;
   let doc = null;
   try {
     pbProgress(0, 1, '正在准备 PDF 引擎');
     const lib = await ensurePdfLib();
     pbProgress(1, 2, '正在读取 PDF');
-    const buf = await file.arrayBuffer();
+    /* 移动端会先把 PDF 读成 ArrayBuffer 再移除 input，这里两种入参都收 */
+    const buf = (input instanceof ArrayBuffer) ? input : await input.arrayBuffer();
     doc = await lib.getDocument({
       data: new Uint8Array(buf), disableAutoFetch: true,
       cMapUrl: PDF_CMAPS, cMapPacked: true,          // 未内嵌 CMap 的 CJK 文档按需取
@@ -285,14 +294,18 @@ function pickBookPDF() {
   if (pbBusy) return;
   const inp = document.createElement('input');
   inp.type = 'file'; inp.accept = 'application/pdf,.pdf';
-  inp.style.display = 'none';
+  inp.className = 'file-input';
   document.body.appendChild(inp);
   const drop = () => { if (inp.parentNode) inp.remove(); };
   inp.addEventListener('cancel', drop);
-  inp.onchange = () => {
+  inp.onchange = async () => {
     const f = inp.files && inp.files[0];
+    if (!f) { drop(); return; }
+    /* 先同步把 Blob 读进内存，再移除 input：移动端 remove() 后 File 会失效 */
+    let buf = null;
+    try { buf = await f.arrayBuffer(); } catch (_) {}
     drop();
-    if (f) buildPdfBook(f);
+    if (buf) buildPdfBook(buf);
   };
   inp.click();
 }
@@ -401,14 +414,14 @@ function pickSpreadImage(refPid) {
   if (pbBusy) return;
   const inp = document.createElement('input');
   inp.type = 'file'; inp.accept = 'image/*';
-  inp.style.display = 'none';
+  inp.className = 'file-input';
   document.body.appendChild(inp);
   const drop = () => { if (inp.parentNode) inp.remove(); };
   inp.addEventListener('cancel', drop);
-  inp.onchange = () => {
-    const f = inp.files && inp.files[0];
+  inp.onchange = async e => {
+    const [src] = await readPickedFiles(e);
     drop();
-    if (f) addSpreadImage(f, refPid);
+    if (src) addSpreadImage(src, refPid);
   };
   inp.click();
 }

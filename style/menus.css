@@ -40,29 +40,39 @@
 }
 .pick-btn:hover{background:rgba(255,255,255,.24)}
 .pick-btn:active{transform:scale(.95)}
+/* 导出：黑色半透明玻璃，＝删除按钮改红之前那一套。
+   ⚠️ 旧版 .primary 是深色渐变 + 0 8px 18px -8px rgba(17,19,24,.75) 的大黑影，
+      浅色背景下白字发虚、阴影又脏又重；现在两者都无外阴影，只靠底色 / 字色区分。 */
 .pick-btn.primary{
-  background:linear-gradient(135deg,var(--accent-2),var(--accent));color:#fff;border-color:transparent;
-  box-shadow:0 8px 18px -8px rgba(17,19,24,.75)
+  color:var(--accent-on-dark);background:rgba(255,255,255,.1);
+  border-color:rgba(255,255,255,.34);box-shadow:none
 }
-.pick-btn.primary:hover{filter:brightness(1.06)}
+.pick-btn.primary:hover{background:rgba(255,255,255,.2)}
+/* 删除：淡红透明 + 红字 + 红描边，仍是同一套玻璃质感（别做成粉色） */
 .pick-btn.danger{
-  color:var(--accent-on-dark);background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.34)
+  color:#ff8f8f;background:rgba(214,55,55,.16);border-color:rgba(255,120,120,.42)
 }
-.pick-btn.danger:hover{background:rgba(255,255,255,.2)}
-#home.bg-light .pick-btn.danger{color:#111318;background:rgba(17,19,24,.08);border-color:rgba(17,19,24,.3)}
+.pick-btn.danger:hover{background:rgba(214,55,55,.26)}
+#home.bg-light .pick-btn.primary{color:#111318;background:rgba(17,19,24,.08);border-color:rgba(17,19,24,.3)}
+#home.bg-light .pick-btn.primary:hover{background:rgba(17,19,24,.14)}
+#home.bg-light .pick-btn.danger{color:#b8302b;background:rgba(190,42,38,.1);border-color:rgba(190,42,38,.34)}
+#home.bg-light .pick-btn.danger:hover{background:rgba(190,42,38,.18)}
 .pick-btn[disabled]{opacity:.38;pointer-events:none}
-/* 从底栏「删除」进入多选时：删除是主操作（实心），导出退成次要 */
+/* 从底栏「删除」进入多选时：删除仍是主操作，但改成稍浓一点的淡红玻璃，
+   不再是深色实心 + 大阴影；导出保持黑色透明，两种进入方式下质感一致。 */
 .pickbar.purpose-del .pick-btn#pickDelete{
-  background:linear-gradient(135deg,var(--accent-2),var(--accent));color:#fff;border-color:transparent;
-  box-shadow:0 8px 18px -8px rgba(17,19,24,.75)
+  color:#ffd0d0;background:rgba(214,55,55,.3);border-color:rgba(255,140,140,.55);box-shadow:none
 }
-.pickbar.purpose-del .pick-btn#pickDelete:hover{filter:brightness(1.06)}
+.pickbar.purpose-del .pick-btn#pickDelete:hover{background:rgba(214,55,55,.4)}
 .pickbar.purpose-del .pick-btn#pickExport{
-  background:rgba(255,255,255,.14);color:rgba(255,255,255,.88);
-  border-color:rgba(255,255,255,.18);box-shadow:none
+  color:var(--accent-on-dark);background:rgba(255,255,255,.1);
+  border-color:rgba(255,255,255,.34);box-shadow:none
+}
+#home.bg-light .pickbar.purpose-del .pick-btn#pickDelete{
+  color:#a92a26;background:rgba(190,42,38,.18);border-color:rgba(190,42,38,.44)
 }
 #home.bg-light .pickbar.purpose-del .pick-btn#pickExport{
-  color:#2b2f3d;background:rgba(255,255,255,.34);border-color:rgba(255,255,255,.6)
+  color:#111318;background:rgba(17,19,24,.08);border-color:rgba(17,19,24,.3)
 }
 /* 窄屏：选择条五个按钮收紧，避免挤出屏幕 */
 @media (max-width:430px){
@@ -71,7 +81,8 @@
   .pick-count{min-width:52px;padding:6px 2px;font-size:12.5px}
 }
 #home.bg-light .pick-btn{color:#2b2f3d;background:rgba(255,255,255,.34);border-color:rgba(255,255,255,.6)}
-#home.bg-light .pick-btn.primary{color:#fff}
+/* ⚠️ 别在末尾再给 .primary 单独设白字：导出按钮现在是黑色透明玻璃，白字会看不见。
+   它的浅色样式写在上面 #home.bg-light .pick-btn.primary 那条。 */
 /* 封面上那个勾选圈：只有多选时才出现 */
 .pick{
   position:absolute;left:7px;top:7px;width:23px;height:23px;border-radius:50%;z-index:5;

@@ -7,58 +7,116 @@
  *
  * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
  * ===================================================================== */
-/* ============ 自定义取色盘 ============ */
+/* ============ 自定义取色盘：网格 / 光谱 / 滑块 ============ */
 .cp-mask{
-  position:absolute;inset:0;z-index:120;display:none;place-items:center;padding:20px;
+  position:absolute;inset:0;z-index:120;display:none;place-items:center;padding:18px;
   background:rgba(20,22,38,.62);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)
 }
 .cp-mask.show{display:grid;animation:fadeIn .2s ease}
-/* 取色盘要压在「背景设置」面板上面：两者同为 .cp-mask（z-index:120），
-   而背景面板在 DOM 里更靠后，不抬高就会被它盖住 —— 自定义颜色点开了却看不见 */
-#cpMask{z-index:170}
-/* 手输色值时键盘会盖住底部按钮，此时把面板顶上去 */
-.cp-mask.kb{place-items:start center;padding-top:6vh}
+/* 取色盘要压在「背景设置」面板上面。 */
+#cpMask{z-index:170;overflow-y:auto}
+.cp-mask.kb{place-items:start center;padding-top:4vh}
 .cp-panel{
-  width:min(330px,100%);padding:16px;border-radius:20px;
-  /*background:var(--frost);*/border:1px solid var(--frost-bd);
+  --cp-muted:rgba(255,255,255,.085);--cp-sub:rgba(255,255,255,.58);
+  --cp-field:rgba(255,255,255,.09);--cp-field-bd:rgba(255,255,255,.16);
+  width:min(350px,100%);padding:18px;border-radius:24px;color:#f7f7f9;
+  background:rgba(35,38,50,.9);border:1px solid var(--frost-bd);
   backdrop-filter:var(--frost-fx);-webkit-backdrop-filter:var(--frost-fx);
   box-shadow:0 30px 60px -18px rgba(0,0,0,.7);animation:pop .24s cubic-bezier(.2,.9,.3,1.2)
 }
-.cp-head{display:flex;align-items:center;justify-content:space-between;font-size:14px;font-weight:600;letter-spacing:.05em;margin-bottom:12px}
-.cp-x{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.1);font-size:12px}
-/* 上：饱和度 / 明度面板；下：色相条。都自己接管手势，不依赖系统取色器 */
+.cp-head{
+  display:grid;grid-template-columns:38px 1fr 38px;align-items:center;
+  margin-bottom:16px;font-size:17px;font-weight:650;letter-spacing:.03em;text-align:center
+}
+.cp-x,.cp-eye{
+  width:38px;height:38px;padding:0;border:0;border-radius:50%;display:grid;place-items:center;
+  color:inherit;background:transparent;font-size:18px;transition:background .18s,transform .15s
+}
+.cp-x:hover,.cp-eye:hover{background:var(--cp-muted)}
+.cp-x:active,.cp-eye:active{transform:scale(.92)}
+.cp-tabs{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:4px;margin-bottom:16px;
+  border-radius:14px;background:var(--cp-muted)
+}
+.cp-tab{
+  min-width:0;height:40px;padding:0 8px;border:0;border-radius:11px;
+  color:var(--cp-sub);background:transparent;font-size:14px;font-weight:550;
+  transition:background .18s,color .18s,box-shadow .18s
+}
+.cp-tab.on{color:#fff;background:var(--accent);box-shadow:0 2px 7px rgba(0,0,0,.2)}
+.cp-mode[hidden]{display:none}
+/* 网格：12 列 × 10 行，灰阶单独一行，其余按色相排列、由深到浅。 */
+.cp-grid{
+  display:grid;grid-template-columns:repeat(12,1fr);aspect-ratio:12/10;
+  overflow:hidden;border-radius:14px;background:#fff
+}
+.cp-cell{position:relative;min-width:0;padding:0;border:0;border-radius:0}
+.cp-cell.on{z-index:2;box-shadow:inset 0 0 0 2px #fff,0 0 0 1px rgba(20,22,28,.65)}
+/* 光谱：纵向完整色相，横向左侧白、中央纯色、右侧黑。 */
 .cp-sv{
-  position:relative;height:172px;border-radius:14px;overflow:hidden;touch-action:none;cursor:crosshair;
-  border:1px solid rgba(255,255,255,.16)
+  position:relative;aspect-ratio:1.14;border-radius:14px;overflow:hidden;touch-action:none;cursor:crosshair;
+  background:linear-gradient(to right,#fff 0%,rgba(255,255,255,0) 50%,#000 100%),
+             linear-gradient(to bottom,#f00 0%,#ff0 16.667%,#0f0 33.333%,#0ff 50%,#00f 66.667%,#f0f 83.333%,#f00 100%)
 }
 .cp-dot{
-  position:absolute;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;border:2px solid #fff;
-  box-shadow:0 0 0 1px rgba(0,0,0,.45),0 2px 6px rgba(0,0,0,.4);pointer-events:none
+  position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;border:3px solid #fff;
+  box-shadow:0 0 0 1px rgba(0,0,0,.28),0 2px 7px rgba(0,0,0,.25);pointer-events:none
 }
-.cp-hue{
-  position:relative;height:22px;margin-top:12px;border-radius:11px;touch-action:none;
-  background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00);border:1px solid rgba(255,255,255,.16)
+/* RGB 滑块：轨道实时显示在当前另外两通道下，从 0 到 255 的完整颜色。 */
+.cp-sliders{padding-top:1px}
+.cp-slider-row{margin-bottom:15px}
+.cp-slider-row>label{display:block;margin:0 0 7px 2px;color:var(--cp-sub);font-size:12px;letter-spacing:.04em}
+.cp-slider-line{display:flex;align-items:center;gap:12px}
+.cp-range{
+  -webkit-appearance:none;appearance:none;flex:1;min-width:0;height:32px;margin:0;padding:0;
+  border:0;border-radius:16px;background:var(--cp-track);cursor:pointer;touch-action:pan-x
 }
-.cp-hue-dot{
-  position:absolute;top:50%;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;background:#fff;
-  box-shadow:0 0 0 1px rgba(0,0,0,.4),0 2px 6px rgba(0,0,0,.35);pointer-events:none
+.cp-range::-webkit-slider-runnable-track{height:32px;border-radius:16px;background:transparent}
+.cp-range::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:30px;height:30px;margin-top:1px;border:0;border-radius:50%;
+  background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.22),inset 0 0 0 1px rgba(0,0,0,.035)
 }
-.cp-row{display:flex;align-items:center;gap:10px;margin-top:12px}
-.cp-prev{width:46px;height:46px;flex:0 0 auto;border-radius:12px;border:2px solid rgba(255,255,255,.22)}
+.cp-range::-moz-range-track{height:32px;border-radius:16px;background:transparent}
+.cp-range::-moz-range-thumb{
+  width:30px;height:30px;border:0;border-radius:50%;background:#fff;
+  box-shadow:0 1px 6px rgba(0,0,0,.22),inset 0 0 0 1px rgba(0,0,0,.035)
+}
+.cp-num{
+  flex:0 0 58px;width:58px;height:40px;padding:0 5px;border-radius:10px;outline:none;
+  border:1px solid var(--cp-field-bd);background:var(--cp-field);color:inherit;text-align:center;
+  font-size:14px;font-variant-numeric:tabular-nums;-moz-appearance:textfield
+}
+.cp-num::-webkit-inner-spin-button,.cp-num::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.cp-num:focus,.cp-hex:focus{border-color:var(--accent-on-dark)}
+.cp-hex-label{display:block;margin:3px 0 8px 2px;color:var(--cp-sub);font-size:12px;letter-spacing:.05em}
 .cp-hex{
-  flex:1;min-width:0;padding:11px 12px;border-radius:12px;font-size:14px;letter-spacing:.06em;
-  background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);color:#fff;outline:none;
+  width:100%;height:44px;padding:0 13px;border-radius:11px;font-size:15px;letter-spacing:.07em;
+  background:var(--cp-field);border:1px solid var(--cp-field-bd);color:inherit;outline:none;
   font-variant-numeric:tabular-nums
 }
-.cp-hex:focus{border-color:var(--accent-on-dark);background:rgba(255,255,255,.13)}
-/* 吸管入口：跟预览色块、色值框同排 */
-.cp-eye{
-  flex:0 0 auto;width:44px;height:44px;border-radius:12px;display:grid;place-items:center;color:#fff;
-  background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);transition:background .2s,border-color .2s
+/* 当前色 + 常用色：圆形色样；＋保存当前色，最多保留 8 个，本机持久化。 */
+.cp-palette{display:flex;align-items:center;gap:11px;margin-top:18px;min-height:38px}
+.cp-prev{
+  flex:0 0 36px;width:36px;height:36px;border-radius:50%;border:3px solid rgba(140,140,145,.72);
+  box-shadow:0 0 0 2px rgba(255,255,255,.62)
 }
-.cp-eye:hover{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.3)}
-.cp-eye:active{transform:scale(.96)}
-.cp-actions{display:flex;gap:12px;margin-top:14px}
+.cp-swatches{
+  display:flex;align-items:center;gap:10px;flex:1;min-width:0;overflow-x:auto;padding:3px;
+  scrollbar-width:none;-webkit-overflow-scrolling:touch
+}
+.cp-swatches::-webkit-scrollbar{display:none}
+.cp-swatch{
+  flex:0 0 34px;width:34px;height:34px;padding:0;border-radius:50%;
+  border:1px solid rgba(30,32,40,.13);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)
+}
+.cp-swatch.on{box-shadow:0 0 0 2px var(--accent),inset 0 0 0 1px rgba(255,255,255,.3)}
+.cp-add{
+  flex:0 0 36px;width:36px;height:36px;padding:0;border:0;border-radius:50%;
+  color:var(--cp-sub);background:var(--cp-muted);font-size:24px;font-weight:300;line-height:1
+}
+.cp-add:hover{color:inherit}
+.cp-actions{display:flex;gap:12px;margin-top:15px}
+#cpMask .cp-actions .btn{padding:11px 14px;border-radius:12px}
 
 /* ============ 吸管取色（现场取色，不弹窗） ============ */
 /* 整层铺满但完全不吃指针事件：手账本页面照常看得见、点得到，
@@ -67,15 +125,26 @@
 .ep-live[hidden]{display:none}
 /* 取色期间让位的浮层：藏起来而不是关掉，取完色要原样回来（调用方的状态不能被破坏） */
 .ep-duck{opacity:0 !important;pointer-events:none !important}
-/* 放大镜：72px 装 9 个屏幕像素，每格 8px；中心十字正好框住取色的那一格 */
+/* 取色期间让「看得见但不吃指针」的装饰层参与命中测试：
+   封面图案 / 光泽 / 书脊、内页模板网格都是 pointer-events:none，
+   elementsFromPoint 会把它们整层漏掉 —— 吸管就看不见图案、彩带和 1px 网格线
+   （用户说的「取不到指向处的颜色」「颗粒度不够细」）。
+   ⚠️ 只在 .ep-picking 期间开；点击已被取色器的捕获阶段拦下，不会误触页面。
+   ⚠️ 别用 !important：.ep-duck 的 !important 要能继续压住让位的浮层。 */
+.ep-picking .cover .pattern,
+.ep-picking .cover .gloss,
+.ep-picking .cover .spine,
+.ep-picking .paper .tplbg{pointer-events:auto}
+/* 放大镜：90px 装 15×15 个取样点（每点相隔半个 CSS 像素），每格 6px；
+   中心十字正好框住取色的那一格。⚠️ 尺寸与 widgets.js 的 EP_LOUPE / EP_ZOOM 同源 */
 .ep-loupe{
-  position:absolute;display:none;width:72px;height:72px;border-radius:50%;overflow:hidden;
+  position:absolute;display:none;width:90px;height:90px;border-radius:50%;overflow:hidden;
   border:2px solid rgba(255,255,255,.9);box-shadow:0 4px 16px rgba(0,0,0,.55);
   background:#fff;pointer-events:none
 }
-.ep-loupe canvas{width:72px;height:72px;display:block;border-radius:0;box-shadow:none;image-rendering:pixelated}
+.ep-loupe canvas{width:90px;height:90px;display:block;border-radius:0;box-shadow:none;image-rendering:pixelated}
 .ep-loupe::after{
-  content:"";position:absolute;left:50%;top:50%;width:8px;height:8px;margin:-4px 0 0 -4px;
+  content:"";position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;
   border:1px solid #fff;border-radius:2px;box-shadow:0 0 0 1px rgba(0,0,0,.6)
 }
 /* 底部细操作条：只有它能点，且尽量窄，少挡一点页面 */
@@ -109,8 +178,8 @@
    外面留一圈浅白，切回深色毛玻璃主题时也分得清。 */
 .pat.on,.tpl.on{border-color:var(--accent);box-shadow:0 0 0 2px rgba(255,255,255,.55)}
 .pat .pv{position:absolute;inset:0;background-size:cover;background-position:center}
-/* 与主页封面同一套：有彩带时缩略图左侧只画一条平色彩带、不叠压槽；
-   透明彩带时**恢复原来那套暗槽底＋亮槽沿的立体断面**（用户复评更逼真），
+/* 与主页封面同一套：笔记本缩略图左侧只画一条平色彩带、不叠压槽；
+   没彩带的装帧（画册 / 精装书）**恢复原来那套暗槽底＋亮槽沿的立体断面**（用户复评更逼真），
    仍不画上下折边暗边、四周黑影和槽沿那条 1px 浅白线。 */
 .pat .pspine{
   position:absolute;left:0;top:0;bottom:0;width:9.5%;z-index:2;pointer-events:none;
@@ -124,7 +193,7 @@
 /* 有彩带：凹槽断面不生成；::after（槽沿浅白线）任何时候都不画 */
 .pat .pspine:not(.ghost)::before,
 .pat .pspine::after{content:none}
-/* 透明彩带：完整的压槽断面，只有断面本身的明暗。
+/* 没彩带装帧的压槽：完整的压槽断面，只有断面本身的明暗。
    与 home.css 同一套「左亮右暗」+ 亮沿加宽（20%~40%）/ 暗底收窄（50%~60%），
    色标按视觉位置写 90deg，缩略图窄所以过渡档数少一些。 */
 .pat .pspine.ghost{background:none}

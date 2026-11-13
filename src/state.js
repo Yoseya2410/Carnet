@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 数据模型 · 运行时状态与构造   （脚本 10 / 27）
+ * Carnet · 数据模型 · 运行时状态与构造   （脚本 11 / 28）
  * ---------------------------------------------------------------------
  * ① state / cur() / pageCount()：当前书架与浏览位置
  * ② 手帐本与页面的构造：mkPage / mkPages / newText / newJournal；文字贴字号范围 TS_SIZE_*
@@ -116,4 +116,12 @@ function newJournal() {
     pageBg: '', pages: mkPages(1), created: Date.now()
   };
 }
+
+/* ==================== 触屏工具条：对象「已编辑过」标记 ====================
+   只活在内存里，不写进手帐数据、不进导出：用来决定胶囊工具条上那颗「剪切」
+   露不露面。刚添加的图片 / 文字还没动过 → 不显示；用户开始编辑它（长按解锁、
+   双击打字、拖动、改框、换图、开面板…）→ 显示。重绘整页时由 id 重建 class。 */
+const editedObjs = new Set();
+function markObjEdited(id) { if (id) editedObjs.add(id); }
+function objWasEdited(id) { return editedObjs.has(id); }
 

@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 本地存储 · 书架数据 / 显示偏好 / 背景   （脚本 3 / 27）
+ * Carnet · 本地存储 · 书架数据 / 显示偏好 / 背景   （脚本 3 / 28）
  * ---------------------------------------------------------------------
  * ① IndexedDB 键值封装 DB（不可用时降级 localStorage）与防抖保存 save()
  * ② 显示偏好 prefs：展示模式、主页与阅读器共用的背景 setBg / applyBg
@@ -29,25 +29,32 @@ const DB = (() => {
   }
   return {
     get lowered() { return lowered; },
-    /* 读：IndexedDB 拿不到就退回 localStorage，两边都没有才返回 undefined */
+    /* 读：IndexedDB 优先，但**IndexedDB 里没这个键也要再看一眼 localStorage**。
+       ⚠️ 以前只在 open/事务抛错时才降级读：某次写入因配额 / 私密模式失败而落进
+          localStorage 后，下次启动 IndexedDB 又能打开了，get() 就只读到旧数据 ——
+          表现是「明明天保存过，刷新后却没变」。大图（模板 / 封面）最容易触发。 */
     async get(k) {
       try {
         const db = await open();
-        return await new Promise((res, rej) => {
+        const v = await new Promise((res, rej) => {
           const q = db.transaction('kv').objectStore('kv').get(k);
           q.onsuccess = () => res(q.result);
           q.onerror = () => rej(q.error);
         });
-      } catch (e) {
+        if (v !== undefined) return v;
+      } catch (e) { /* 落到 localStorage */ }
+      try {
         const s = localStorage.getItem(k);
         return s ? JSON.parse(s) : undefined;
-      }
+      } catch (_) { return undefined; }
     },
     /* 写入成功返回 true，两边都失败返回 false（不再静默吞掉：调用方要据此提醒用户） */
     async set(k, v) {
       try {
         const db = await open();
         await new Promise((res, rej) => { const q = db.transaction('kv', 'readwrite').objectStore('kv').put(v, k); q.onsuccess = () => res(); q.onerror = () => rej(q.error); });
+        /* 新数据已进 IndexedDB：清掉降级时留下的旧副本，免得哪天回读把它复活 */
+        try { localStorage.removeItem(k); } catch (_) {}
         return true;
       } catch (e) {
         try { localStorage.setItem(k, JSON.stringify(v)); lowered = true; return true; }
@@ -57,12 +64,20 @@ const DB = (() => {
   };
 })();
 let saveTimer = null;
+let saveSeq = 0;
 let lowWarned = false;
 function save() {
+  /* 加密后持久化多了一步异步 AES：上一次已经进了 await、下一次又排上队时，
+     两次写入有可能乱序（慢的那份反而后落盘）。给每次保存编个号，只让最后一次写。 */
+  const seq = ++saveSeq;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     try {
-      const ok = await DB.set(KEY, state.journals);
+      /* ⚠️ 加密本子在内存里是明文（解锁后才能读写），但**落盘一律是密文信封**：
+         persistJournals 给每本加密本子现封一份，不改 state 里的明文对象。 */
+      const payload = await persistJournals(state.journals);
+      if (seq !== saveSeq) return;              // 有更新的保存排队了，这份旧的作废
+      const ok = await DB.set(KEY, payload);
       if (!ok) toast('保存失败：没能写入本地存储，请先导出备份再继续操作', 4200);
       else if (DB.lowered && !lowWarned) { lowWarned = true; toast('注意：当前只能用 localStorage 存储（IndexedDB 不可用），建议定期导出备份', 4200); }
     } catch (e) { toast('保存失败：' + ((e && e.message) || e), 4200); }
@@ -162,5 +177,48 @@ function setBg(patch) {
   state.prefs.bg = { ...(state.prefs.bg || {}), ...patch };
   applyBg();
   savePrefs();
+}
+
+/* ==================== 自定义内页模板素材库（全局） ====================
+   模板图以前只写进「当前这一本」的 j.tplImgs，而且必须点编辑器「完成」才落盘：
+   新建一本 / 刷新前后 / 切到别的本子就找不到了。这里单独存一份全局素材库，
+   · 添加时**立刻**写盘，不等编辑器完成；
+   · 任何一本手帐的模板栏都能看到并选用，下次打开继续用；
+   · 本子里的 j.tplImgs 仍保留 —— 它随手帐源文件一起导出 / 导入，换设备也带着。
+   ⚠️ 单独一个键，不混进 prefs：改背景 / 存贴纸时不会反复重写这一大串 base64。 */
+const TPL_LIB_KEY = 'carnet_tpl_lib';
+/* 跟 visuals.js 的 TPL_IMGS_MAX 对齐：库里存太多而模板栏只显示前 12 张，
+   会出现「明明加过却找不到」的怪事 */
+const TPL_LIB_MAX = 12;
+let tplLib = [];
+function tplLibImgs() { return tplLib.slice(); }
+async function loadTplLib() {
+  const v = await DB.get(TPL_LIB_KEY);
+  tplLib = Array.isArray(v)
+    ? v.filter(s => typeof s === 'string' && isImgData(s)).slice(0, TPL_LIB_MAX)
+    : [];
+  return tplLib;
+}
+async function saveTplLib() {
+  const ok = await DB.set(TPL_LIB_KEY, tplLib);
+  if (!ok) toast('模板没能保存到本机，建议先导出备份再重试', 3600);
+  return ok;
+}
+/* 并进新图（去重、限数量），立刻落盘；返回真正新增的张数 */
+async function mergeTplLib(srcs) {
+  const list = Array.isArray(srcs) ? srcs : [srcs];
+  let added = 0;
+  for (const s of list) {
+    if (!isImgData(s) || tplLib.includes(s)) continue;
+    tplLib.unshift(s); added++;
+  }
+  if (tplLib.length > TPL_LIB_MAX) tplLib.length = TPL_LIB_MAX;
+  if (added) await saveTplLib();
+  return added;
+}
+async function dropTplLib(src) {
+  const n = tplLib.length;
+  tplLib = tplLib.filter(s => s !== src);
+  if (tplLib.length !== n) await saveTplLib();
 }
 

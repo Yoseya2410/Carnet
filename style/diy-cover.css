@@ -77,13 +77,17 @@
    两处数值与 home.css / book-style.css / io-doc.js 同源，别只改一边。 */
 .diy-paper.s-hardcover::before{width:8%}
 .diy-paper.s-square::before{width:6%}
-/* 笔记本选了彩带：**纯色**带（这里本来就是纯色，不带明暗渐变），不叠压槽（同 coverHTML）。
+/* 笔记本：**纯色**彩带书脊（不带明暗渐变），不叠压槽（同 coverHTML）。
    右侧两层柔和接触影＝彩带压在封面上的投影，用户明确要保留。
-   彩带选「透明」时 no-ribbon 命中，落回上面的压槽断面。 */
+   no-ribbon 只留给画册 / 精装书 / 活页这些本来就没有彩带的装帧；
+   笔记本的「透明」档 / 书槽关走下面的 .no-spine（整列不画，不补压槽）。 */
 .diy-paper.s-classic:not(.no-ribbon)::before{
   background:var(--diy-ribbon,#c98a8a);
   box-shadow:2px 0 6px -2px rgba(7,9,16,.18),1px 0 2px rgba(7,9,16,.06)
 }
+/* ⚠️ 必须放在彩带规则之后（同优先级靠顺序盖住）：透明档整列不输出，
+   别让它落到 .diy-paper::before 那道立体压槽渐变上 */
+.diy-paper.s-classic.no-spine::before{display:none}
 /* 活页：成品封面是一张干净硬壳（金属环在里侧，不画在封面上），
    画布也整列不画，只保留 B6 比例与更大的圆角 —— 别跟 coverHTML 画成两样。 */
 .diy-paper.s-personal::before{display:none}
@@ -150,7 +154,13 @@
 .diy-sw:hover{transform:scale(1.12)}
 .diy-sw.on{border-color:var(--accent);box-shadow:0 0 0 2px rgba(17,19,24,.28)}
 .diy-sw.grad{width:33px}
-/* ---- 封面设置：圆角滑块（彩带「透明」档已移除，色板只用 .diy-sw 纯色）---- */
+/* 彩带「透明」档：白底 + 粉斜杠；选中态仍吃 .diy-sw.on 的黑边与外圈 */
+.diy-sw.ribbon-none{position:relative;background:linear-gradient(135deg,#fbfbfd 46%,#c9cdda 54%)}
+.diy-sw.ribbon-none::after{
+  content:"";position:absolute;left:18%;right:18%;top:50%;height:2px;margin-top:-1px;
+  background:#e0668a;border-radius:2px;transform:rotate(-45deg)
+}
+/* ---- 封面设置：圆角滑块（彩带色板只用 .diy-sw 纯色）---- */
 .diy-range{flex:1 1 100px;min-width:80px;accent-color:var(--accent);cursor:pointer}
 .diy-rval{flex:0 0 40px;font-size:11.5px;text-align:right;color:rgba(43,47,61,.7)}
 .diy-mini[disabled]{opacity:.42;cursor:default}

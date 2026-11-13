@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 主页交互 · 书架排序 / 菜单 / 搜索   （脚本 23 / 27）
+ * Carnet · 主页交互 · 书架排序 / 菜单 / 搜索   （脚本 24 / 28）
  * ---------------------------------------------------------------------
  * ① 轮播点击、书架长按 / 单击、书架拖动排序（FLIP 位移 + 命中判定）
  *    单层书架：书脊悬停预览、长按拖动排序
@@ -900,6 +900,7 @@ $$('.actionbar .icon-btn').forEach(b => b.onclick = () => {
     askConfirm(`手帐本「${j.name}」及其 ${j.pages.length} 页内容会被删除，此操作不可恢复。`, {
       title: '删除手帐本', ok: '删除',
       onOk: () => {
+        dropLockKeys([j.id]);                    // 顺手清掉这本留在本机的密钥
         state.journals.splice(state.sel, 1);
         state.sel = clamp(state.sel, 0, Math.max(0, state.journals.length - 1));
         save(); renderHome();
@@ -942,6 +943,7 @@ $('#pickDelete').onclick = () => {
   askConfirm(`确认删除选中的 ${n} 本手帐本？${names}${more} 内的全部内容都会被删除，此操作不可恢复。`, {
     title: '批量删除', ok: '删除',
     onOk: () => {
+      dropLockKeys([...state.picked]);          // 删掉的本子不再留着本机密钥
       state.journals = state.journals.filter(j => !state.picked.has(j.id));
       state.sel = clamp(state.sel, 0, Math.max(0, state.journals.length - 1));
       state.picked = new Set();

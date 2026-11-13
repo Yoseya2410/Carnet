@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 导入 · 校验与查重   （脚本 7 / 27）
+ * Carnet · 导入 · 校验与查重   （脚本 8 / 28）
  * ---------------------------------------------------------------------
  * ① normalizeJournal：补全缺省字段，保留未知字段，导出→导入不丢东西
  * ② readJournals：兼容单本 / 裸对象 / 多本数组三种写法，带 checksum 校验
@@ -37,9 +37,11 @@ function normalizeJournal(raw) {
         && (Array.isArray(cv.diym.images) || Array.isArray(cv.diym.texts) || Array.isArray(cv.diym.items)))
         ? cv.diym : null
     },
-    /* 彩带：'none' 是「透明」那一档，要原样留住；不是合法色值才回落到默认色 */
-    ribbon: String(j.ribbon || '') === RIBBON_NONE ? RIBBON_NONE
-      : (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(String(j.ribbon || '')) ? j.ribbon : '#c98a8a'),
+    /* 彩带：'none' = 透明档（隐藏彩带且不画书槽），原样保留；
+       其它空值 / 非法色值才回落到默认色，避免导入进来的封面左侧空一块 */
+    ribbon: (ribbonIsNone(j.ribbon) ? RIBBON_NONE
+      : (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(String(j.ribbon || ''))
+        ? j.ribbon : RIBBON_FALLBACK)),
     /* 装帧样式（精装 / 活页 / Personal 活页 / 方形画册）：乱填的一律按精装 */
     style: normBookStyle(j.style),
     /* 已下线的「日历」模板映射到现在的空白牛皮纸，导入老文件时页面不丢 */
@@ -87,6 +89,20 @@ function normalizeJournal(raw) {
   else delete out.cover.groove;
   /* 标了 custom 却没带图（手工改过的文件 / 老版本）：落回空白纸，别留一张看不见图的空模板 */
   if (out.template === 'custom' && !out.tplImg) out.template = 'blank';
+  /* ---- 加密信封 ----
+     lock 与 enc 必须成对且字段齐全，否则这本永远解不开，宁可当普通本子收进来。
+     ⚠️ 这里只校验结构、**不解密**：导入进来保持密文，第一次打开才需要输入密钥。
+        注意 id 已被换成新 id（密文里存的还是导出那台的旧 id，解封时由 unsealJournal 跟过来）。 */
+  const lk = out.lock, en = out.enc;
+  if (lk && en && typeof en.iv === 'string' && typeof en.data === 'string'
+      && typeof lk.salt === 'string' && lk.check && typeof lk.fp === 'string') {
+    out.lock = {
+      v: LOCK_V, mode: lk.mode === 'question' ? 'question' : 'password',
+      salt: lk.salt,
+      check: { iv: String(lk.check.iv || ''), data: String(lk.check.data || '') },
+      fp: lk.fp, q: String(lk.q || '').slice(0, 120)
+    };
+  } else { delete out.lock; delete out.enc; }
   return out;
 }
 /* 兼容三种写法：本应用导出的单本、裸手帐本对象、多本数组。
@@ -127,6 +143,9 @@ function importReport(items, dupCount, badFiles) {
   let msg = items.length > 1
     ? `已导入 ${items.length} 本 · ${pages} 页 · ${img} 图 · ${txt} 段文字`
     : `已导入《${items[0].journal.name}》· ${pages} 页 · ${img} 图 · ${txt} 段文字`;
+  /* 加密本在文件里是密文：0 图 0 文字是「还没解锁」，不是内容丢了，跟用户说清楚 */
+  const encN = items.filter(it => lockIsSealed(it.journal)).length;
+  if (encN) msg += `（含 ${encN} 本加密手帐，首次打开需输入密钥）`;
   const warn = [];
   if (damaged) warn.push(`${damaged} 本校验未通过，文件可能已损坏`);
   if (lost) warn.push(`有 ${lost} 项内容无法识别，已跳过`);
@@ -159,6 +178,16 @@ async function importJournals(items, badFiles) {
     list.forEach(it => state.journals.push(it.journal));
     state.sel = at;
     save(); renderHome();
+    /* 源文件里自带的自定义内页模板也收进全局模板库：
+       换设备导入之后，下次新建 / 编辑别的手帐本也能接着用这些图 */
+    const srcs = [];
+    list.forEach(it => {
+      const j = it.journal;
+      if (!j) return;
+      if (Array.isArray(j.tplImgs)) srcs.push(...j.tplImgs);
+      if (j.tplImg) srcs.push(j.tplImg);
+    });
+    mergeTplLib(srcs.filter(Boolean));
     importReport(list, dup.length, badFiles || 0);
   };
   /* 全是重复：问一句要不要仍旧存一份（默认＝跳过） */
@@ -171,8 +200,10 @@ async function importJournals(items, badFiles) {
   }
   commit(accept);
 }
-/* 读文本：老浏览器没有 Blob.text() 时退回 FileReader */
+/* 读文本：老浏览器没有 Blob.text() 时退回 FileReader。
+   也收已经读好的字符串（移动端先把 File 读成文本再移除 input，见下）。 */
 function readFileText(f) {
+  if (typeof f === 'string') return Promise.resolve(f);
   if (f && f.text) return f.text();
   return new Promise(res => {
     const r = new FileReader();
@@ -181,22 +212,25 @@ function readFileText(f) {
     r.readAsText(f);
   });
 }
-/* 选文件：支持一次选多个 .json */
+/* 选文件：支持一次选多个 .json。
+   ⚠️ 临时 input 别用 display:none（移动端拒绝程序化 click），且必须先把文件内容
+      全部读进内存再 remove()：iOS / 安卓 WebView 移除 input 后 File 会失效。 */
 function pickImportFile() {
   const inp = document.createElement('input');
   inp.type = 'file'; inp.accept = '.json,application/json,text/plain'; inp.multiple = true;
-  inp.style.display = 'none';
+  inp.className = 'file-input';
   document.body.appendChild(inp);
   inp.onchange = async () => {
     const files = [...(inp.files || [])];
+    const texts = await Promise.all(files.map(readFileText));
     inp.remove();
-    if (!files.length) return;
+    if (!texts.length) return;
     let items = [], bad = 0;
-    for (const f of files) {
+    for (let i = 0; i < texts.length; i++) {
       try {
-        const r = await readJournals(await readFileText(f));
+        const r = await readJournals(texts[i]);
         if (r.items.length) items.push(...r.items); else bad++;
-      } catch (e) { console.warn('[import] 读取失败：' + f.name, e); bad++; }
+      } catch (e) { console.warn('[import] 读取失败：' + (files[i] && files[i].name), e); bad++; }
     }
     try { await importJournals(items, bad); }
     catch (e) { console.error('[import] 失败：', e); toast('导入失败：' + ((e && e.message) || e), 4200); }

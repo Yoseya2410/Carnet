@@ -1,0 +1,139 @@
+/* =====================================================================
+ * Carnet · 手帐本加密 · 解锁 / 密钥管理弹窗与书架锁标记   （样式 22 / 22）
+ * ---------------------------------------------------------------------
+ * ① #lockMask：与 #home / #reader 平级的独立遮罩，解锁与密钥管理共用
+ * ② 面板走 --frost / --frost-bd / --frost-fx 三个变量，浅底自动变白玻璃
+ * ③ .lock-flag：书架封面 / 书脊右上角的「已加密」小圆徽章
+ *
+ * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
+ *       ⚠️ 浅底适配写 body.bg-light 前缀：#lockMask 不在 #home / #reader 里面，
+ *          但 applyBg() 也给 body 打了 .bg-light（见 storage.js）。
+ * ===================================================================== */
+/* ============ 遮罩与面板 ============ */
+.lk-mask{
+  position:absolute;inset:0;z-index:160;display:none;place-items:center;padding:18px;
+  background:rgba(16,18,30,.5);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)
+}
+.lk-mask.show{display:grid;animation:fadeIn .2s ease}
+/* 输入法弹起时把面板挪到上半屏，别让键盘把输入框盖住 */
+.lk-mask.kb{place-items:start center;padding-top:7vh}
+.lk-panel{
+  width:min(430px,100%);max-height:86vh;overflow-y:auto;padding:20px 20px 18px;border-radius:20px;
+  color:#fff;background:var(--frost);border:1px solid var(--frost-bd);
+  backdrop-filter:var(--frost-fx);-webkit-backdrop-filter:var(--frost-fx);
+  box-shadow:0 34px 70px -22px rgba(0,0,0,.72);animation:pop .26s cubic-bezier(.2,.9,.3,1.2);
+  overscroll-behavior:contain
+}
+.lk-head{display:flex;align-items:center;gap:11px}
+.lk-hico{
+  flex:0 0 auto;width:36px;height:36px;border-radius:12px;display:grid;place-items:center;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.26);color:currentColor
+}
+.lk-htx{flex:1 1 auto;min-width:0}
+.lk-htx b{display:block;font-size:15.5px;font-weight:600;letter-spacing:.04em}
+.lk-htx small{display:block;margin-top:2px;font-size:11.5px;opacity:.68;line-height:1.4;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lk-x{
+  flex:0 0 auto;width:30px;height:30px;border-radius:9px;border:1px solid rgba(255,255,255,.2);
+  background:rgba(255,255,255,.08);color:inherit;font-size:14px;cursor:pointer;line-height:1
+}
+.lk-x:hover{background:rgba(255,255,255,.18)}
+.lk-body{margin-top:16px}
+.lk-foot{display:flex;gap:9px;justify-content:flex-end;flex-wrap:wrap;margin-top:18px}
+.lk-foot .btn{padding:10px 15px;font-size:13.5px;flex:0 0 auto}
+.lk-foot .btn:disabled{opacity:.45;cursor:default}
+
+/* ---- 解锁屏 ---- */
+.lk-lockmark{
+  width:52px;height:52px;margin:2px auto 10px;border-radius:50%;display:grid;place-items:center;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.28)
+}
+.lk-lockmark svg{width:25px;height:25px}
+.lk-book{text-align:center;font-size:14px;font-weight:600;margin-bottom:14px;word-break:break-all}
+.lk-question{
+  padding:12px 14px;margin:0 0 14px;border-radius:12px;font-size:14.5px;line-height:1.6;
+  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.22);word-break:break-word
+}
+.lk-lab{display:block;font-size:12px;opacity:.74;margin:13px 0 7px;letter-spacing:.05em}
+.lk-note{margin:12px 0 0;font-size:11.8px;line-height:1.75;opacity:.7}
+.lk-note.lk-warn{padding-left:10px;border-left:2px solid rgba(255,255,255,.32);opacity:.78}
+.lk-qsmall{margin:3px 0 2px;font-size:11.5px;opacity:.72;word-break:break-word}
+.lk-err{min-height:17px;margin:9px 0 0;font-size:12.3px;line-height:1.4;color:#ffb4b4}
+.lk-panel .text-input.bad{border-color:#e87070;box-shadow:0 0 0 3px rgba(232,112,112,.2)}
+
+/* ---- 两档密钥 ---- */
+.lk-tabs{display:flex;gap:8px;margin-bottom:4px}
+.lk-tabs button{
+  flex:1;padding:9px 10px;border-radius:11px;font-size:13px;cursor:pointer;color:inherit;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.18)
+}
+.lk-tabs button.on{background:var(--accent);color:#fff;border-color:rgba(255,255,255,.35);font-weight:600}
+.lk-fields .lk-lab:first-child{margin-top:10px}
+
+/* ---- 状态卡（弹窗与编辑器共用）---- */
+.lk-state,.lk-edstate{
+  display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:13px;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.17)
+}
+.lk-state.on{background:rgba(255,255,255,.13);border-color:rgba(255,255,255,.32)}
+.lk-state-ico{
+  flex:0 0 auto;width:32px;height:32px;border-radius:10px;display:grid;place-items:center;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22)
+}
+.lk-state-ico svg{width:17px;height:17px}
+.lk-state b,.lk-edstate b{display:block;font-size:13.2px;font-weight:600}
+.lk-state small,.lk-edstate small{display:block;margin-top:2px;font-size:11.3px;opacity:.7;line-height:1.5}
+.lk-edstate{margin-bottom:10px}
+.lk-edstate .lk-state-ico{width:28px;height:28px}
+.lk-edbtn{width:100%;margin-top:2px}
+
+/* ============ 书架上的「已加密」徽章 ============ */
+/* .book-item / .spine-item 本身都是定位容器。
+   ⚠️ 封面四个角已有控件：左上是多选勾选圈 .pick、右上是编辑齿轮 .gear（top/right:9px，30px 圆）、
+      左下是页数徽章 .cover-badge。**只有右下是空的** —— 徽章放右上角会和齿轮叠成两个错位的圆。 */
+.lock-flag{
+  position:absolute;right:9px;bottom:9px;z-index:4;width:25px;height:25px;border-radius:50%;
+  display:grid;place-items:center;color:#fff;
+  background:rgba(18,20,30,.62);border:1px solid rgba(255,255,255,.55);
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);pointer-events:none
+}
+.lock-flag svg{width:12px;height:12px}
+/* 书脊又窄又矮，右下会被书脊标题压住，改回右上角；bottom 一定要复位 */
+.spine-item .lock-flag{
+  right:3px;top:6px;bottom:auto;width:16px;height:16px;border-radius:50%;border-width:1px
+}
+.spine-item .lock-flag svg{width:9px;height:9px}
+
+/* ============ 浅底：白玻璃 ============ */
+body.bg-light .lk-mask{background:rgba(246,246,249,.32);backdrop-filter:blur(10px) saturate(120%);
+  -webkit-backdrop-filter:blur(10px) saturate(120%)}
+body.bg-light .lk-panel{color:#2b2f3d;background:linear-gradient(180deg,rgba(255,255,255,.62),rgba(255,255,255,.5));
+  border-color:rgba(255,255,255,.74);box-shadow:0 40px 80px -22px rgba(30,32,48,.42)}
+body.bg-light .lk-hico,
+body.bg-light .lk-lockmark,
+body.bg-light .lk-state-ico{background:rgba(40,44,66,.06);border-color:rgba(40,44,66,.14)}
+body.bg-light .lk-x{background:rgba(40,44,66,.05);border-color:rgba(40,44,66,.16)}
+body.bg-light .lk-x:hover{background:rgba(40,44,66,.12)}
+body.bg-light .lk-question{background:rgba(255,255,255,.5);border-color:rgba(40,44,66,.16)}
+body.bg-light .lk-note.lk-warn{border-left-color:rgba(40,44,66,.3)}
+body.bg-light .lk-state,
+body.bg-light .lk-edstate{background:rgba(255,255,255,.38);border-color:rgba(40,44,66,.14)}
+body.bg-light .lk-state.on{background:rgba(255,255,255,.62);border-color:rgba(40,44,66,.26)}
+body.bg-light .lk-tabs button{background:rgba(40,44,66,.05);border-color:rgba(40,44,66,.16)}
+body.bg-light .lk-tabs button.on{background:var(--accent);color:#fff;border-color:rgba(40,44,66,.4)}
+body.bg-light .lk-err{color:#b23c3c}
+body.bg-light .lock-flag{background:rgba(255,255,255,.4);border-color:rgba(40,44,66,.24);color:#2b2f3d}
+
+/* ============ 深色玻璃：把黑色强调控件从面板里摘出来 ============
+   .btn.primary / .lk-tabs button.on 都吃 --accent(#111318)，浅底时是黑底白字很醒目，
+   但深色毛玻璃面板本身也接近黑，两者会糊成一片（跟 confirm.css 的 .btn.danger
+   那圈浅描边是同一套思路）。只补边框、不改颜色，强调色语言保持一致。
+   ⚠️ 必须挂在 body:not(.bg-light) 上：浅底那套黑底白字本来就是高对比，别动。 */
+body:not(.bg-light) .lk-foot .btn.primary{
+  border:1px solid rgba(255,255,255,.4);
+  box-shadow:0 0 0 1px rgba(255,255,255,.06),0 10px 22px -10px rgba(0,0,0,.75)
+}
+body:not(.bg-light) .lk-tabs button.on{
+  border-color:rgba(255,255,255,.46);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)
+}

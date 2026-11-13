@@ -2,7 +2,7 @@
  * Carnet · 图片边框 · 贴纸 · 便利贴   （样式 18 / 19）
  * ---------------------------------------------------------------------
  * ① 图片边框：.pframe（包在 <img> 外面那层，边框就画在它的 padding 上）
- * ② 底部「图片边框」面板 #frsheet：五档框的小样 + 颜色 + 粗细拖动条
+ * ② 底部「图片边框」面板 #frsheet：六档框的小样 + 颜色 + 粗细拖动条
  * ③ 底部「贴纸」面板 #stsheet：便利贴 / 装饰胶带 / 我的贴纸三档格子
  * ④ 便利贴：文字贴的便签纸皮肤（.ptext-wrap.note .ptxt）
  *
@@ -18,15 +18,27 @@
 .frsheet{max-height:82%}
 /* 标题后面跟一句当前是哪一档 */
 .fr-hint{font-size:12px;font-weight:400;opacity:.55;margin-left:8px;letter-spacing:.02em}
-/* 缩略预览：拿这张图本人按当前这档画一个小样；底上一层斜纹，看得出哪些地方是留白 */
-.fr-prev{flex:none;display:flex;justify-content:center;padding:2px 0 4px}
-.fr-demo{
-  width:104px;height:104px;border-radius:6px;
-  background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.09) 0 6px,transparent 6px 12px);
-  background-color:rgba(255,255,255,.05)
+/* 缩略预览 = 纸面对象的等比缩小照片，底上铺纸的本色。
+   ⚠️ 结构必须跟纸面一致：.pimg-wrap > .pframe > .pimg，且 .pimg-wrap 的
+      **真实宽度 = 纸上对象宽度**。CSS 的百分比 padding（含上下）是按「包含块
+      宽度」算的，不是元素自身宽度 —— 以前包含块是 79px 的缩放容器，padding
+      算出来只有 4.27px，纸上是 12.4px，框薄了一半，再 scale 又薄一层。
+      现在包含块是 pw（真实像素），padding 与纸面同基准，再整体 scale(k)，
+      #frDemoView 按 k 裁出可视区；固定 px（阴影 / 颗粒 / 圆角）也一起等比缩。 */
+.fr-prev{flex:none;display:flex;justify-content:center;align-items:center;padding:2px 0 4px;min-height:120px}
+.fr-demo-view{
+  position:relative;flex:none;width:104px;height:104px;overflow:hidden;
+  border-radius:2px;background:#fdfaf3
 }
-.fr-demo img{width:100%;height:100%;object-fit:cover;display:block;border-radius:2px}
-/* 五档框：每档一个方块小样 + 名字 */
+/* 用 id 提权：别被 background.css 那类 .bg-light ... 规则盖掉透明底 */
+#frDemoWrap.pimg-wrap{
+  position:relative;left:0;top:0;margin:0;z-index:0;
+  width:104px;height:104px;border-radius:0;background:transparent;
+  transform-origin:top left;cursor:default;touch-action:auto
+}
+/* .pframe / .pimg 直接吃全局 .pimg-wrap .pframe / .pimg 规则（含 fill / fit / sticker 档），
+   预览不再另写一套样式，避免两边各画各的。 */
+/* 六档框：每档一个方块小样 + 名字 */
 .fr-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:2px 0 4px}
 .fr-opt{
   display:flex;flex-direction:column;align-items:center;gap:6px;padding:7px 4px 8px;border-radius:12px;
@@ -36,22 +48,46 @@
 .fr-opt:active{transform:scale(.97)}
 .fr-opt.on{border-color:#fff;background:rgba(255,255,255,.16)}
 .fr-ico{
-  position:relative;width:100%;max-width:56px;aspect-ratio:1;border-radius:9px;overflow:hidden;
+  position:relative;width:100%;max-width:56px;aspect-ratio:1;border-radius:3px;overflow:hidden;
   background:#c9cede
 }
-.fr-ico i{position:absolute;inset:8%;background:linear-gradient(160deg,#9db1cf,#5f7599);border-radius:2px}
-/* 各档小样（颜色那几档由 JS 按当前边框色写进 style，这里只给个默认样子） */
-.fr-ico[data-fr="none"] i{inset:6%}
-.fr-ico[data-fr="polaroid"]{background:#fff;box-shadow:0 3px 7px -3px rgba(20,22,40,.55)}
-.fr-ico[data-fr="polaroid"] i{inset:11% 11% 32%}
+.fr-ico i{position:absolute;inset:0;background:linear-gradient(160deg,#9db1cf,#5f7599)}
+/* 六档小样是「缩略图标」，厚度按纸上的真实比例适度放大（小方块里才分得出档位），
+   但别再夸张到 22%~32%：实际 frameBoxStyle 默认只有 5.4% 左右（拍立得下边 16.7%），
+   以前小样比纸上厚五六倍，选完看着完全是两个效果。
+   纯色 / 线色由 syncFrSheet 按当前边框色写入；相框档是固定素材，由 buildFrSheet 铺一次。 */
+.fr-ico[data-fr="none"] i{inset:0}
+.fr-ico[data-fr="polaroid"]{background:#fff;box-shadow:0 2px 5px -2px rgba(20,22,40,.55)}
+.fr-ico[data-fr="polaroid"] i{inset:6% 6% 18%}
 .fr-ico[data-fr="color"]{background:#fff}
-.fr-ico[data-fr="color"] i{inset:22%}
-.fr-ico[data-fr="line"] i{inset:6%;box-shadow:inset 0 0 0 1.6px #22242f}
+.fr-ico[data-fr="color"] i{inset:9%}
+.fr-ico[data-fr="line"] i{inset:3%;box-shadow:inset 0 0 0 1.6px #22242f}
+/* 相框：跟纸面同一张金色雕花素材（img-frame.js buildFrSheet 把 data URL 写进 background）。
+   i 就是窗里的照片，略压住框条内沿 1% —— 正好盖掉素材的白心，又不至于啃掉雕花。 */
 .fr-ico[data-fr="photo"]{
-  background:linear-gradient(145deg,rgba(255,255,255,.45),rgba(255,255,255,0) 42%,rgba(0,0,0,.34)),#c8a675;
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,.5),0 3px 7px -3px rgba(20,22,40,.6)
+  background:#fdfaf3;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.5),0 2px 5px -2px rgba(20,22,40,.6)
 }
-.fr-ico[data-fr="photo"] i{inset:24%}
+.fr-ico[data-fr="photo"] i{inset:6% 8%}
+/* 凹陷：与 frameBoxStyle('inset') / frameInsetStyle 同源 —— 纯白坑壁 +
+   左上外投影，照片占满（inset:0），只在上 / 左压两条柔影渐变，下 / 右干净。
+   ⚠️ 别用 inset box-shadow：一模糊就把灰渗到右下，小样看着像一圈灰框。 */
+.fr-ico[data-fr="inset"]{
+  background:#fff;
+  box-shadow:-3px -3px 6px -2px rgba(0,0,0,.26)
+}
+/* i 就是窗里的照片：留出 7% 白坑壁（纸上 padding 6.21%，小样适度放大才看得见），
+   跟其它档一样用蓝色内块表达「框 + 照片」两层结构 */
+.fr-ico[data-fr="inset"] i{inset:7%}
+/* 柔影盖在白坑壁和蓝色照片之上：伪元素铺满小样，两条渐变各自只占上 / 左 7px */
+.fr-ico[data-fr="inset"]::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background-image:
+    linear-gradient(to bottom,rgba(0,0,0,.10) 0%,rgba(0,0,0,.082) 27%,rgba(0,0,0,.055) 45%,rgba(0,0,0,.031) 64%,rgba(0,0,0,.012) 82%,rgba(0,0,0,0) 100%),
+    linear-gradient(to right,rgba(0,0,0,.10) 0%,rgba(0,0,0,.082) 27%,rgba(0,0,0,.055) 45%,rgba(0,0,0,.031) 64%,rgba(0,0,0,.012) 82%,rgba(0,0,0,0) 100%);
+  background-size:100% 7px,7px 100%;
+  background-position:top left,top left;background-repeat:no-repeat
+}
 .fr-n{font-size:12px;letter-spacing:.03em}
 /* 无边框没有边框色 / 粗细可挑：整行淡下去 */
 .ts-lab.dim{opacity:.34}

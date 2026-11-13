@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 手帐本编辑器 · 新建 / 编辑弹窗   （脚本 22 / 27）
+ * Carnet · 手帐本编辑器 · 新建 / 编辑弹窗   （脚本 23 / 28）
  * ---------------------------------------------------------------------
  * ① 名称、封面底色、封面图案与图案色、封面图片、彩带色、内页模板、页数
  * ② 每一项都是一块折叠小节 .fold-sec，收起时标题后跟当前取值 ED_SEC_HINT
@@ -35,23 +35,36 @@ const ED_SEC_HINT = {
   pattern: () => (ed.temp.cover.diym && ed.temp.cover.img ? '自定义封面'
     : (PATTERNS.find(p => p.k === normPat(ed.temp.cover.pattern)) || PATTERNS[0]).n),
   image:  () => ed.temp.cover.img ? (ed.temp.cover.diym ? '自定义封面' : '已上传') : '',
-  ribbon: () => (ed.temp.ribbon === RIBBON_NONE ? '透明（不显示）' : String(ed.temp.ribbon || '').toUpperCase())
-    + (coverGrooveOn(ed.temp) ? '' : ' · 书槽关'),
+  ribbon: () => ribbonIsNone(ed.temp.ribbon) ? '透明 · 隐藏彩带与书槽'
+    : String(ribbonSpine(ed.temp.ribbon) || '').toUpperCase()
+      + (coverGrooveOn(ed.temp) ? '' : ' · 书槽关'),
   /* 活页封面内侧：缺省 auto = 自动取封面主色 */
   inside: () => ({ auto: '封面主色', match: '与封面一致', custom: '自定义' })[insideModeOf(ed.temp)],
   template: () => {
     const base = (TEMPLATES.find(t => t.k === ed.temp.template) || TEMPLATES[0]).n;
-    const n = tplImgsOf(ed.temp).length;
+    const n = tplTileImgs().length;
     return base === '自定义图片' && n ? `自定义图片 · ${n} 张` : base;
   },
-  pages:  () => ed.temp.pages.length + ' 页'
+  pages:  () => ed.temp.pages.length + ' 页',
+  /* 加密：折叠时一眼看出这本有没有上锁、用的是哪种密钥 */
+  lock: () => !journalHasLock(ed.temp) ? '未加密'
+    : '已加密 · ' + (ed.temp.lock.mode === 'question' ? '保密问题' : '直接输密码')
 };
 /* 唯一被锁死的小节：用了**普通上传**的封面图片，图案压在照片上不起作用，整段强制收起。
    DIY 封面也是 cover.img，但它正是从图案栏进去的 —— 不锁，用户还得回来改 / 切回内置图案 */
 function edSecLocked(key) { return key === 'pattern' && !!ed.temp.cover.img && !ed.temp.cover.diym; }
 function openEditor(journal) {
+  /* 加密本未解锁时先解密（编辑要读整本内容，不能拿空壳来改），解开后照用户意图重开编辑器。
+     ⚠️ 解锁后的落地动作按**入口**分流，全靠各调用方自己的 done，守卫里不改道：
+        点封面 → openReader() 的 done = 打开手帐本；
+        点编辑按钮（封面齿轮 / 单层书架长按）→ 这里的 done = 打开「编辑手帐本」弹窗。
+        所以未解锁的书点编辑按钮、输完密码后就要进编辑弹窗，静默解锁时同样如此。 */
+  if (journal && !guardUnlocked(journal, () => openEditor(cur()))) return;
   ed.isNew = !journal;
   ed.temp = journal ? JSON.parse(JSON.stringify(journal)) : newJournal();
+  /* 非法色值回落默认彩带色；'none' 是合法的「透明」档，别把它归一化掉
+     （色板要有选中态、预览封面要整列不画，点「完成」后原样写回数据） */
+  ed.temp.ribbon = ribbonIsNone(ed.temp.ribbon) ? RIBBON_NONE : ribbonSpine(ed.temp.ribbon);
   $('#edTitle').textContent = ed.isNew ? '新建手帐本' : '编辑手帐本';
   $('#edName').value = ed.temp.name;
   $('#edPages').value = ed.temp.pages.length;
@@ -72,12 +85,21 @@ function appendCustomChip(boxSel, id, tipId, title) {
 $('#mask').addEventListener('click', e => { if (e.target === $('#mask')) closeEditor(); });
 /* ---- 内页模板栏 ----
    六档内置纸面 + 每一张自定义图片模板各占一格 + 最后一格「＋添加」。
-   图片存在 ed.temp.tplImgs（素材库），当前选中那张仍是 ed.temp.tplImg —— 那是
-   tplStyle / 纸面 / PDF 导出唯一认的样式源，别让下游改读数组。
+   图片来自两处：① 这本手帐自带的 ed.temp.tplImgs（随源文件导出）；
+                ② 全局模板库 tplLib（添加时立刻写盘，任何本子 / 下次打开都能接着用）。
+   当前选中那张仍是 ed.temp.tplImg —— 那是 tplStyle / 纸面 / PDF 导出唯一认的样式源，
+   别让下游改读数组。渲染 / 选中 / 删除全走 tplTileImgs() 这一份合并列表。
    ⚠️ 只在建面板 / 增删图片时重建 DOM；syncEditor 每次只改选中态，别反复解析大 base64。 */
+function tplTileImgs() {
+  const out = [];
+  for (const s of tplImgsOf(ed.temp).concat(tplLibImgs())) {
+    if (s && !out.includes(s) && out.length < TPL_IMGS_MAX) out.push(s);
+  }
+  return out;
+}
 function renderTplTiles() {
   const box = $('#edTemplates'); if (!box) return;
-  const imgs = tplImgsOf(ed.temp);
+  const imgs = tplTileImgs();
   const fit = normTplFit(ed.temp.tplFit);
   box.innerHTML = TEMPLATES.filter(t => t.k !== 'custom').map(t =>
     `<div class="tpl" data-tpl="${t.k}" title="${t.n}" style="background:#fffdf8">
@@ -92,7 +114,7 @@ function renderTplTiles() {
 }
 /* 选中态 / 缩略图铺法 / 铺法按钮 / 说明跟着 ed.temp 走 */
 function syncTplTiles() {
-  const imgs = tplImgsOf(ed.temp);
+  const imgs = tplTileImgs();
   const cur = tplImgOf(ed.temp);
   $$('#edTemplates .tpl').forEach(s => {
     const i = s.dataset.tplImg;
@@ -111,8 +133,8 @@ function syncTplTiles() {
   $$('#edTplFit button').forEach(b => b.classList.toggle('on', normTplFit(ed.temp.tplFit) === b.dataset.fit));
   const note = $('#edTplNote');
   if (note) note.textContent = imgs.length
-    ? `已添加 ${imgs.length} 张图片模板：点格子切换、点右上角 × 移除。图片铺满整本每一页，随手帐本一起保存与导出。`
-    : '点「＋」添加图片模板，可一次选多张；图片铺满整本每一页，随手帐本一起保存与导出。';
+    ? `已有 ${imgs.length} 张图片模板：点格子切换、点右上角 × 从模板库移除。模板存进本机模板库，下次打开或新建手帐本都能接着用，也会随这本一起导出。`
+    : '点「＋」添加图片模板，可一次选多张；添加后立刻存进模板库，下次打开或新建手帐本都能继续用。';
 }
 function buildEditor() {
   /* 装帧样式：每张卡里各放一个真封面（按各自的装订方式渲染），选样式时看到的就是成品 */
@@ -134,9 +156,10 @@ function buildEditor() {
     `<div class="swatch" data-color="${c}" style="background:${c}"></div>`).join('');
   $('#edGrads').innerHTML = GRADS.map(g =>
     `<div class="swatch grad" data-grad="${g}" style="background:${g}"></div>`).join('');
-  /* 彩带第一格是「透明」——选中后不画颜色带，封面左侧改画带立体断面的压槽 */
+  /* 彩带第一格是「透明」：选中后封面左侧整列都不画 —— 彩带隐藏，也不补压槽。
+     后面 12 格是预设纯色，末格 ＋ 自定义取色。 */
   $('#edRibbons').innerHTML =
-    `<div class="swatch ribbon-none" data-ribbon="${RIBBON_NONE}" title="透明（不显示彩带）"></div>`
+    `<div class="swatch ribbon-none" data-ribbon="${RIBBON_NONE}" title="透明（隐藏彩带，也不画书槽）"></div>`
     + RIBBONS.map(c => `<div class="swatch" data-ribbon="${c}" style="background:${c}"></div>`).join('');
   /* 内置图案格 + 最后一格「自定义」。DIY 格不带 data-pat，所有按 data-pat 走的
      绑定 / 同步都要用 :not(.diy-pat) 排除它，别把合成图预览刷成图案层。
@@ -162,7 +185,9 @@ function buildEditor() {
   /* 自定义颜色：点 ＋ 打开取色盘，选好的颜色写进封面底色 / 彩带颜色 */
   $('#edCoverCustom').onclick = () => openColorPicker('自定义封面底色', ed.temp.cover.img ? '' : ed.temp.cover.value,
     hex => { ed.temp.cover.value = hex; ed.temp.cover.img = null; ed.temp.cover.type = 'solid'; syncEditor(); });
-  $('#edRibbonCustom').onclick = () => openColorPicker('自定义彩带颜色', ed.temp.ribbon,
+  /* 透明档不是色值，取色盘初值给空，别把 'none' 塞进 HSV 换算 */
+  $('#edRibbonCustom').onclick = () => openColorPicker('自定义彩带颜色',
+    /^#/.test(ed.temp.ribbon) ? ed.temp.ribbon : '',
     hex => { ed.temp.ribbon = hex; syncEditor(); });
   $$('#edPatterns .pat:not(.diy-pat)').forEach(s => s.onclick = () => {
     /* 从 DIY 封面切回内置图案：撤掉合成图（否则图案压不上去、点了像没反应），
@@ -186,31 +211,37 @@ function buildEditor() {
     hex => { ed.temp.cover.patColor = hex; syncEditor(); });
   /* 模板格：事件委托到整块网格。图片格 / 添加格 / × 移除各自分开处理。
      用 onxxx 赋值而不是 addEventListener：编辑器每开一次都会 buildEditor，别叠监听 */
-  $('#edTemplates').onclick = e => {
+  $('#edTemplates').onclick = async e => {
     const del = e.target.closest('[data-tpl-del]');
     if (del) {
-      const imgs = tplImgsOf(ed.temp);
+      const imgs = tplTileImgs();
       const src = imgs[Number(del.dataset.tplDel)];
       if (src) {
         /* ⚠️ 剩余列表直接用过滤后的数组算，别再调 tplImgsOf：那个函数会把
-           「当前 tplImg 不在库里」当成老数据兜底并回列表，删掉的图会当场复活。 */
+           「当前 tplImg 不在库里」当成老数据兜底并回列表，删掉的图会当场复活。
+           本子里的原始数组也直接过滤，同样是怕兜底逻辑把删掉的图并回来。 */
         const left = imgs.filter(x => x !== src);
-        ed.temp.tplImgs = left;
+        const own = Array.isArray(ed.temp.tplImgs) ? ed.temp.tplImgs : [];
+        ed.temp.tplImgs = own.filter(x => x !== src);
+        await dropTplLib(src);                 // 全局素材库里也一并移除并落盘，下次别再冒出来
         /* 删掉的正好是当前模板：切到剩下第一张，没了就落回空白 */
         if (tplImgOf(ed.temp) === src) {
           if (left.length) { ed.temp.tplImg = left[0]; ed.temp.template = 'custom'; }
           else { ed.temp.tplImg = ''; ed.temp.template = 'blank'; }
         }
         renderTplTiles(); syncEditor();
-        toast('已移除这张图片模板');
+        toast('已移除这张模板 · 模板库同步删除');
       }
       return;
     }
     const s = e.target.closest('.tpl'); if (!s) return;
     if (s.dataset.tpl === 'add') { $('#tplFile').click(); return; }
     if (s.dataset.tplImg !== undefined) {
-      const src = tplImgsOf(ed.temp)[Number(s.dataset.tplImg)];
+      const src = tplTileImgs()[Number(s.dataset.tplImg)];
       if (!src) return;
+      /* 从全局模板库挑的图：顺手写进这本的 tplImgs，源文件 / PDF 导出仍带着它 */
+      if (!Array.isArray(ed.temp.tplImgs)) ed.temp.tplImgs = [];
+      if (!ed.temp.tplImgs.includes(src)) ed.temp.tplImgs.push(src);
       ed.temp.tplImg = src; ed.temp.template = 'custom'; syncEditor(); return;
     }
     ed.temp.template = s.dataset.tpl; syncEditor();
@@ -222,28 +253,34 @@ function buildEditor() {
     syncEditor();
   };
   /* 一次可挑多张：逐张压缩 → 白名单校验 → 去重入库，最后一张直接设为当前模板。
-     ⚠️ 清 input.value 会连 FileList 一起清掉，必须先把 files 拷成数组再异步处理 */
+     ⚠️ 走 readPickedFiles：移动端先把 File 同步读成 dataURL 再清 input，
+        否则清空 value 会让底层 Blob 失效，解压那一步全军覆没。
+     ⚠️ 新图同时写进全局模板库并**立刻落盘**：不用等编辑器「完成」，
+        下次打开 / 新建一本 / 换一本都还能接着用。 */
   $('#tplFile').onchange = async e => {
-    const files = Array.from(e.target.files || []);
-    e.target.value = '';
+    const files = await readPickedFiles(e);
     if (!files.length) return;
-    const imgs = tplImgsOf(ed.temp);
-    let added = 0, failed = 0, full = false, last = '';
-    for (const f of files) {
-      if (imgs.length >= TPL_IMGS_MAX) { full = true; break; }
-      const src = await packTemplateImage(f);
+    const imgs = tplTileImgs();
+    const fresh = [];
+    let failed = 0, full = false;
+    for (const s0 of files) {
+      if (imgs.length + fresh.length >= TPL_IMGS_MAX) { full = true; break; }
+      const src = await packTemplateImage(s0);
       /* tplImgOf 这道校验不能省：这串要塞进 style 和导出的 XHTML */
       if (!tplImgOf({ tplImg: src })) { failed++; continue; }
-      if (imgs.includes(src)) continue;
-      imgs.push(src); added++; last = src;
+      if (imgs.includes(src) || fresh.includes(src)) continue;
+      fresh.push(src);
     }
-    if (!added) { toast(failed ? '这些图读不出来，换图片试试' : (full ? '图片模板已达上限' : '没有新图片')); return; }
-    ed.temp.tplImgs = imgs.slice(0, TPL_IMGS_MAX);
-    ed.temp.tplImg = last;
+    if (!fresh.length) { toast(failed ? '这些图读不出来，换图片试试' : (full ? '图片模板已达上限' : '没有新图片')); return; }
+    const own = Array.isArray(ed.temp.tplImgs) ? ed.temp.tplImgs.slice() : [];
+    for (const s of fresh) if (!own.includes(s)) own.push(s);
+    ed.temp.tplImgs = own.slice(0, TPL_IMGS_MAX);
+    ed.temp.tplImg = fresh[fresh.length - 1];
     ed.temp.tplFit = normTplFit(ed.temp.tplFit);
     ed.temp.template = 'custom';
+    await mergeTplLib(fresh);                 // 全局库立即写盘，不等「完成」
     renderTplTiles(); syncEditor();
-    toast(`已添加 ${added} 张图片模板` + (failed ? `，${failed} 张读不出来` : '') + (full ? '（已达上限）' : ''));
+    toast(`已添加 ${fresh.length} 张图片模板 · 已存进模板库` + (failed ? `，${failed} 张读不出来` : '') + (full ? '（已达上限）' : ''));
   };
   /* 注：这里没有「整本内页底色」——底色改成在阅读器里按页挑（#bgsheet）。
      数据里的 j.pageBg 仍然认（老本子、导入的本子照旧生效），只是不给入口了 */
@@ -294,8 +331,7 @@ function buildEditor() {
   };
   $('#edInsideUpload').onclick = () => $('#edInsideFile').click();
   $('#edInsideFile').onchange = async e => {
-    const f = e.target.files && e.target.files[0];
-    e.target.value = '';
+    const [f] = await readPickedFiles(e);
     if (!f) return;
     /* 跟自定义内页模板同一套压缩 + 白名单校验：这串要塞进 style 属性，
        只认 base64 位图 dataURL，别让外链 / svg 文本混进来 */
@@ -368,12 +404,13 @@ function syncEditor() {
     syncCustomSwatch('#edPatCustom', '#edPatTip', pc, PAT_COLORS);
   }
   /* 图案缩略图左侧那一列必须跟真封面同源（coverHTML）：
-     有彩带的装帧（笔记本）→ 平色彩带；彩带选「透明」→ 压槽；
+     有彩带（笔记本且不是透明档）→ 平色彩带；透明 / 书槽关 → 整列不画（不补压槽）；
      没彩带的装帧（方形画册 / 精装书）→ 压槽；活页 → 整列不画。
      ⚠️ 别只看 ribbon 值：画册 / 精装书 / 活页的数据里也留着颜色值，
         直接拿它画会变成「真封面是书槽、缩略图却是彩带」。 */
   const hasRb = bookHasRibbon(ed.temp);
   const spineBg = hasRb ? ribbonSpine(ed.temp.ribbon) : '';
+  const noSpine = coverNoSpine(ed.temp) || isRingStyle(ed.temp.style);
   /* 缩略图看的是「底色 + 这一档图案」，不该被已经上传 / 合成的封面图盖掉：
      传一份去掉 img 的 cover 副本，DIY 封面在场上时下面这排仍能正常挑图案。 */
   const cvPv = { ...ed.temp.cover, img: null };
@@ -390,12 +427,12 @@ function syncEditor() {
     pv.style.backgroundRepeat = L.rep;
     const sp = s.querySelector('.pspine');
     if (sp) {
-      /* 没彩带的装帧跟「透明彩带」一样走压槽断面 */
-      const none = !hasRb || ed.temp.ribbon === RIBBON_NONE;
+      /* 只有「没彩带的装帧」走压槽断面；笔记本透明档直接整列收掉，
+         别留那道 .ghost 压痕（用户明确要「透明时没有书槽」） */
       sp.style.background = spineBg || 'transparent';
-      sp.classList.toggle('ghost', none);
-      /* 书槽关 / 活页（真封面本来就不画那一列）时整列收掉，跟真实封面保持一致 */
-      sp.classList.toggle('hid', !coverGrooveOn(ed.temp) || isRingStyle(ed.temp.style));
+      sp.classList.toggle('ghost', !spineBg && !noSpine);
+      /* 透明 / 书槽关 / 活页（真封面本来就不画那一列）时整列收掉，跟真实封面保持一致 */
+      sp.classList.toggle('hid', noSpine);
     }
   });
   /* DIY 格：没做过就是空白纸＋中间一个「＋」；做过就拿合成好的封面图当缩略图（成品的样子） */
@@ -465,6 +502,20 @@ function syncEditor() {
     if (clr) clr.style.display = hasImg ? 'block' : 'none';
     if (upl) upl.textContent = hasImg ? '更换图片' : '选择内衬图片';
   }
+  /* 加密与密钥：状态卡跟着当前本子走。管理面板会先把编辑器保存并关掉，
+     所以这一节只负责显示，不直接改 ed.temp 的 lock。 */
+  {
+    const box = $('#edLockState');
+    if (box) {
+      const has = journalHasLock(ed.temp);
+      box.classList.toggle('on', has);
+      const label = has ? '已加密 · ' + (ed.temp.lock.mode === 'question' ? '保密问题' : '直接输密码') : '未加密';
+      const sub = has
+        ? (lockRemembered(ed.temp) ? '这台设备已记住密钥，打开时自动解密' : '这台设备未记住密钥，打开时需要输入')
+        : '内容与导出的源文件都是明文';
+      box.innerHTML = `<span class="lk-state-ico">${LOCK_SVG}</span><div><b>${label}</b><small>${sub}</small></div>`;
+    }
+  }
   /* 折叠小节：统一刷新收起 / 展开，收起时把当前取值写在标题后面 */
   $$('#modal .fold-sec').forEach(sec => {
     const key = sec.dataset.sec; if (!key) return;
@@ -491,6 +542,13 @@ $('#edSave').onclick = () => {
   else { state.journals[state.sel] = t; }
   save(); closeEditor(); renderHome(); renderReader();
   toast(ed.isNew ? '手帐本已创建' : '已保存修改');
+};
+/* 「设置 / 管理密钥…」：先把编辑器里的改动落盘并关掉弹窗，再去管 state 里那一本。
+   ⚠️ 不能直接在 ed.temp 上改 lock —— ed.temp 是深拷贝，用户再点一次「完成」
+      就会用没有（或旧）lock 的副本把刚设置好的密钥覆盖掉。 */
+$('#edLockManage').onclick = () => {
+  $('#edSave').click();
+  openLockPanel(cur());
 };
 
 /* =====================================================================
@@ -673,13 +731,19 @@ function diyPaperSkin() {
   const j = ed.temp;
   BOOK_STYLES.forEach(s => p.classList.remove('s-' + s.k));
   p.classList.add('s-' + diy.style);
-  const noRb = !bookHasRibbon(j) || j.ribbon === RIBBON_NONE;
+  /* 笔记本默认画彩带书脊；选「透明」/ 书槽关时打 .no-spine 把这一列整条藏掉
+     （不补压槽，跟 coverHTML / 导出封面同源）。
+     no-ribbon 只留给画册 / 精装书 / 活页这些本来就没有彩带的装帧。 */
+  const noRb = !bookHasRibbon(j);
   p.classList.toggle('no-ribbon', noRb);
+  p.classList.toggle('no-spine', coverNoSpine(j));
   /* --cr 是主页 246px 宽封面上的 px；画布比它小，必须按 --cr-scale 同比缩 */
   p.style.setProperty('--cr', coverRadiusOf(j) + 'px');
   p.style.setProperty('--cr-left', diy.style === 'personal' ? '6px' : '3px');
   p.style.setProperty('--cr-scale', (diy.W / 246).toFixed(4));
-  p.style.setProperty('--diy-ribbon', noRb ? '' : j.ribbon);
+  /* 用 ribbonSpine 而不是 j.ribbon：非法值回落默认色；'none' 返回空串，
+     但那一列已被 .no-spine 藏掉，不会露出 CSS 变量里的兜底色 */
+  p.style.setProperty('--diy-ribbon', (noRb || coverNoSpine(j)) ? '' : ribbonSpine(j.ribbon));
 }
 function diySizePaper() {
   const st = $('#diyStage').getBoundingClientRect();
@@ -1060,18 +1124,18 @@ function renderDiySheet() {
   if (diy.sheet === 'cover') {
     const j = ed.temp;
     const hasRb = bookHasRibbon(j);
-    const rb = String(j.ribbon || '');
+    /* 'none' 是合法的「透明」档，别用 ribbonSpine() 回落成默认色，
+       否则色板上一个都没选中；非法色值仍由 ribbonSpine 兜底 */
+    const rb = ribbonIsNone(j.ribbon) ? RIBBON_NONE : ribbonSpine(j.ribbon);
     const r = coverRadiusOf(j);
     const custom = j.cover && j.cover.radius != null;
     box.innerHTML =
       (hasRb
         ? `<div class="diy-row"><span class="diy-lab wide">彩带颜色</span><div class="diy-chips">`
-          /* 「透明 / 不显示彩带」这一档已按用户要求从自定义封面里去掉：
-             这里只给纯色色板 + 自定义取色。编辑器彩带小节仍保留透明档（那边的设置照旧生效），
-             所以数据里出现 RIBBON_NONE 时给一句提示，免得色板一个都没选中像坏了。 */
+          + `<button class="diy-sw ribbon-none${rb === RIBBON_NONE ? ' on' : ''}" data-ribbon="${RIBBON_NONE}" title="透明（隐藏彩带，也不画书槽）"></button>`
           + RIBBONS.map(c => `<button class="diy-sw${rb === c ? ' on' : ''}" data-ribbon="${c}" style="background:${c}" title="${c}"></button>`).join('')
           + `<button class="diy-mini" data-act="ribboncustom">＋自定义</button></div></div>`
-          + (rb === RIBBON_NONE ? `<div class="diy-hint">当前是透明档（不画彩带），选个颜色即可恢复显示。</div>` : '')
+          + `<div class="diy-hint">选「透明」时封面彩带隐藏，左侧也不画书槽。</div>`
         : `<div class="diy-hint">当前装帧没有彩带：方形画册 / 精装书显示书槽，活页封面保持干净。</div>`)
       + `<div class="diy-row"><span class="diy-lab wide">封面圆角</span>`
       + `<input class="diy-range" id="diyRadius" type="range" min="${COVER_R_MIN}" max="${COVER_R_MAX}" step="1" value="${r}">`
@@ -1176,7 +1240,7 @@ function diyExportHTML(W, H) {
     if (k === 'img') {
       const img = `<img src="${o.src}" style="width:100%;height:100%;display:block;object-fit:fill;${frameImgStyle(o)}" />`;
       s += hasFrame(o)
-        ? `<div style="${box}"><div style="position:absolute;inset:0;box-sizing:border-box;${frameBoxStyle(o, W / PAGE_W_DEFAULT)}">${img}</div></div>`
+        ? `<div style="${box}"><div style="position:absolute;inset:0;box-sizing:border-box;${frameBoxStyle(o, W / PAGE_W_DEFAULT)}">${img}${frameInsetHTML(o, W / PAGE_W_DEFAULT)}</div></div>`
         : `<div style="${box}">${img}</div>`;
     } else {
       const fs = (o.size || 5.5) / 100 * W;
@@ -1729,22 +1793,21 @@ function diyEndSideDrag(e) {
 }
 $('#diyResizer').addEventListener('pointerup', diyEndSideDrag);
 $('#diyResizer').addEventListener('pointercancel', diyEndSideDrag);
-/* 三路选图：加图片 / 换图 / 往贴纸库导入 */
+/* 三路选图：加图片 / 换图 / 往贴纸库导入。
+   ⚠️ 统一走 readPickedFiles：移动端先把 File 同步读成 dataURL，再清 input / 移除节点，
+      否则底层 Blob 一释放，后面的压缩与解码全部拿到空串。 */
 $('#diyFile').addEventListener('change', async e => {
-  const f = e.target.files && e.target.files[0];
-  e.target.value = '';
+  const [f] = await readPickedFiles(e);
   if (f) await diyAddImage(f);
 });
 $('#diySwapFile').addEventListener('change', async e => {
-  const f = e.target.files && e.target.files[0];
-  e.target.value = '';
+  const [f] = await readPickedFiles(e);
   if (!f) { diy.swapId = null; return; }
   await diyAddImage(f, diy.swapId);
 });
-/* 贴纸库可一次选多张：先拷贝 FileList，再清空 input（清空会把 FileList 一起清掉） */
+/* 贴纸库可一次选多张 */
 $('#diyStickerFile').addEventListener('change', async e => {
-  const fs = Array.from(e.target.files || []);
-  e.target.value = '';
+  const fs = await readPickedFiles(e);
   if (!fs.length) return;
   const r = await addStickersToLib(fs);
   diy.stTab = 'mine'; renderDiySheet();

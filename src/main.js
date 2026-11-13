@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 启动入口 · 初始化流程   （脚本 27 / 27）
+ * Carnet · 启动入口 · 初始化流程   （脚本 28 / 28）
  * ---------------------------------------------------------------------
  * ① 读数据 → 一次性迁移 → 清理老预置本 → 应用偏好
  * ② 首次使用自动导入 example 目录
@@ -35,6 +35,9 @@
   data.forEach(j => {
     if (j && j.cover && PAT_MAP[j.cover.pattern]) { j.cover.pattern = PAT_MAP[j.cover.pattern]; migrated = true; }
   });
+  /* 彩带「透明」档已恢复（2026-11-13）：'none' 是合法值，
+     老本子 / 导入文件里存着它就按「隐藏彩带、也不画书槽」渲染。
+     ⚠️ 启动时不要再把 'none' 迁移成默认色，否则用户刚选的透明档下次打开就没了。 */
   if (migrated) await DB.set(KEY, data);
   /* 一次性换装：预置手帐《花之法典》换成淡粉底 + 爱心图案 + 第二条彩带色。
      只认「还是老样子」的那一本，用户自己改过的封面不会被覆盖 */
@@ -73,6 +76,13 @@
   ['homeBg', 'readerBg', 'home', 'reader'].forEach(k => { if (k in state.prefs) { delete state.prefs[k]; fixedBg = true; } });
   if (fixedBg) savePrefs();
   applyBg(); syncViewToggle();
+  /* 全局自定义内页模板素材库：编辑器模板栏第一次渲染前先读回来 */
+  try { await loadTplLib(); }
+  catch (e) { console.warn('[Carnet] 模板库读取失败（忽略）：', e); }
+  /* 加密手帐的本机钥匙缓存：先读回来，打开书时才能用记住的密钥静默解密。
+     ⚠️ 只在用户交互时按需解锁，启动时不把书本解成明文——磁盘和内存都尽量保持密文。 */
+  try { await loadLockKeys(); }
+  catch (e) { console.warn('[Carnet] 密钥缓存读取失败（忽略）：', e); }
   state.journals = data;
   state.sel = 0;
   renderHome();

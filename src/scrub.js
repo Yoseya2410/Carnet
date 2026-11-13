@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 页数轴 · 拖着页码选页与滑动翻页   （脚本 25 / 27）
+ * Carnet · 页数轴 · 拖着页码选页与滑动翻页   （脚本 26 / 28）
  * ---------------------------------------------------------------------
  * ① 长按页码唤出固定长度的白色胶囊，一根刻度 = 一页，刻度数与页数一一对应
  * ② 滑块是「加速摇杆」：离中心越远刻度滚得越快，顶到两端最快；松手弹性回中
@@ -231,6 +231,13 @@ window.addEventListener('keydown', e => {
           }
         }
       }
+      /* ⚠️ 触屏：只有左右滑动才翻页，点一下 / 长按都不翻页。
+         以前这里走「点击左右半区翻页」，长按松手时 dx、dy 都≈0，正好被当成一次点击 ——
+         复制 / 剪切 / 粘贴菜单刚弹出来书就翻走了。用 pointerType 精确区分这一次手势，
+         桌面鼠标仍保留点击左右半区翻页（底栏「上一页 / 下一页」按钮也一直在）。 */
+      const touchGesture = e.pointerType === 'touch'
+        || (!e.pointerType && window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+      if (touchGesture) return;
       // 点击左右半区翻页（图片 / 文字区域除外，避免误触）
       if (e.target.closest('.pimg-wrap') || e.target.closest('.ptext-wrap')) return;
       if (e.target.closest('.objbar') || e.target.closest('.hdl')) return;

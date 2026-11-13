@@ -141,3 +141,16 @@ button{font-family:inherit;border:none;background:none;color:inherit;cursor:poin
   *,*::before,*::after{animation-duration:.01ms !important;transition-duration:.01ms !important}
 }
 
+/* ============ 选图 input：视觉隐藏，但必须留在渲染树里 ============
+   ⚠️ 别用 hidden / display:none：iOS Safari（尤其旧版）、微信 / QQ 的 X5 内核、
+      部分安卓 WebView 会拒绝对 display:none 的 file input 程序化 .click()，
+      桌面 Chrome 却一切正常 —— 于是「只在移动端导入图片没反应」。
+   这里压到 1px + 近乎全透明，仍在渲染树里、仍能收 click，也不挡任何界面元素。
+   opacity 不写 0：少数内核把纯 0 也当作「不可见」一并拦掉。 */
+input.file-input[type="file"]{
+  position:fixed;left:0;top:0;width:1px;height:1px;
+  padding:0;margin:0;border:0;overflow:hidden;
+  opacity:.01;-webkit-appearance:none;appearance:none;
+  font-size:1px;line-height:1px;
+}
+

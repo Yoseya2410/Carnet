@@ -54,11 +54,12 @@
   color:#7d8394;background:linear-gradient(135deg,#ffffff 46%,#c3c7d4 54%)}
 /* 小节里的补充说明：比正文小一号、压暗，说明这一档设置的作用范围 */
 .cus-tip{font-size:12px;opacity:.6;letter-spacing:.04em;font-variant-numeric:tabular-nums}
-/* 彩带「透明」档：白底 + 一道红斜杠，表示不画彩带（改画压槽） */
+/* 彩带「透明」档：白底 + 一道粉斜杠，表示不画彩带（也不画书槽）。
+   选中态仍吃 .swatch.on 的黑边 + 浅白外圈；浅底由 background.css 只改边框色 */
 .swatch.ribbon-none{background:linear-gradient(135deg,#fbfbfd 46%,#c9cdda 54%)}
 .swatch.ribbon-none::after{
   content:"";position:absolute;left:15%;right:15%;top:50%;height:2px;margin-top:-1px;
-  background:var(--accent);border-radius:2px;transform:rotate(-45deg)
+  background:#e0668a;border-radius:2px;transform:rotate(-45deg)
 }
 /* 可折叠的小节（封面图案）：标题带三角指示，收起时正文整块隐藏 */
 /* 用 .fold-sec .fold-head 提高优先级，盖过 .modal label 的 display:block */

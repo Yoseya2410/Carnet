@@ -33,6 +33,7 @@
   <link rel="stylesheet" href="style/decor.css">
   <link rel="stylesheet" href="style/background.css">
   <link rel="stylesheet" href="style/diy-cover.css">
+  <link rel="stylesheet" href="style/lock.css">
 </head>
 <body data-page-node-id="fyhITFSae6zxcmzB16cSQh">
 <div data-page-node-id="FaGVY50w6eg6p918jzsNIa" id="app">
@@ -247,11 +248,15 @@
     </div>
 
     <!--pnid:FRsheet--><!-- 图片边框面板：选中一张图 → 工具条上的「边框」→ 从底部升起。
-         六种框 + 八档颜色（含自定义）+ 三档粗细；挑一档立刻画到纸上并存档 -->
+         六种框 + 八档颜色（含自定义）+ 一根粗细拖动条；挑一档立刻画到纸上并存档。
+         ⚠️ 大预览直接复用纸面的 DOM 结构（.pimg-wrap > .pframe > .pimg）：
+            百分比 padding 按**包含块宽度**算，只有包含块和纸上对象一样宽，
+            框才会一样厚；外层 #frDemoView 只负责按 k 裁出可视区。
+            见 img-frame.js updateFrDemo，别再退回「把 px 先缩再画」。 -->
     <div data-page-node-id="FRsheet" class="tsheet frsheet" id="frsheet" hidden>
       <div data-page-node-id="FRGrab" class="ts-grab"></div>
       <div data-page-node-id="FRTitle" class="ts-title">图片边框<span data-page-node-id="FRHint" class="fr-hint" id="frHint"></span></div>
-      <div data-page-node-id="FRPrev" class="fr-prev"><div data-page-node-id="FRDemo" class="fr-demo" id="frDemo"><img data-page-node-id="FRDemoImg" id="frDemoImg" src="" alt=""></div></div>
+      <div data-page-node-id="FRPrev" class="fr-prev"><div class="fr-demo-view" id="frDemoView"><div class="pimg-wrap" id="frDemoWrap"><div class="pframe" id="frDemo"><img class="pimg" id="frDemoImg" src="" alt=""></div></div></div></div>
       <div data-page-node-id="FRLab1" class="ts-lab">边框样式</div>
       <div data-page-node-id="FRGrid" class="fr-grid" id="frGrid"></div>
       <div data-page-node-id="FRLab2" class="ts-lab" id="frColorRow">边框颜色</div>
@@ -292,12 +297,15 @@
           导入图片为贴纸（可多选）
         </button>
       </div>
-      <input data-page-node-id="STFile" type="file" accept="image/*" id="stFile" multiple hidden>
+      <input data-page-node-id="STFile" type="file" accept="image/*" id="stFile" multiple class="file-input">
     </div>
 
-    <!--pnid:PaperMenu--><!-- 纸面右键：复制 / 剪切 / 粘贴。对象是整块文字贴或图片，
+    <!--pnid:PaperMenu--><!-- 纸面右键（桌面鼠标）：复制 / 剪切 / 粘贴。对象是整块文字贴或图片，
          粘贴落在右键那一刻的位置。右键指着对象就针对它，点在空白处退回当前选中的对象，
-         一个都没选中时前两项置灰；粘贴始终可用来贴外部复制的文字 / 图片 -->
+         一个都没选中时前两项置灰；粘贴始终可用来贴外部复制的文字 / 图片。
+         ⚠️ 触屏长按按落点分流：点在**空白内页**就弹这张浮层（移动端唯一的粘贴入口）；
+            点在文字贴 / 图片等内容上不弹（会盖住胶囊工具条），由工具条上的
+            「复制 / 剪切」接管，剪切只对编辑过的对象露出。见 page-edit.js -->
     <div data-page-node-id="PaperMenu" class="addmenu pmenu" id="paperMenu">
       <button data-page-node-id="PMcopy" data-clip="copy" title="复制这个文字框或图片"><svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><rect height="11.6" rx="2.4" width="11.6" x="8.4" y="8.4"/><path d="M15.9 8.4V6.3a2.3 2.3 0 00-2.3-2.3H6.3A2.3 2.3 0 004 6.3v7.3a2.3 2.3 0 002.3 2.3h2.1"/></svg>复制</button>
       <button data-page-node-id="PMcut" data-clip="cut" title="剪切这个文字框或图片"><svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><circle cx="6.6" cy="18" r="2.5"/><circle cx="17.4" cy="18" r="2.5"/><path d="M8.3 16.4L18.6 4M15.7 16.4L5.4 4"/></svg>剪切</button>
@@ -380,7 +388,7 @@
         <label class="fold-head" id="edRibbonHead">封面彩带颜色<span class="fold-hint" id="edRibbonHint"></span><i class="fold-caret"></i></label>
         <div class="fold-body">
           <div data-page-node-id="gfmWXJ2h8ollpVn43Vq92m" class="swatches" id="edRibbons"></div>
-          <p class="tpl-note">彩带只有「笔记本」这一档有；选「透明」时封面左侧改画带立体断面的书槽。</p>
+          <p class="tpl-note">彩带只有「笔记本」这一档有，挑一个颜色就是封面左侧那条书脊；选「透明」则彩带隐藏、左侧连书槽一起不画；画册 / 精装书显示书槽，活页封面保持干净。</p>
         </div>
       </div>
 
@@ -422,7 +430,7 @@
               <button data-fit="stretch">拉伸</button>
               <button data-fit="tile">平铺</button>
             </div>
-            <p class="tpl-note" id="edTplNote">点「＋」添加图片模板，可一次选多张；图片铺满整本每一页，随手帐本一起保存与导出。</p>
+            <p class="tpl-note" id="edTplNote">点「＋」添加图片模板，可一次选多张；添加后立刻存进模板库，下次打开或新建手帐本都能继续用。</p>
           </div>
         </div>
       </div>
@@ -436,6 +444,17 @@
         </div>
       </div>
 
+      <!--pnid:LockSec--><!-- 加密与密钥：唯一入口，设置 / 更换 / 取消 / 上锁全在 #lockMask 里做。
+            这一节只显示，不直接改 ed.temp —— 点按钮会先把编辑器改动落盘并关闭，再管理 state 里那一本。 -->
+      <div class="fold-sec" data-sec="lock" id="edSecLock">
+        <label class="fold-head" id="edLockHead">加密与密钥<span class="fold-hint" id="edLockHint"></span><i class="fold-caret"></i></label>
+        <div class="fold-body">
+          <div class="lk-edstate" id="edLockState"></div>
+          <button class="btn ghost lk-edbtn" id="edLockManage">设置 / 管理密钥…</button>
+          <p class="tpl-note">加密后本机与导出的源文件里都只存密文；正文文字、图片、照片封面、模板图都由密钥保护。密钥不会写进导出文件，也没有找回通道。</p>
+        </div>
+      </div>
+
       <div data-page-node-id="qQCJ6sD2GrilGy1UizcTZf" class="modal-actions">
         <button data-page-node-id="HWmRiddccVrxoJcx6hThXe" class="btn ghost" id="edCancel"><!--pnid:dDvX3WsY26FUZplJqAUpBz-->取消</button>
         <button data-page-node-id="bJByzmb0qSgWYRR5KOLzCu" class="btn primary" id="edSave"><!--pnid:34q5mdSq0t7cHAOArLc74d-->完成</button>
@@ -443,27 +462,58 @@
     </div>
   </div>
 
-  <!--pnid:MOx1HT7SSyYP3PsHjOKB0H--><!-- ============ 自定义取色盘 ============ -->
+  <!--pnid:MOx1HT7SSyYP3PsHjOKB0H--><!-- ============ 自定义取色盘：网格 / 光谱 / RGB 滑块 ============ -->
   <div data-page-node-id="EfFJp4UDDELHtcj1nGCwrr" class="cp-mask" id="cpMask">
-    <div data-page-node-id="Eu65sdbQERSxNI3ivfEDfk" class="cp-panel">
-      <div data-page-node-id="IawGo41MsGQ5HW3CoFfqCB" class="cp-head"><span data-page-node-id="jIuFQ0tzhZ5B04tigv0lss" id="cpTitle"><!--pnid:U4ovs18NRpt6N9IqledHjy-->自定义颜色</span><button data-page-node-id="UtRvsfmognK2EXFEcmoIxA" class="cp-x" id="cpClose" title="关闭"><!--pnid:kZ5cnVLlcWINq077pZ9inz-->✕</button></div>
-      <div data-page-node-id="XR85ES9pIIjpFZLbMrIYjB" class="cp-sv" id="cpSV"><span data-page-node-id="QTToW510aoq04RfQpUioPv" class="cp-dot" id="cpDot"></span></div>
-      <div data-page-node-id="JlNLNi2hZJT17BA65ezSoE" class="cp-hue" id="cpHue"><span data-page-node-id="0NQJRssDg14PzhAbqEkinZ" class="cp-hue-dot" id="cpHueDot"></span></div>
-      <div data-page-node-id="D4ekGsY1LkYa2QiTDuvi3L" class="cp-row">
-        <span data-page-node-id="oijVhF9yuZpUsHZAyBky3Y" class="cp-prev" id="cpPrev"></span>
-        <input data-page-node-id="Epa05afpArlckyzwVJOuIs" class="cp-hex" id="cpHex" maxlength="7" placeholder="#RRGGBB" spellcheck="false">
-        <!-- 吸管：从封面 / 页面图片 / 背景图 / 相册里直接点一个颜色出来，取完还能用上面的面板微调 -->
-        <button data-page-node-id="CPeye" class="cp-eye" id="cpEye" title="吸管取色">
-          <svg data-page-node-id="CPeyeIco" viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
+    <div data-page-node-id="Eu65sdbQERSxNI3ivfEDfk" class="cp-panel" role="dialog" aria-modal="true" aria-labelledby="cpTitle">
+      <div data-page-node-id="IawGo41MsGQ5HW3CoFfqCB" class="cp-head">
+        <button data-page-node-id="CPeye" class="cp-eye" id="cpEye" title="吸管取色" aria-label="吸管取色">
+          <svg data-page-node-id="CPeyeIco" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
             <path d="M18.6 2.4a3.3 3.3 0 0 1 4.7 4.7l-2.3 2.3-4.7-4.7z" fill="currentColor" opacity=".5"/>
             <path d="M16.3 4.7l3 3L9.6 17.4l-4.3 1.1 1.1-4.3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
             <path d="M3 21l3-3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
           </svg>
         </button>
+        <span data-page-node-id="jIuFQ0tzhZ5B04tigv0lss" id="cpTitle">颜色</span>
+        <button data-page-node-id="UtRvsfmognK2EXFEcmoIxA" class="cp-x" id="cpClose" title="关闭" aria-label="关闭">✕</button>
+      </div>
+      <div class="cp-tabs" role="tablist" aria-label="取色方式">
+        <button class="cp-tab" data-cpmode="grid" role="tab" aria-selected="false">网格</button>
+        <button class="cp-tab on" data-cpmode="spectrum" role="tab" aria-selected="true">光谱</button>
+        <button class="cp-tab" data-cpmode="sliders" role="tab" aria-selected="false">滑块</button>
+      </div>
+      <div class="cp-body">
+        <div class="cp-mode" id="cpModeGrid" hidden>
+          <div class="cp-grid" id="cpGrid" aria-label="颜色网格"></div>
+        </div>
+        <div class="cp-mode" id="cpModeSpectrum">
+          <div data-page-node-id="XR85ES9pIIjpFZLbMrIYjB" class="cp-sv" id="cpSV" aria-label="光谱取色区域">
+            <span data-page-node-id="QTToW510aoq04RfQpUioPv" class="cp-dot" id="cpDot"></span>
+          </div>
+        </div>
+        <div class="cp-mode cp-sliders" id="cpModeSliders" hidden>
+          <div class="cp-slider-row">
+            <label for="cpR">红色</label>
+            <div class="cp-slider-line"><input class="cp-range" id="cpR" type="range" min="0" max="255" step="1" aria-label="红色"><input class="cp-num" id="cpRN" type="number" min="0" max="255" step="1" inputmode="numeric" aria-label="红色数值"></div>
+          </div>
+          <div class="cp-slider-row">
+            <label for="cpG">绿色</label>
+            <div class="cp-slider-line"><input class="cp-range" id="cpG" type="range" min="0" max="255" step="1" aria-label="绿色"><input class="cp-num" id="cpGN" type="number" min="0" max="255" step="1" inputmode="numeric" aria-label="绿色数值"></div>
+          </div>
+          <div class="cp-slider-row">
+            <label for="cpB">蓝色</label>
+            <div class="cp-slider-line"><input class="cp-range" id="cpB" type="range" min="0" max="255" step="1" aria-label="蓝色"><input class="cp-num" id="cpBN" type="number" min="0" max="255" step="1" inputmode="numeric" aria-label="蓝色数值"></div>
+          </div>
+          <label class="cp-hex-label" for="cpHex">sRGB · HEX</label>
+          <input data-page-node-id="Epa05afpArlckyzwVJOuIs" class="cp-hex" id="cpHex" maxlength="7" placeholder="#RRGGBB" spellcheck="false" autocomplete="off" autocapitalize="off">
+        </div>
+      </div>
+      <div class="cp-palette">
+        <span data-page-node-id="oijVhF9yuZpUsHZAyBky3Y" class="cp-prev" id="cpPrev" title="当前颜色"></span>
+        <div class="cp-swatches" id="cpSwatches" aria-label="常用颜色"></div>
+        <button class="cp-add" id="cpAdd" title="把当前颜色存为常用色" aria-label="把当前颜色存为常用色">＋</button>
       </div>
       <div data-page-node-id="tnBtIH7YA2tsV1ND7YvDWf" class="cp-actions">
-        <button data-page-node-id="gsK8AcKIqkjYqdN9uP1yrM" class="btn ghost" id="cpCancel"><!--pnid:GXAR11sHKw8WHpK2331XNt-->取消</button>
-        <button data-page-node-id="ZeRqoOicNlru2bOCvbphik" class="btn primary" id="cpOk"><!--pnid:fk23826lZLjaIDXbLd2TVr-->确定</button>
+        <button data-page-node-id="ZeRqoOicNlru2bOCvbphik" class="btn primary" id="cpOk">使用颜色</button>
       </div>
     </div>
   </div>
@@ -473,7 +523,7 @@
        整层 pointer-events:none（连 elementsFromPoint 都不会命中它），只有底部那条细操作条可以点 -->
   <div data-page-node-id="EPliveWrap" class="ep-live" id="epLive" hidden>
     <span data-page-node-id="EPloupe" class="ep-loupe" id="epLoupe">
-      <canvas data-page-node-id="EPloupeCv" id="epLoupeCv" width="72" height="72"></canvas>
+      <canvas data-page-node-id="EPloupeCv" id="epLoupeCv" width="90" height="90"></canvas>
     </span>
     <div data-page-node-id="EPbar" class="ep-bar" id="epBar">
       <span data-page-node-id="EPprev" class="ep-prev" id="epPrev"></span>
@@ -511,6 +561,21 @@
     </div>
   </div>
 
+  <!--pnid:LKmask--><!-- ============ 手帐本加密：解锁 / 密钥管理 ============
+       与 #home / #reader 平级的独立遮罩。解开过一次的书由本机记住密钥、静默解密；
+       只有从外部导入的加密文件、或点过「立即上锁」之后才会弹这个框。 -->
+  <div class="lk-mask" id="lockMask">
+    <div class="lk-panel" id="lockPanel">
+      <div class="lk-head">
+        <span class="lk-hico"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10.5" rx="2.4"/><path d="M8 10.5V7.2a4 4 0 018 0v3.3"/><circle cx="12" cy="15.4" r="1.15" fill="currentColor" stroke="none"/></svg></span>
+        <div class="lk-htx"><b id="lockTitle">手帐本加密</b><small id="lockSub"></small></div>
+        <button class="lk-x" id="lockClose" title="关闭">✕</button>
+      </div>
+      <div class="lk-body" id="lockBody"></div>
+      <div class="lk-foot" id="lockFoot"></div>
+    </div>
+  </div>
+
   <div data-page-node-id="BGmask" class="cp-mask" id="bgMask">
     <div data-page-node-id="BGpanel" class="cp-panel">
       <div data-page-node-id="BGhead" class="cp-head"><span data-page-node-id="BGtitle" id="bgTitle">背景设置</span><button data-page-node-id="BGclose" class="cp-x" id="bgClose" title="关闭">✕</button></div>
@@ -529,19 +594,22 @@
       </div>
     </div>
   </div>
-  <input data-page-node-id="BGfile" accept="image/*" hidden id="bgFile" type="file">
+  <input data-page-node-id="BGfile" accept="image/*" class="file-input" id="bgFile" type="file">
 
-  <input data-page-node-id="0Lio0A3H1Vxl0cqCsqHD1u" accept="image/*" hidden id="filePicker" type="file">
+  <!-- ⚠️ 选图入口一律用 .file-input（视觉隐藏但仍在渲染树里），别用 hidden / display:none：
+       iOS Safari、微信 X5、部分安卓 WebView 会拒绝对 display:none 的 file input 程序化 click()，
+       表现就是移动端点「添加图片 / 换图 / 导入贴纸」完全没反应。 -->
+  <input data-page-node-id="0Lio0A3H1Vxl0cqCsqHD1u" accept="image/*" class="file-input" id="filePicker" type="file">
   <!-- 换图专用：跟「添加图片」分开，免得两者抢同一个 pendingPage -->
-  <input data-page-node-id="SWAPfile" accept="image/*" hidden id="swapFile" type="file">
-  <input data-page-node-id="PfKLvwIHF0oGvl7g7C4CMc" accept="image/*" hidden id="coverFile" type="file">
+  <input data-page-node-id="SWAPfile" accept="image/*" class="file-input" id="swapFile" type="file">
+  <input data-page-node-id="PfKLvwIHF0oGvl7g7C4CMc" accept="image/*" class="file-input" id="coverFile" type="file">
   <!-- 自定义内页模板专用：跟封面图 / 页内图片分开，免得几路上传抢同一个回调 -->
-  <input accept="image/*" hidden id="tplFile" type="file" multiple>
+  <input accept="image/*" class="file-input" id="tplFile" type="file" multiple>
   <!-- 自定义封面专用选图入口：加图片 / 换图 / 往贴纸库导入，三路分开免得抢回调 -->
-  <input accept="image/*" hidden id="diyFile" type="file">
-  <input accept="image/*" hidden id="diySwapFile" type="file">
-  <input accept="image/*" hidden id="diyStickerFile" type="file" multiple>
-  <input accept="image/*" hidden id="edInsideFile" type="file">
+  <input accept="image/*" class="file-input" id="diyFile" type="file">
+  <input accept="image/*" class="file-input" id="diySwapFile" type="file">
+  <input accept="image/*" class="file-input" id="diyStickerFile" type="file" multiple>
+  <input accept="image/*" class="file-input" id="edInsideFile" type="file">
 
   <!-- ============ 自定义封面：独立全屏页面 ============
        与 #home / #reader 平级（不是弹窗）。进入时编辑器弹窗让位，完成后再交还。
@@ -600,9 +668,12 @@
   <!-- 脚本：按依赖顺序加载（defer 保证 DOM 就绪且顺序执行），各文件职责见 README.md。
        ⚠️ 顺序就是依赖顺序，不要随意调换：靠后的模块会用到靠前模块在顶层定义的 const，
        调错了会在启动时抛 TDZ 错误。新增 / 插入模块后，记得把各文件头的「脚本 N / 25」编号同步。 -->
+  <!-- 相框档素材：一张内嵌 data URL，必须排在 visuals.js 前面（frameBoxStyle 用它） -->
+  <script src="assets/frame-gold.js" defer></script>
   <script src="src/core.js" defer></script>
   <script src="src/visuals.js" defer></script>
   <script src="src/storage.js" defer></script>
+  <script src="src/lock.js" defer></script>
   <script src="src/io-export.js" defer></script>
   <script src="src/io-doc.js" defer></script>
   <script src="src/io-share.js" defer></script>

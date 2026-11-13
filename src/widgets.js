@@ -1,11 +1,12 @@
 /* =====================================================================
- * Carnet · 通用控件 · 取色盘与背景面板   （脚本 19 / 27）
+ * Carnet · 通用控件 · 取色盘与背景面板   （脚本 20 / 28）
  * ---------------------------------------------------------------------
  * ① 自定义取色盘 openColorPicker：HSV 面板 + 色相条 + 手输色值
  *    （App 内置浏览器常唤不起原生 input[type=color]，所以自己实现一套）
  * ② 吸管取色 openEyedropper：只取手账本里的内容，现场取色、不弹窗
  *    （点吸管后浮层一律让位藏起，直接在活页面上点；从 elementsFromPoint 逐层合成取色，
- *      图片把屏幕坐标逆映射回原始像素采样，旋转 / 缩放都对得上）
+ *      图片把屏幕坐标逆映射回原始像素采样，CSS 渐变 / 图案 / 模板细线则把 background-*
+ *      塞进 SVG foreignObject 栅格化后再按点取样；放大镜按半个 CSS 像素取样，旋转 / 缩放都对得上）
  * ③ 背景设置面板 openBgPanel：预设色 / 自定义色 / 背景图片 / 恢复默认
  *
  * 对外接口：openColorPicker, closeColorPicker, openEyedropper, openBgPanel
@@ -15,9 +16,15 @@
  * 说明：模块间共用全局作用域，加载顺序即依赖顺序（见 index.html 与 README）。
  * ===================================================================== */
 /* ==================== 自定义取色盘 ====================
-   App 内置浏览器常常唤不起原生 input[type=color]，所以这里自己做一套：
-   上面是饱和度 / 明度面板，下面是色相条，也可以直接填色值。 */
-const cp = { h: 340, s: .68, v: .9, apply: null, dragging: false };
+   三种输入方式共用一份 HSV 状态：规则色阶网格、纵向色相光谱、RGB / HEX 精确输入。
+   所有修改先落在面板里，点「使用颜色」才调用 apply，避免拖滑块时反复改动本子。 */
+const CP_DEFAULT_SWATCHES = ['#ffffff', '#ffe600', '#f38ff2', '#1687d9', '#086b4d'];
+const CP_GRID_HUES = [180, 210, 240, 270, 300, 330, 0, 25, 40, 55, 75, 95];
+const CP_GRID_LEVELS = [[.86, .30], [.90, .40], [.92, .52], [.94, .66], [.96, .82], [.90, 1], [.64, 1], [.40, 1], [.20, 1]];
+const cp = { h: 0, s: 0, v: 1, apply: null, dragging: false, kbTimer: 0,
+  mode: 'spectrum', built: false, colors: [], gridOn: null };
+/* 取色盘遮罩上「这一下按下是不是点在遮罩空白处」，见下面的 click 判定 */
+let cpPressOutside = false;
 function hsvToHex(h, s, v) {
   const f = n => {
     const k = (n + h / 60) % 6;
@@ -37,59 +44,177 @@ function hexToHsv(hex) {
     else if (max === g) h = 60 * ((b - r) / d + 2);
     else h = 60 * ((r - g) / d + 4);
   }
-  /* 色相保留小数：吸管取到 #C83B4A 后要走 hex→HSV→hex 这一圈，
-     h 取整到度数会丢精度（0.5° 的误差就够把某个通道差 1），
-     于是「取到 #C83B4A、用上的却是 #C83B49」。 */
+  /* 保留小数色相，避免 HEX→HSV→HEX 往返时通道差 1。 */
   return { h, s: max ? d / max : 0, v: max };
 }
-/* keepInput：正在手输色值时不回写输入框，免得把光标和已输入内容打乱 */
-let cpLastHue = NaN;
+const CP_GRID_COLORS = [
+  ...Array.from({ length: 12 }, (_, i) => hsvToHex(0, 0, 1 - i / 11)),
+  ...CP_GRID_LEVELS.flatMap(([s, v]) => CP_GRID_HUES.map(h => hsvToHex(h, s, v)))
+];
+function cpRGB() {
+  const h = hsvToHex(cp.h, cp.s, cp.v);
+  return { r: parseInt(h.slice(1, 3), 16), g: parseInt(h.slice(3, 5), 16), b: parseInt(h.slice(5, 7), 16) };
+}
+function cpRGBToHex(rgb) {
+  return '#' + [rgb.r, rgb.g, rgb.b].map(n => clamp(Math.round(n), 0, 255).toString(16).padStart(2, '0')).join('');
+}
+function cpSetHex(hex, keepInput) {
+  const hsv = hexToHsv(hex);
+  if (!hsv) return false;
+  cp.h = hsv.h; cp.s = hsv.s; cp.v = hsv.v;
+  paintCP(!!keepInput);
+  return true;
+}
+function cpSetChannel(k, value) {
+  if (value === '' || !isFinite(+value)) return;
+  const rgb = cpRGB(); rgb[k] = clamp(Math.round(+value), 0, 255);
+  cpSetHex(cpRGBToHex(rgb));
+}
+function cpBuildSwatches() {
+  $('#cpSwatches').innerHTML = cp.colors.map(c =>
+    `<button class="cp-swatch" data-color="${c}" style="background:${c}" title="${c.toUpperCase()}" aria-label="选择 ${c.toUpperCase()}"></button>`).join('');
+}
+function cpSaveSwatches() {
+  try { localStorage.setItem('carnet_cp_swatches_v1', JSON.stringify(cp.colors)); } catch (_) {}
+}
+function buildCP() {
+  if (cp.built) return;
+  let saved = [];
+  try {
+    const raw = JSON.parse(localStorage.getItem('carnet_cp_swatches_v1') || '[]');
+    if (Array.isArray(raw)) saved = raw.filter(c => !!hexToHsv(c)).map(c => {
+      const h = hexToHsv(c); return hsvToHex(h.h, h.s, h.v);
+    });
+  } catch (_) {}
+  cp.colors = (saved.length ? saved : CP_DEFAULT_SWATCHES).slice(0, 8);
+  $('#cpGrid').innerHTML = CP_GRID_COLORS.map(c =>
+    `<button class="cp-cell" data-color="${c}" style="background:${c}" title="${c.toUpperCase()}" aria-label="选择 ${c.toUpperCase()}"></button>`).join('');
+  cpBuildSwatches();
+  $('#cpGrid').addEventListener('click', e => {
+    const b = e.target.closest('.cp-cell'); if (b) cpSetHex(b.dataset.color);
+  });
+  $('#cpSwatches').addEventListener('click', e => {
+    const b = e.target.closest('.cp-swatch'); if (b) cpSetHex(b.dataset.color);
+  });
+  $$('.cp-tab').forEach(b => b.addEventListener('click', () => setCPMode(b.dataset.cpmode)));
+  [['r', '#cpR', '#cpRN'], ['g', '#cpG', '#cpGN'], ['b', '#cpB', '#cpBN']].forEach(([k, sk, nk]) => {
+    const slider = $(sk), num = $(nk);
+    slider.addEventListener('input', () => cpSetChannel(k, slider.value));
+    slider.addEventListener('keydown', e => e.stopPropagation());
+    num.addEventListener('input', () => cpSetChannel(k, num.value));
+  });
+  $('#cpAdd').onclick = () => {
+    const hex = hsvToHex(cp.h, cp.s, cp.v), at = cp.colors.indexOf(hex);
+    if (at >= 0) cp.colors.splice(at, 1);
+    cp.colors.push(hex);
+    while (cp.colors.length > 8) cp.colors.shift();
+    cpSaveSwatches(); cpBuildSwatches(); paintCP();
+    const last = $('#cpSwatches').lastElementChild;
+    if (last) last.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+  };
+  cp.built = true;
+}
+function setCPMode(mode) {
+  cp.mode = ['grid', 'spectrum', 'sliders'].includes(mode) ? mode : 'spectrum';
+  const ids = { grid: '#cpModeGrid', spectrum: '#cpModeSpectrum', sliders: '#cpModeSliders' };
+  Object.keys(ids).forEach(k => { $(ids[k]).hidden = k !== cp.mode; });
+  $$('.cp-tab').forEach(b => {
+    const on = b.dataset.cpmode === cp.mode;
+    b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+  paintCP();
+}
+/* keepInput：正在手输 HEX 时不回写，免得把光标和已输入内容打乱。 */
 function paintCP(keepInput) {
-  const hex = hsvToHex(cp.h, cp.s, cp.v);
-  /* 拖饱和度 / 明度时色相没变，那三层渐变一模一样 —— 重建 linear-gradient
-     会让整块面板重绘，拖起来发涩。色相条变了才重画 */
-  if (cp.h !== cpLastHue) {
-    $('#cpSV').style.background =
-      `linear-gradient(to top,#000,rgba(0,0,0,0)),linear-gradient(to right,#fff,rgba(255,255,255,0)),hsl(${cp.h},100%,50%)`;
-    cpLastHue = cp.h;
+  const hex = hsvToHex(cp.h, cp.s, cp.v), rgb = cpRGB();
+  /* 光谱横轴左半是白→纯色，右半是纯色→黑，纵轴是完整色相。
+     任意 HSV 色切回光谱时，投影到这两条边上；不会仅因切换模式改变颜色。 */
+  let x;
+  if (cp.s < .001) x = cp.v >= .5 ? 0 : 1;
+  else {
+    const x1 = clamp(cp.s / 2, 0, .5), x2 = clamp(1 - cp.v / 2, .5, 1);
+    const e1 = (cp.s - 2 * x1) ** 2 + (cp.v - 1) ** 2;
+    const e2 = (cp.s - 1) ** 2 + (cp.v - (2 - 2 * x2)) ** 2;
+    x = e1 < e2 ? x1 : x2;
   }
-  $('#cpDot').style.left = (cp.s * 100).toFixed(2) + '%';
-  $('#cpDot').style.top = ((1 - cp.v) * 100).toFixed(2) + '%';
-  $('#cpHueDot').style.left = (cp.h / 360 * 100).toFixed(2) + '%';
+  $('#cpDot').style.left = (x * 100).toFixed(2) + '%';
+  $('#cpDot').style.top = (cp.h / 360 * 100).toFixed(2) + '%';
   $('#cpPrev').style.background = hex;
+  $('#cpPrev').title = '当前颜色 ' + hex.toUpperCase();
+  if (cp.gridOn) cp.gridOn.classList.remove('on');
+  cp.gridOn = $(`#cpGrid .cp-cell[data-color="${hex}"]`) || null;
+  if (cp.gridOn) cp.gridOn.classList.add('on');
+  $$('#cpSwatches .cp-swatch').forEach(b => b.classList.toggle('on', b.dataset.color === hex));
+  [['r', '#cpR', '#cpRN'], ['g', '#cpG', '#cpGN'], ['b', '#cpB', '#cpBN']].forEach(([k, sk, nk]) => {
+    const slider = $(sk), num = $(nk);
+    slider.value = rgb[k];
+    if (document.activeElement !== num) num.value = rgb[k];
+    const lo = { r: rgb.r, g: rgb.g, b: rgb.b }, hi = { r: rgb.r, g: rgb.g, b: rgb.b };
+    lo[k] = 0; hi[k] = 255;
+    slider.style.setProperty('--cp-track', `linear-gradient(90deg,${cpRGBToHex(lo)},${cpRGBToHex(hi)})`);
+    slider.setAttribute('aria-valuetext', String(rgb[k]));
+    num.setAttribute('aria-label', ({ r: '红色', g: '绿色', b: '蓝色' })[k] + '数值');
+  });
   if (!keepInput) $('#cpHex').value = hex.toUpperCase();
   return hex;
 }
 function openColorPicker(title, hex, apply) {
+  buildCP();
   const hsv = hexToHsv(hex);
-  if (hsv) { cp.h = hsv.h; cp.s = hsv.s > .02 ? hsv.s : .68; cp.v = hsv.v > .02 ? hsv.v : .9; }
+  /* 白、黑与灰色也必须原样打开，不能像旧版那样替换成高饱和默认色。 */
+  if (hsv) { cp.h = hsv.h; cp.s = hsv.s; cp.v = hsv.v; }
   cp.apply = apply;
-  $('#cpTitle').textContent = title || '自定义颜色';
-  paintCP();
+  clearTimeout(cp.kbTimer);
+  cpPressOutside = false;
+  $('#cpTitle').textContent = title || '颜色';
+  $('#cpMask').classList.remove('kb');
+  setCPMode(cp.mode);
   $('#cpMask').classList.add('show');
 }
-function closeColorPicker() { $('#cpMask').classList.remove('show'); cp.apply = null; cp.dragging = false; }
+function closeColorPicker() {
+  clearTimeout(cp.kbTimer);
+  $('#cpMask').classList.remove('show', 'kb');
+  cp.apply = null; cp.dragging = false; cpPressOutside = false;
+}
 $('#cpClose').onclick = closeColorPicker;
-$('#cpCancel').onclick = closeColorPicker;
-$('#cpMask').addEventListener('click', e => { if (e.target === $('#cpMask')) closeColorPicker(); });
+/* 点遮罩外面才收面板：按下与 click 都必须落在遮罩，键盘顶起面板时也不会误关。 */
+$('#cpMask').addEventListener('pointerdown', e => { cpPressOutside = (e.target === $('#cpMask')); });
+$('#cpMask').addEventListener('click', e => {
+  if (cpPressOutside && e.target === $('#cpMask')) closeColorPicker();
+  cpPressOutside = false;
+});
 $('#cpOk').onclick = () => {
   const apply = cp.apply, hex = hsvToHex(cp.h, cp.s, cp.v);
   closeColorPicker();
   if (apply) apply(hex);
 };
-$('#cpHex').addEventListener('input', () => {
-  const hsv = hexToHsv($('#cpHex').value);
-  if (!hsv) return;
-  cp.h = hsv.h; cp.s = hsv.s; cp.v = hsv.v;
-  paintCP(true);
-});
-$('#cpHex').addEventListener('focus', () => $('#cpMask').classList.add('kb'));
-/* 失焦后面板回位要延后：立刻移位会正好吞掉「确定 / 取消」那一下点击 */
-$('#cpHex').addEventListener('blur', () => { paintCP(); setTimeout(() => $('#cpMask').classList.remove('kb'), 240); });
-/* 面板与色相条：按下即取色，拖动连续取色（自己接管手势，不依赖系统能力） */
+$('#cpHex').addEventListener('input', () => cpSetHex($('#cpHex').value, true));
+/* 输入框按键不漏给全局快捷键；Enter 应用、Esc 只收取色盘。
+   键盘弹起后面板延后再移位，避免 mousedown / mouseup 之间换位置而吞掉点击。 */
+function bindCPField(el) {
+  el.addEventListener('keydown', e => {
+    e.stopPropagation();
+    if (e.key === 'Enter') { e.preventDefault(); $('#cpOk').click(); }
+    else if (e.key === 'Escape') { e.preventDefault(); closeColorPicker(); }
+  });
+  el.addEventListener('focus', () => {
+    clearTimeout(cp.kbTimer);
+    cp.kbTimer = setTimeout(() => {
+      if (document.activeElement === el) $('#cpMask').classList.add('kb');
+    }, 160);
+  });
+  el.addEventListener('blur', () => {
+    clearTimeout(cp.kbTimer); paintCP();
+    setTimeout(() => {
+      const a = document.activeElement;
+      if (!a || !a.matches('#cpHex,.cp-num')) $('#cpMask').classList.remove('kb');
+    }, 240);
+  });
+}
+bindCPField($('#cpHex'));
+$$('.cp-num').forEach(bindCPField);
+/* 光谱按下即取色，拖动连续取色；移动事件按帧合并，松手 flush 补上最终位置。 */
 function bindCPDrag(el, onPick) {
-  /* 面板在拖动期间不动，rect 按下时量一次就够；移动事件按帧合一次，
-     松手 flush() 把最后那一下补上，取到的颜色跟手指停下的位置一致 */
   let rect = null;
   const q = frameQueue(ev => {
     if (!rect) return;
@@ -100,7 +225,7 @@ function bindCPDrag(el, onPick) {
     cp.dragging = true;
     rect = el.getBoundingClientRect();
     try { el.setPointerCapture(ev.pointerId); } catch (_) {}
-    q.push(ev); q.flush();                 // 按下即取色，别等到下一帧
+    q.push(ev); q.flush();
     ev.preventDefault();
   });
   el.addEventListener('pointermove', ev => { if (cp.dragging) q.push(ev); });
@@ -108,8 +233,12 @@ function bindCPDrag(el, onPick) {
   el.addEventListener('pointerup', end);
   el.addEventListener('pointercancel', end);
 }
-bindCPDrag($('#cpSV'), (x, y) => { cp.s = x; cp.v = 1 - y; paintCP(); });
-bindCPDrag($('#cpHue'), x => { cp.h = Math.round(x * 360); paintCP(); });
+bindCPDrag($('#cpSV'), (x, y) => {
+  cp.h = clamp(y * 360, 0, 359.999);
+  if (x <= .5) { cp.s = x * 2; cp.v = 1; }
+  else { cp.s = 1; cp.v = (1 - x) * 2; }
+  paintCP();
+});
 
 /* ==================== 吸管取色（现场取色，不弹窗） ====================
    只取手账本里此刻真正显示在屏幕上的内容 —— 不碰系统吸管、不碰截屏、也不碰素材原图：
@@ -122,16 +251,21 @@ bindCPDrag($('#cpHue'), x => { cp.h = Math.round(x * 360); paintCP(); });
      图片则把屏幕坐标逆映射回原始像素再采样（旋转 / 祖先缩放都能对上）。
 
    全程只有一个跟着指针的放大镜和底部一条细操作条，没有弹窗挡页面。 */
-const EP_ZOOM = 9;        // 放大镜取指针周围 9×9 个屏幕像素
-const EP_LOUPE = 72;      // 放大镜直径（px，与 CSS 一致），每格 72/9 = 8px
+const EP_ZOOM = 15;       // 放大镜每边取 15 个点
+const EP_STEP = .5;       // 相邻取样点间距（CSS px）：半个屏幕像素，颗粒度比原来细一倍
+const EP_LOUPE = 90;      // 放大镜直径（px，与 CSS / canvas 一致），每格 90/15 = 6px
 const EP_CAP = 1600;      // 图片取样画布的最大边长
+const EP_BG_CAP = 1600;   // CSS 背景栅格的最大边长
+const EP_BG_SCALE = 2;    // 背景按 2× 分辨率栅格化，1px 的网格线也留得住
 /* 取色时要让位的浮层：取色盘、通用弹窗、确认框、底部弹窗、添加菜单。
    藏起来而不是关掉 —— 取完色要原样回来，调用方的状态不能被破坏 */
 const EP_DUCK = '.cp-mask,.modal-mask,.confirm-mask,.tsheet,.addmenu';
 const ep = { on: false, hex: null, raf: 0, pt: null, ducked: [],
   cache: new Map(),                 // src → 取样画布
+  bg: new Map(),                    // 元素 → CSS 背景栅格画布（整次取色期间有效）
   affs: new Map(),                  // 元素 → 仿射变换（每帧清一次）
   frame: new Map(),                 // 元素 → 背景色（每帧清一次，省掉大量 getComputedStyle）
+  bgRect: new Map(),                // 元素 → 包围盒（每帧清一次）
   rects: new Map() };               // 文本节点 → 行盒（每帧清一次，getClientRects 会强制重排）
 
 /* ---------- 颜色 ---------- */
@@ -229,6 +363,84 @@ function epImgColor(wrap, x, y) {
   catch (_) { return null; }
   return { r: d[0], g: d[1], b: d[2], a: d[3] / 255 };
 }
+
+/* ---------- CSS 背景栅格化 ----------
+   getComputedStyle().backgroundColor 只有「纯色」那一层：渐变封面、封面图案层、
+   内页网格 / 横线 / 点阵模板全都画在 background-image 上。以前只读 backgroundColor，
+   这些地方会一路透明到底，吸管只能拿到最底下的白 —— 主页编辑器里点渐变封面取不到
+   指向处的颜色、阅读器里也分不出 1px 的网格线（用户说的「颗粒度不够细」）。
+   办法：把这一层的 background-* 原样塞进 SVG foreignObject 交给浏览器栅格化，
+   再按点 getImageData。按元素缓存，取色期间页面静止，缓存一直有效。 */
+function epBgCanvas(el) {
+  if (ep.bg.has(el)) return ep.bg.get(el);
+  ep.bg.set(el, null);                    // 先占位：一帧几百个取样点只栅格化一次
+  let cs;
+  try { cs = getComputedStyle(el); } catch (_) { return null; }
+  const bi = cs.backgroundImage;
+  if (!bi || bi === 'none') return null;
+  const r = el.getBoundingClientRect();
+  const w = Math.max(1, Math.round(r.width)), h = Math.max(1, Math.round(r.height));
+  const k = Math.max(.25, Math.min(EP_BG_SCALE, EP_BG_CAP / Math.max(w, h)));
+  const W = Math.max(1, Math.round(w * k)), H = Math.max(1, Math.round(h * k));
+  /* 内层 div 用原始 CSS 尺寸（background-size / position 的 px、% 都按它算），
+     外面套 transform:scale(k) 把整块提到 2× 分辨率，细线才不会糊掉 */
+  const box = document.createElement('div');
+  box.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+  box.style.cssText = 'width:' + w + 'px;height:' + h + 'px;'
+    + 'transform-origin:0 0;transform:scale(' + k + ');';
+  box.style.backgroundColor = cs.backgroundColor;
+  box.style.backgroundImage = bi;
+  box.style.backgroundSize = cs.backgroundSize;
+  box.style.backgroundPosition = cs.backgroundPosition;
+  box.style.backgroundRepeat = cs.backgroundRepeat;
+  box.style.backgroundOrigin = cs.backgroundOrigin;
+  box.style.backgroundClip = cs.backgroundClip;
+  box.style.borderRadius = cs.borderRadius;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  svg.setAttribute('width', W); svg.setAttribute('height', H);
+  const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+  fo.setAttribute('width', W); fo.setAttribute('height', H);
+  fo.appendChild(box); svg.appendChild(fo);
+  let url;
+  try {
+    url = 'data:image/svg+xml;charset=utf-8,'
+      + encodeURIComponent(new XMLSerializer().serializeToString(svg));
+  } catch (_) { return null; }
+  const img = new Image();
+  img.onload = () => {
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    try {
+      cv.getContext('2d', { willReadFrequently: true }).drawImage(img, 0, 0);
+      cv.getContext('2d').getImageData(0, 0, 1, 1);   // 试毒：污染画布会抛错
+      ep.bg.set(el, cv);
+    } catch (_) { /* 保持 null，回落成 backgroundColor */ }
+  };
+  img.src = url;
+  return null;                            // 首帧还没栅格化完，先走兜底；下一帧就准了
+}
+/* 这一层在 (x,y) 上的背景色。栅格还没好 / 这一点透明 → 让下面那层透上来 */
+function epBgColor(el, x, y) {
+  const cv = epBgCanvas(el);
+  if (!cv) {
+    if (!ep.frame.has(el)) ep.frame.set(el, epParseColor(getComputedStyle(el).backgroundColor));
+    return ep.frame.get(el);
+  }
+  let r = ep.bgRect.get(el);
+  if (!r) { r = el.getBoundingClientRect(); ep.bgRect.set(el, r); }
+  if (!r.width || !r.height) return null;
+  const u = (x - r.left) / r.width, v = (y - r.top) / r.height;
+  if (u < 0 || u > 1 || v < 0 || v > 1) return null;
+  try {
+    const px = clamp(Math.floor(u * cv.width), 0, cv.width - 1);
+    const py = clamp(Math.floor(v * cv.height), 0, cv.height - 1);
+    const d = cv.getContext('2d').getImageData(px, py, 1, 1).data;
+    if (d[3] > 0) return { r: d[0], g: d[1], b: d[2], a: d[3] / 255 };
+  } catch (_) { /* 落到下面 */ }
+  return null;
+}
+
 /* 文字：文字背景是透明的，得看这一点是不是正压在某个字上。
    用 Range 取文本节点的行盒，落在盒子里才算命中 —— 字与字之间的空隙不会误判成文字色 */
 function epTextColor(el, x, y) {
@@ -258,8 +470,8 @@ function epLayerColor(el, x, y) {
     const c = epImgColor(el, x, y);
     if (c) return c;
   }
-  if (!ep.frame.has(el)) ep.frame.set(el, epParseColor(getComputedStyle(el).backgroundColor));
-  const bg = ep.frame.get(el);
+  /* 渐变 / 图案 / 模板细线都在 background-image 上，走栅格化；纯色层仍读 backgroundColor */
+  const bg = epBgColor(el, x, y);
   const txt = epTextColor(el, x, y);
   if (txt && txt.a > 0) return bg && bg.a > 0 ? epOver(txt, bg) : txt;
   return bg;
@@ -284,24 +496,26 @@ function epSetHex(hex) {
   $('#epPrev').style.background = hex;
   $('#epHex').textContent = hex;
 }
-/* 放大镜：把指针周围 9×9 个屏幕像素逐个取样画成格子 */
+/* 放大镜：指针周围 15×15 个取样点，相邻点只隔半个 CSS 像素（EP_STEP），
+   所以 1px 的网格线 / 图案边缘也能在镜里分辨出来；坐标不取整，保留亚像素精度。 */
 function epDrawLoupe(x, y) {
   const cx = $('#epLoupeCv').getContext('2d');
   const cell = EP_LOUPE / EP_ZOOM, half = (EP_ZOOM - 1) / 2;
-  ep.affs.clear(); ep.frame.clear(); ep.rects.clear();   // 一帧量一次就够，81 个点共用
+  ep.affs.clear(); ep.frame.clear(); ep.rects.clear(); ep.bgRect.clear();   // 一帧量一次就够
+  const at = (i, j) => epToHex(epSampleAt(
+    x + (i - half) * EP_STEP, y + (j - half) * EP_STEP));
   /* 纸面、纯色块这些大片同色的地方占绝大多数：先探中心和四角，
-     五个点都一样就直接铺满，省掉 81 次取样 */
-  const c0 = epToHex(epSampleAt(x, y));
+     五个点都一样就直接铺满，省掉 225 次取样 */
+  const c0 = at(half, half);
   let same = true;
-  for (const d of [-half, half]) {
-    if (epToHex(epSampleAt(Math.round(x + d), Math.round(y + d))) !== c0
-      || epToHex(epSampleAt(Math.round(x + d), Math.round(y - d))) !== c0) { same = false; break; }
+  for (const [i, j] of [[0, 0], [EP_ZOOM - 1, 0], [0, EP_ZOOM - 1], [EP_ZOOM - 1, EP_ZOOM - 1]]) {
+    if (at(i, j) !== c0) { same = false; break; }
   }
   if (same) { cx.fillStyle = c0; cx.fillRect(0, 0, EP_LOUPE, EP_LOUPE); return; }
   for (let j = 0; j < EP_ZOOM; j++) {
     for (let i = 0; i < EP_ZOOM; i++) {
-      cx.fillStyle = epToHex(epSampleAt(Math.round(x + (i - half)), Math.round(y + (j - half))));
-      cx.fillRect(i * cell, j * cell, cell, cell);
+      cx.fillStyle = at(i, j);
+      cx.fillRect(Math.floor(i * cell), Math.floor(j * cell), Math.ceil(cell), Math.ceil(cell));
     }
   }
 }
@@ -317,7 +531,7 @@ function epMove(x, y) {
   epDrawLoupe(x, y);
 }
 function epPickAt(x, y) {
-  ep.affs.clear(); ep.frame.clear(); ep.rects.clear();
+  ep.affs.clear(); ep.frame.clear(); ep.rects.clear(); ep.bgRect.clear();
   epSetHex(epToHex(epSampleAt(x, y)));
 }
 
@@ -332,21 +546,27 @@ function epDuck(on) {
 function openEyedropper() {
   ep.on = true; ep.hex = null;
   ep.cache.clear();                       // 图片可能刚被换过，别拿旧画布
+  ep.bg.clear(); ep.bgRect.clear();       // CSS 背景栅格同理，重开一次重新栅格化
   ep.affs.clear(); ep.frame.clear(); ep.rects.clear();
   ep.hex = null;
   $('#epHex').textContent = '点手账本上任意位置取色';
   $('#epPrev').style.background = 'transparent';
   $('#epLoupe').style.display = 'none';
   epDuck(true);                           // 浮层让位，页面露出来
+  /* 装饰层（图案 / 光泽 / 书脊 / 模板网格）平时 pointer-events:none，
+     elementsFromPoint 会漏掉它们；取色期间临时放进来，才能取到这些细节 */
+  document.body.classList.add('ep-picking');
   $('#epLive').hidden = false;
 }
 function closeEyedropper() {
   if (!ep.on) return;
   ep.on = false;
   $('#epLive').hidden = true;
+  document.body.classList.remove('ep-picking');
   epDuck(false);                          // 浮层原样回来
   if (ep.raf) { cancelAnimationFrame(ep.raf); ep.raf = 0; }
   ep.pt = null;
+  ep.bg.clear(); ep.bgRect.clear();       // 栅格画布可能很大，退出就还回去
 }
 /* 只把颜色填回取色盘，应用还是走取色盘自己的「确定」 */
 function epApply() {
@@ -431,8 +651,8 @@ $('#bgReset').onclick = () => { setBg({ mode: 'default', value: '', img: null })
 $('#bgClearImg').onclick = () => { setBg({ mode: 'default', value: '', img: null }); syncBgPanel(); };
 $('#bgUpload').onclick = () => $('#bgFile').click();
 $('#bgFile').addEventListener('change', async e => {
-  const f = e.target.files[0];
-  e.target.value = '';
+  /* 移动端：先把 File 同步读成 dataURL 再清 input，别让底层 Blob 被提前释放 */
+  const [f] = await readPickedFiles(e);
   if (!f) return;
   toast('正在处理图片…');
   const img = await shrinkImageFile(f, 1920);

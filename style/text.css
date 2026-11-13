@@ -32,6 +32,9 @@
 .ptext-wrap.editing{outline:1.5px dashed var(--accent);outline-offset:3px;z-index:7;cursor:text}
 .ptext-wrap.editing .ptxt{
   cursor:text;user-select:text;-webkit-user-select:text;touch-action:auto;
+  /* 移动端长按文字时别再弹系统那张「复制 / 剪切 / 粘贴」菜单（会盖住胶囊工具条）。
+     保留 user-select:text：光标定位、拖选文字还得能用；功能改由工具条接管。 */
+  -webkit-touch-callout:none;
   box-shadow:0 0 0 1px rgba(17,19,24,.32);background:rgba(255,255,255,.55);
   overflow:auto;overscroll-behavior:contain
 }
@@ -121,6 +124,19 @@
 .objbar .ob-del{color:#ff9e9e}
 .objbar .ob-del:hover{background:rgba(255,86,86,.24)}
 .objbar .ob svg{display:block;pointer-events:none}
+/* 触屏：「剪切」只在这个对象**被编辑过**时才露出来（刚添加的内容先收着），
+   「粘贴」不进工具条 —— 空白纸面长按弹出的菜单才是粘贴入口。
+   桌面两档都不显示，仍走纸面右键菜单（见 page-edit.js 的 contextmenu 分支）。 */
+.objbar .ob-cut{display:none}
+@media (pointer:coarse){
+  #reader .obj-edited .objbar .ob-cut{display:grid}
+  /* 触屏上工具条按钮收紧一点，窄屏也排得开 */
+  #reader .objbar{gap:1px;padding:3px}
+  #reader .objbar .ob{width:28px;height:28px}
+  #reader .objbar .ob svg{width:15px;height:15px}
+  #reader .pimg-wrap.tiny .objbar .ob{width:25px;height:25px}
+  #reader .pimg-wrap.tiny .objbar .ob svg{width:13px;height:13px}
+}
 /* 图片小到一定程度（.tiny）时按钮跟着缩一号：图片有五颗钮（多一颗「换图」），
    按原尺寸会把整张小图占满、连拉伸手柄都盖住 */
 .pimg-wrap.tiny .objbar .ob{width:26px;height:26px}

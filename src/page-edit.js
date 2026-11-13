@@ -1,16 +1,17 @@
 /* =====================================================================
- * Carnet · 页面内容编辑 · 图片与文字对象   （脚本 15 / 27）
+ * Carnet · 页面内容编辑 · 图片与文字对象   （脚本 16 / 28）
  * ---------------------------------------------------------------------
  * ① bindPage：页面手势（拖动 / 四角拉伸 / 旋转 / 长按解锁）；首绘时把文字贴框收紧到内容
  *    图片四角 = 自由拉伸；文字贴四角 = 整块等比缩放（框宽、框高、字号同乘一个系数）
- * ② 选中对象后的工具条 objAction：完成 ✓ / 复制 / 换图（仅图片）/ 字随框缩放（仅文字）/ 编辑 / 删除
+ * ② 选中对象后的胶囊工具条 objAction：完成 ✓ / 复制（只存剪贴板，粘贴才生成一份）/ 剪切（触屏且已编辑过）/ 换图（仅图片）/ 字随框缩放（仅文字）/ 编辑 / 删除
  * ③ 右上角「添加」菜单：加页 / 加图片 / 加文字 / 本页底色 / 删本页，目标页判定 currentAddPage
  * ④ 文字贴两种手势各管一件事（编辑逻辑在 text-sticker.js）：
  *    长按 = 版式态 .boxmode：解除固定 → 选中 → 拖动挪位置 + 四角改大小 + 旋转手柄；
  *    双击 = 内容态 .editing：只改文字，手柄收起、拖不动、缩不了；
  *    单击零反应（手势归翻页）。.boxmode 只活在本次选中里，不写进数据。
  *    ⚠️ 文字贴的最小尺寸按「一个字 / 一行」算，绝不能套图片那套 IMG_MIN_*（见四角拉伸分支）
- * ⑤ 纸面右键菜单与对象级剪贴板：复制 / 剪切 / 粘贴文字贴与图片（也能贴外部文本 / 图片）
+ * ⑤ 纸面右键菜单 + 对象级剪贴板：桌面右键、触屏长按**空白纸面**都弹菜单（复制 / 剪切 / 粘贴）；
+   触屏长按内容不弹，复制 / 剪切走胶囊工具条，粘贴不进工具条
  *
  * 对外接口：bindPage, objAction, addImageTo, addTextTo, currentAddPage, toggleAddMenu,
  *           clipSet, clipCopy, clipCut, clipPasteAt
@@ -33,6 +34,9 @@ function objAction(act, w, pid, iid, isText) {
   /* 正在行内打字时点工具条：先把打的字落盘（但不重绘），再执行动作 ——
      不然复制 / 删除拿到的还是编辑前的那份数据 */
   if (isText && w && w.classList && w.classList.contains('editing')) stopTextEdit(w, true, true);
+  /* 触屏工具条：下面这些「真的在改这个对象」的动作会把它标记为已编辑，
+     之后胶囊工具条上才露出「剪切」。单纯的复制 / 完成不算。 */
+  const touchEdit = () => markObjEdited(iid);
   const disarmOut = () => { if (w.__outDown) { document.removeEventListener('pointerdown', w.__outDown, true); w.__outDown = null; } };
   const finish = () => {                             // 完成 = 固定到这一页
     im.locked = true; save();
@@ -44,32 +48,38 @@ function objAction(act, w, pid, iid, isText) {
   };
   if (act === 'close') { finish(); return; }
   if (act === 'copy') {
-    /* 除了就地再来一份，也存进对象级剪贴板：右键纸面 / Ctrl+V 能贴到别的地方或别的页 */
-    clipSet(isText ? 'text' : 'image', im);
-    const cp = JSON.parse(JSON.stringify(im));
-    cp.id = uid();
-    cp.x = clamp((im.x ?? 0) + .05, OBJ_MIN, OBJ_MAX);
-    cp.y = clamp((im.y ?? 0) + .05, OBJ_MIN, OBJ_MAX);
-    cp.locked = false;
-    cp.z = nextZ(pg);                       // 复制出来的这份盖在原件上面
-    arr.splice(arr.indexOf(im) + 1, 0, cp);
-    save(); renderReader();
-    toast(isText ? '已复制这段文字 · 右键纸面可粘贴' : '已复制这张图片 · 右键纸面可粘贴');
+    /* ⚠️ 复制**只进对象级剪贴板**，不在这里就地生一份：
+       要得到新对象必须再执行一次「粘贴」（触屏空白长按菜单 / 桌面右键 / Ctrl+V）。
+       跟右键「复制」、Ctrl+C 走的是同一条 clipCopy，三者表现一致。 */
+    const ref = clipRefFromWrap(w) || clipSelectedRef();
+    if (!ref) { toast('先选中一个文字框或图片再复制'); return; }
+    clipCopy(ref);
+    return;
+  }
+  /* 触屏：剪切收进胶囊工具条（只对编辑过的对象露出）；粘贴不放工具条，
+     统一走空白纸面长按弹出的那张菜单。剪切复用对象级剪贴板。 */
+  if (act === 'cut') {
+    const ref = clipRefFromWrap(w) || clipSelectedRef();
+    if (!ref) { toast('先选中一个文字框或图片再剪切'); return; }
+    clipCut(ref);
+    editedObjs.delete(iid);
     return;
   }
   /* 换图：弹出选图框，选完只换掉这张图的图源 —— 位置 / 大小 / 旋转 / 上下层原样保留。
      真正的换图动作在 media.js（#swapFile 的 change），这里只负责记住要换哪一张 */
   if (act === 'swap') {
     if (isText) return;
+    touchEdit();
     state.swapTarget = { pid, iid };
     const sp = $('#swapFile'); if (sp) sp.click();
     return;
   }
-  /* 图片边框：开底部那张面板（拍立得 / 纯色 / 细线 / 拟物相框 + 自定义颜色 + 粗细）。
+  /* 图片边框：开底部那张面板（拍立得 / 纯色 / 细线 / 相框 / 凹陷 + 自定义颜色 + 粗细）。
      面板已经开着且就是这一张 → 再点一次收起来 */
   if (act === 'frame') {
     if (isText) return;
     if (typeof frs !== 'undefined' && frs.open && frs.iid === iid) { closeFrameSheet(); return; }
+    touchEdit();
     openFrameSheet(pid, iid);
     return;
   }
@@ -78,6 +88,7 @@ function objAction(act, w, pid, iid, isText) {
   if (act === 'fslink') {
     if (!isText) return;
     const on = im.fsLink === false;        // 原来是关 → 现在开；原来是开 → 现在关
+    touchEdit();
     im.fsLink = on;
     save();
     $$('.objbar .ob[data-ob="fslink"]').forEach(b => {
@@ -89,6 +100,7 @@ function objAction(act, w, pid, iid, isText) {
   }
   if (act === 'del') {
     const k = arr.indexOf(im); if (k >= 0) arr.splice(k, 1);
+    editedObjs.delete(iid);
     disarmOut();
     save();
     if (isText) {
@@ -101,6 +113,7 @@ function objAction(act, w, pid, iid, isText) {
     return;
   }
   /* 编辑：文字开编辑面板；图片在「铺满整页 / 还原原比例」之间切 */
+  touchEdit();
   if (isText) { openTextSheet(pid, iid); return; }
   if (im.fill) {
     imgRatio(im.src).then(r => {
@@ -181,14 +194,14 @@ function clipCopy(ref) {
   if (!ref) return false;
   const now = clipRefFromWrap(clipWrapOf(ref.pid, ref.iid, ref.isText)) || ref;
   clipSet(now.isText ? 'text' : 'image', now.o);
-  toast(now.isText ? '已复制文字 · 在纸面右键可粘贴' : '已复制图片 · 在纸面右键可粘贴');
+  toast(now.isText ? '已复制文字 · 粘贴后才会生成一份' : '已复制图片 · 粘贴后才会生成一份');
   return true;
 }
 function clipCut(ref) {
   if (!ref) return false;
   clipCopy(ref);
   objAction('del', clipWrapOf(ref.pid, ref.iid, ref.isText) || ref.w, ref.pid, ref.iid, ref.isText);
-  toast(ref.isText ? '已剪切文字 · 在纸面右键可粘贴' : '已剪切图片 · 在纸面右键可粘贴');
+  toast(ref.isText ? '已剪切文字 · 可粘贴到别处' : '已剪切图片 · 可粘贴到别处');
   return true;
 }
 /* 落点以右键为中心；贴出来的一份保持解锁 + 选中，抬手就能直接拖走 */
@@ -356,6 +369,9 @@ function bindPage() {
       const pg = cur().pages[pid]; if (!pg) return null;
       return isText ? pageTexts(pg).find(x => x.id === iid) : (pg.images || []).find(x => x.id === iid);
     };
+    /* 触屏工具条：动过这个对象（长按解锁 / 拖动 / 拉伸 / 打字 / 改框…）才把
+       「剪切」放出来；刚添加还没碰过的内容先收着。整页重绘由 editedObjs 重建 class。 */
+    const markEdited = () => { markObjEdited(iid); w.classList.add('obj-edited'); };
     /* 文字贴第一次画到纸上就把框收紧到内容：老本子 / 新建文字贴都还带着
        newText 的 .56 × .12 大方框。fitV 是贴合算法版本，一个对象只贴一次，
        之后翻页来回重绘不会反复改数据（算法在 text-sticker.js 的 fitTextBox）。 */
@@ -502,6 +518,7 @@ function bindPage() {
         timer = null;
         if (w.__tTap) w.__tTap = 0;                 // 长按不算「第一下点」，别跟后面那下凑成双击
         const t = getIm(); if (!t) return;
+        markEdited();
         if (t.locked) { t.locked = false; save(); }
         w.classList.remove('locked');
         selectText(true);                           // 版式态：虚线框 + 工具条 + 手柄；点框外自动重新固定
@@ -588,6 +605,7 @@ function bindPage() {
            面板负责打字、这里负责位置，两者不冲突（面板开着时不进双击 / 长按分支）。 */
         if (typeof sh !== 'undefined' && sh && sh.open && sh.iid === iid) {
           e.preventDefault();
+          markEdited();
           startTextDrag(e);
           return;
         }
@@ -612,6 +630,7 @@ function bindPage() {
           const up = ev => {
             off();
             if (far(ev)) return;
+            markEdited();
             selectText(false);                              // 内容态：解锁只为工具条，手柄收起
             startTextEdit(w, pid, iid, { x: ev.clientX, y: ev.clientY });   // 光标落在点的那个字上
             if (!window.__textHintShown) {
@@ -630,16 +649,17 @@ function bindPage() {
         e.preventDefault();
         /* 已在版式态、或本来就是解锁的（刚添加 / 刚粘贴 / 面板里改完还没固定）：
            按住就能挪，跟图片一样，不必再等一次 420ms 长按 */
-        if (w.classList.contains('boxmode') || im.locked === false) { startTextDrag(e); return; }
+        if (w.classList.contains('boxmode') || im.locked === false) { markEdited(); startTextDrag(e); return; }
         armTextHold(e);
         return;
       }
-      if (!im.locked) { startDrag(e); return; }
+      if (!im.locked) { markEdited(); startDrag(e); return; }
       // 已固定：需要长按 420ms 才能重新移动
       e.preventDefault();
       const sx = e.clientX, sy = e.clientY;
       let timer = setTimeout(() => {
         timer = null;
+        markEdited();
         im.locked = false;
         w.classList.remove('locked');
         save();
@@ -677,6 +697,7 @@ function bindPage() {
         if (e.button > 0) return;
         e.preventDefault(); e.stopPropagation();
         const im = getIm(); if (!im || im.locked) return;
+        markEdited();
         /* 文字贴的手柄只在长按的版式态里管用。内容态（行内打字 / 文字面板）
            即使 CSS 漏了手柄也不能让它缩放或旋转，这是第二道保险。 */
         if (isText && (!w.classList.contains('boxmode') || w.classList.contains('editing') ||
@@ -965,11 +986,27 @@ function toggleAddMenu(force) {
 }
 
 /* ==================== 纸面右键 / 快捷键接线 ==================== */
-/* 只在正文内页上接管右键：封面 / 封面内侧 / 环衬不显示我们的菜单；
-   正在行内打字时把系统菜单留给文本编辑（选词、粘贴文字进光标处）。 */
+/* 桌面（鼠标）：只在正文内页上接管右键，封面 / 封面内侧 / 环衬不显示菜单；
+   正在行内打字时把系统菜单留给文本编辑（选词、粘贴文字进光标处）。
+   ⚠️ 触屏长按同样会触发 contextmenu，按落点分两条：
+      · 长按内页**空白处** → 弹 #paperMenu（复制 / 剪切 / 粘贴），这是移动端唯一的
+        粘贴入口，浮层落在空白纸上不会盖住任何编辑工具条；
+      · 长按**文字贴 / 图片等内容** → 不弹浮层，顺手压住系统长按菜单，
+        由胶囊工具条上的「复制 / 剪切」接管（粘贴不进工具条）。
+   正在行内打字时仍把系统选词菜单放行。桌面右键 / Ctrl+C / X / V 全部照旧。 */
 $('#stage').addEventListener('contextmenu', e => {
   if (!clipReaderOn()) return;
   if (e.target.closest('.ptext-wrap.editing')) return;
+  const coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  /* 双保险：长按这一下（含紧接着抬起的 pointerup）统一标记为「不翻页」。
+     contextmenu 在抬手之前就来，scrub.js 的 flipSuppressed() 正好能兜住那一抬手；
+     即便某些内核把 pointerType 报空、走不到上面那条触屏判断，也不会翻页。 */
+  if (coarse) markFlipSuppressed();
+  if (coarse && e.target.closest('.pimg-wrap, .ptext-wrap')) {
+    e.preventDefault();
+    closePaperMenu();
+    return;
+  }
   openPaperMenu(e);
 });
 const paperMenu = $('#paperMenu');
@@ -1008,7 +1045,7 @@ document.addEventListener('copy', e => {
   if (e.clipboardData && ref.isText) {
     try { e.clipboardData.setData('text/plain', ((ref.o.text) || '').trim()); } catch (_) {}
   }
-  toast(ref.isText ? '已复制文字 · 在纸面右键可粘贴' : '已复制图片 · 在纸面右键可粘贴');
+  toast(ref.isText ? '已复制文字 · 粘贴后才会生成一份' : '已复制图片 · 粘贴后才会生成一份');
 });
 document.addEventListener('cut', e => {
   if (!clipReaderOn() || clipTyping()) return;

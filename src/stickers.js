@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 贴纸 · 便利贴 / 装饰胶带 / 我的贴纸   （脚本 21 / 27）
+ * Carnet · 贴纸 · 便利贴 / 装饰胶带 / 我的贴纸   （脚本 22 / 28）
  * ---------------------------------------------------------------------
  * 阅读器右上角「＋ → 贴纸」升起一张分三档的面板，点一下就落到当前页上：
  *   ① 便利贴 —— 带便签纸皮肤的**文字贴**（能打字、挪位置、旋转，就是一张便签）
@@ -86,30 +86,28 @@ async function saveStickerLib() {
   if (!ok) toast('贴纸没能保存，稍后重试', 2600);
   return ok;
 }
-/* 把一张图压成贴纸素材：缩到长边 400、PNG 存（保透明） */
-function packSticker(file) {
+/* 把一张图压成贴纸素材：缩到长边 400、PNG 存（保透明）。
+   input 可以是 File，也可以是移动端选图链路已经读好的 dataURL 字符串。 */
+async function packSticker(input) {
+  const data = await readFileDataURL(input);
+  if (!data) throw new Error('读图失败');
   return new Promise((resolve, reject) => {
-    const fr = new FileReader();
-    fr.onerror = () => reject(new Error('读图失败'));
-    fr.onload = () => {
-      const img = new Image();
-      img.onerror = () => reject(new Error('这不是能用的图片'));
-      img.onload = () => {
-        const w0 = img.naturalWidth || 1, h0 = img.naturalHeight || 1;
-        const k = Math.min(1, STICKER_MAX_EDGE / Math.max(w0, h0));
-        const w = Math.max(1, Math.round(w0 * k)), h = Math.max(1, Math.round(h0 * k));
-        const cv = document.createElement('canvas');
-        cv.width = w; cv.height = h;
-        const cx = cv.getContext('2d');
-        cx.drawImage(img, 0, 0, w, h);
-        let src;
-        try { src = cv.toDataURL('image/png'); }
-        catch (e) { reject(new Error('这张图片不能用于贴纸')); return; }
-        resolve({ src, w, h });
-      };
-      img.src = String(fr.result);
+    const img = new Image();
+    img.onerror = () => reject(new Error('这不是能用的图片'));
+    img.onload = () => {
+      const w0 = img.naturalWidth || 1, h0 = img.naturalHeight || 1;
+      const k = Math.min(1, STICKER_MAX_EDGE / Math.max(w0, h0));
+      const w = Math.max(1, Math.round(w0 * k)), h = Math.max(1, Math.round(h0 * k));
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      const cx = cv.getContext('2d');
+      cx.drawImage(img, 0, 0, w, h);
+      let src;
+      try { src = cv.toDataURL('image/png'); }
+      catch (e) { reject(new Error('这张图片不能用于贴纸')); return; }
+      resolve({ src, w, h });
     };
-    fr.readAsDataURL(file);
+    img.src = data;
   });
 }
 async function addStickerToLib(file) {
@@ -251,13 +249,13 @@ function buildStickerSheet() {
     });
   }
   /* 导入按钮：可一次选多张 → 批量压成贴纸存进库 → 立刻出现在「我的贴纸」里。
-     ⚠️ 清空 input.value 会把 FileList 一起清掉，得先拷成数组再交给批量函数。 */
+     ⚠️ 走 readPickedFiles：移动端把 File 先同步读成 dataURL 再清 input，
+        否则清空 value 会让底层 Blob 失效，接下来每张都「读不出来」。 */
   const imp = $('#stImport'), file = $('#stFile');
   if (imp && file) {
     imp.onclick = () => file.click();
-    file.onchange = async () => {
-      const fs = Array.from(file.files || []);
-      file.value = '';                          // 清掉，同一批图可以连着导两次
+    file.onchange = async e => {
+      const fs = await readPickedFiles(e);
       if (!fs.length) return;
       const r = await addStickersToLib(fs);
       stTab('mine');
