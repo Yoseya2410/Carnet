@@ -66,12 +66,14 @@
   content:"";position:absolute;left:0;top:0;bottom:0;width:6.5%;z-index:4;
   pointer-events:none;
   border-radius:calc(var(--cr-left,3px) * var(--cr-scale,1)) 0 0 calc(var(--cr-left,3px) * var(--cr-scale,1));
+  /* 2026-11-14 书槽变浅：与 home.css / color-picker.css / io-doc.js 同一套 alpha，
+     只降浓度、几何档位不动（暗槽底 .09，白底最暗约 232） */
   background:linear-gradient(90deg,
-    rgba(0,0,0,.02) 0%,rgba(0,0,0,.07) 12%,
-    rgba(255,255,255,.30) 22%,rgba(255,255,255,.30) 38%,
-    rgba(255,255,255,.20) 44%,
-    rgba(0,0,0,.34) 50%,rgba(0,0,0,.26) 56%,rgba(0,0,0,.08) 62%,
-    rgba(255,255,255,.04) 78%,rgba(255,255,255,.18) 100%)
+    rgba(0,0,0,.01) 0%,rgba(0,0,0,.02) 12%,
+    rgba(255,255,255,.08) 22%,rgba(255,255,255,.08) 38%,
+    rgba(255,255,255,.05) 44%,
+    rgba(0,0,0,.09) 50%,rgba(0,0,0,.07) 56%,rgba(0,0,0,.02) 62%,
+    rgba(255,255,255,.01) 78%,rgba(255,255,255,.05) 100%)
 }
 /* 精装书：书槽比笔记本宽一档；方形画册更宽 → 竖条百分比同比收窄。
    两处数值与 home.css / book-style.css / io-doc.js 同源，别只改一边。 */
@@ -95,6 +97,13 @@
    .objbar）都会被压在 .diy-paper::before 那道 z-index:4 的压槽下面，工具条左端会被划一道。
    不建层时各对象直接以自身 z-index 参与 .diy-paper 的层叠：普通对象 3 < 压槽 4（压槽盖在照片上，
    跟真封面一样），选中对象 6 / 编辑态 7 / 工具条 18 / 手柄 12 全在压槽之上，UI 不被遮。 */
+/* 封面材质预览：只铺在 DIY 画布的底色上，#diyContent 里所有图片 / 文字对象盖在它上面。
+   成品由 diyExportHTML 把同一层纹理烘在合成图的「底色与对象之间」，coverHTML 不再另叠 ——
+   画布和成品都是「底色 + 纹理 + 对象」，照片 / 文字不会被压一层纹理。
+   ⚠️ 刻意不设 z-index：#diyContent 也不建层，纹理铺在底色之上、对象（z-index:3）
+      与压槽（::before 的 4）之下，跟成品封面「材质在下、图案在上」的层序一致，
+      工具条（18）/ 手柄（12）自然不受影响。 */
+.diy-texture{position:absolute;inset:0;pointer-events:none}
 .diy-pcontent{position:absolute;inset:0}
 /* 铺满整页：导出（diyExportHTML）一直是 object-fit:fill，屏幕这条也必须一样。
    阅读器内页的 .fill 用 contain 是「尽量保比例、允许留白」，但封面铺满的含义就是满版，
@@ -317,4 +326,21 @@
    完整摘要仍在 .diy-lname / .diy-lsub 的 title 里，拖宽侧栏也不会自动冒出来，无副作用。 */
 @media (orientation:landscape) and (max-width:780px){
   .diy-lsub{display:none}
+}
+/* ===== 移动端字体两行：中文一行、英文一行，左右拖动（跟阅读器文字面板同源）=====
+   .diy-chips 是 .diy-row 的 flex 子项，默认 min-width:auto 不肯收缩，
+   不写 min-width:0 / flex:1 的话 overflow-x 根本不会出现横向滚动条。
+   横屏侧栏只有 190~300px 宽，靠 (pointer:coarse) 一起覆盖。 */
+@media (pointer:coarse), (max-width:620px){
+  /* 这两行不许整体折行：否则「英文字体」标签独占一行、chips 掉到下一行。
+     flex-basis 必须给 0（不是 auto）——auto 会按 21 档的内容宽（约 1.6k px）去算，
+     把整块挤到下一行。 */
+  .diy-font-row{flex-wrap:nowrap}
+  .diy-fonts-cn,.diy-fonts-en{
+    flex:1 1 0;min-width:0;flex-wrap:nowrap;overflow-x:auto;
+    overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+    padding-bottom:3px
+  }
+  .diy-fonts-cn::-webkit-scrollbar,.diy-fonts-en::-webkit-scrollbar{display:none}
+  .diy-fonts-cn button,.diy-fonts-en button{flex:0 0 auto}
 }

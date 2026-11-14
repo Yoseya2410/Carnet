@@ -2,7 +2,7 @@
  * Carnet · 基础变量与页面骨架   （样式 1 / 19）
  * ---------------------------------------------------------------------
  * ① CSS 变量（色板、毛玻璃、圆角、阴影）
- * ② 项目自带字体：中文手写体 CarnetHand + 四款英文字体（文字贴「英文字体」后四档）
+ * ② 项目自带字体：中文手写体 CarnetHand + 17 款英文字体（文字贴「英文字体」的自带档位）
  * ③ 全屏布局：#app 高度由 JS 锁定，键盘弹起不顶底栏
  *
  * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
@@ -24,15 +24,18 @@
   font-weight:400;
   font-style:normal;
 }
-/* ---- 四款英文字体（文字贴「英文字体」的后四档） --------------------------
-   assets/font/en/ 里四支 woff2 加起来不到 140KB；@font-face 是懒加载的，
+/* ---- 项目自带英文字体（文字贴「英文字体」的自带档位） --------------------
+   assets/font/en/ 里 17 支 woff2 合计约 890KB；@font-face 是懒加载的，
    只有页面上真的出现这个字族（纸面文字贴、面板里那一档按钮）才会去下载，首屏不多一个请求。
    字族名统一带 Carnet 前缀，跟系统里可能装着的同名原版区分开；档位表在 src/visuals.js 的
    EN_FONTS，两边的 family 必须一字不差 —— 导出时 io-doc.js 按这个名字把字体内嵌进 XHTML。
-   跟中文手写体一样，导出文档吃不到本页的 @font-face，区别是这四支体量小、可以直接
-   转成 base64 塞进去（见 io-doc.js 的 prepareExportEnFaces）。
+   跟中文手写体一样，导出文档吃不到本页的 @font-face，区别是这些字体体量可控、可以直接
+   转成 base64 塞进去（见 io-doc.js 的 prepareExportEnFaces，且只嵌这一本用到的档位）。
+   ⚠️ 17 支都只含拉丁字形（Gaegu / Inter / Playfair 这几支大文件也已逐支量过像素，不含汉字），
+      汉字靠逐字符回退落到后面的中文字体；所以 EN_FONTS 里绝不能给它们补通用族。
    ⚠️ 文件名必须纯 ASCII，理由见上面 CarnetHand 那段（托管会把找不到的路径回落成 index.html）。
    ⚠️ 页面上用 swap 保首屏；导出文档里用 block，否则「图片一 load 就栅格化」会先画回退字体。 */
+/* 最初的四档：打字机 / 像素 */
 @font-face{
   font-family:'CarnetCourierPrime';
   src:url('../assets/font/en/CourierPrime-Regular.woff2') format('woff2');
@@ -51,6 +54,75 @@
 @font-face{
   font-family:'CarnetSpecialElite';
   src:url('../assets/font/en/SpecialElite-Regular.woff2') format('woff2');
+  font-display:swap;font-weight:400;font-style:normal;
+}
+/* 衬线：古典 / 标题 / 高对比窄体 */
+@font-face{
+  font-family:'CarnetCrimsonPro';
+  src:url('../assets/font/en/CrimsonPro-Regular.woff2') format('woff2');
+  font-display:swap;font-weight:400;font-style:normal;
+}
+@font-face{
+  font-family:'CarnetDomine';
+  src:url('../assets/font/en/Domine-Regular.woff2') format('woff2');
+  font-display:swap;font-weight:400;font-style:normal;
+}
+@font-face{
+  font-family:'CarnetPlayfair';
+  src:url('../assets/font/en/Playfair_9pt_SemiCondensed-Regular.woff2') format('woff2');
+  font-display:swap;font-weight:400;font-style:normal;
+}
+/* 无衬线：现代 / 几何 / 几何粗展示 */
+@font-face{
+  font-family:'CarnetInter';
+  src:url('../assets/font/en/Inter_18pt-Regular.woff2') format('woff2');
+  font-display:swap;font-weight:400;font-style:normal;
+}
+@font-face{
+  font-family:'CarnetOutfit';
+  src:url('../assets/font/en/Outfit-Regular.woff2') format('woff2');
+  font-display:swap;font-weight:400;font-style:normal;
+}
+@font-face{
+  font-family:'CarnetKronaOne';
+  src:url('../assets/font/en/KronaOne-Regular.woff2') format('woff2');
+  font-display:swap;font-weight:400;font-style:normal;
+}
+/* 手写：稚拙 / 马克笔 / 粉笔 */
+@font-face{
+  font-family:'CarnetGaegu';
+  src:url('../assets/font/en/Gaegu-Regular.woff2') format('woff2');
+  font-display:swap;font-weight:400;font-style:normal;
+}
+@font-face{
+  font-family:'CarnetGochiHand';
+  src:url('../assets/font/en/GochiHand-Regular.woff2') format('woff2');
+  font-display:swap;font-weight:400;font-style:normal;
+}
+@font-face{
+  font-family:'CarnetSchoolbell';
+  src:url('../assets/font/en/Schoolbell-Regular.woff2') format('woff2');
+  font-display:swap;font-weight:400;font-style:normal;
+}
+/* 等宽 / 点阵：窄体等宽 + Matrix Mono 三种网点 */
+@font-face{
+  font-family:'CarnetMartianMono';
+  src:url('../assets/font/en/MartianMono_Condensed-Regular.woff2') format('woff2');
+  font-display:swap;font-weight:400;font-style:normal;
+}
+@font-face{
+  font-family:'CarnetMatrixPrint';
+  src:url('../assets/font/en/MatrixMonoPrint-Regular.woff2') format('woff2');
+  font-display:swap;font-weight:400;font-style:normal;
+}
+@font-face{
+  font-family:'CarnetMatrixRaster';
+  src:url('../assets/font/en/MatrixMonoRaster-Regular.woff2') format('woff2');
+  font-display:swap;font-weight:400;font-style:normal;
+}
+@font-face{
+  font-family:'CarnetMatrixScreen';
+  src:url('../assets/font/en/MatrixMonoScreen-Regular.woff2') format('woff2');
   font-display:swap;font-weight:400;font-style:normal;
 }
 :root{

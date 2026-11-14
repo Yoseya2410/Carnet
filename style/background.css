@@ -199,7 +199,9 @@
   backdrop-filter:blur(16px) saturate(150%);
   -webkit-backdrop-filter:blur(16px) saturate(150%)
 }
-#home.bg-light .shelf-board .screw{background:radial-gradient(circle at 34% 28%,#fff,#cbcac4 52%,#8e8b84)}
+/* 铆钉的拉丝金属纹在 shelf.css 里统一定义（深底 / 浅底同一颗），
+   ⚠️ 这里别再写 background 覆盖：一条 radial-gradient 会把整片车削纹盖成普通螺丝。 */
+#home.bg-light .shelf-board .screw{z-index:2}
 /* ⚠️ .rbot（底栏）是长在 #reader 里的，挂在 #home 上永远命中不了 ——
    结果是浅底（含默认）下阅读器底栏的页码「1 / 1」是白字压在浅背景上，等于隐形 */
 #reader.bg-light .rbot .pager{color:#3a3f52}
@@ -210,22 +212,52 @@
 /* ---- 页数轴 ----
    新版是自带深色底的胶囊 + 白刻度 / 白标签，深浅背景都立得住，
    不再需要为浅底单独翻一套白玻璃样式（旧的那几条覆盖已随改造删掉）。 */
-/* ---- 浅色背景：书脚陷进玻璃板里的接触影 ----
-   书是**插进**板里的（书脚下沉 26px），所以紧贴书脚那一线压得最深、往下渐隐 ——
-   这道影是「书嵌在板里」唯一看得见的证据，没有它书看着只是浮在板前。
-   ⚠️ 这层要在螺丝之上（z-index），不然螺丝会被影子糊掉 */
-#home.bg-light .shelf-board::before{
-  content:"";position:absolute;left:0;right:0;top:0;height:26px;z-index:1;
-  border-radius:9px 9px 0 0;pointer-events:none;
-  /* 纵向：紧贴书脚那一线最深，往下渐隐 */
+/* ---- 浅色背景：玻璃挡板 + 脚下的白色台面 ----
+   参考图（Flipin 多层书架）的玻璃**几乎全透**：书封颜色原样透出来，只剩
+   上沿一道很淡的亮线、板身一层极淡白雾；下沿另有一块实心白台面，圆角比玻璃上沿小得多。
+   ⚠️ 上沿三处一起压淡（顶部背景 / inset 亮线 / 一圈轮廓）：用户 2026-11-14 说
+      「最上边的白边太明显」，原来是 1.5px/.95 白 + 0% 处 .52 白叠出来的，
+      在深色封面上像划了一根白线。别只改其中一处，另外两处会把它补回来。
+   ⚠️ 也别回到 .4~.5 的整片白：那会把书脚洗白，看着像封面被横向切了一刀。 */
+#home.bg-light .shelf-board{
   background:linear-gradient(180deg,
-    rgba(40,36,30,.24) 0%,rgba(40,36,30,.14) 34%,rgba(40,36,30,.04) 72%,rgba(40,36,30,0) 100%);
-  /* ⚠️ 横向「两端收干净」必须用 mask，不能写成第二层 background ——
-     多层背景是**叠加**不是遮罩，写成背景会把整条板染成近黑色（踩过一次） */
+    rgba(255,255,255,.24) 0%,        /* 上沿：一层很淡的迎光雾 */
+    rgba(255,255,255,.07) 9%,
+    rgba(120,126,140,.018) 44%,      /* 板身：只在白底上留不到 2% 的灰 */
+    rgba(255,255,255,.05) 70%,
+    rgba(255,255,255,.2) 86%,
+    rgba(255,255,255,.45) 100%);     /* 下沿：约 9px 内渐白，书脚自然化进台面 */
+  backdrop-filter:blur(.6px) saturate(104%);
+  -webkit-backdrop-filter:blur(.8px) saturate(104%);
+  box-shadow:
+    0 6px 14px -12px rgba(30,32,45,.22),
+    inset 0 1px 0 rgba(255,255,255,.40),   /* 上沿亮线：1px / 四成透 */
+    inset 0 -1px 0 rgba(255,255,255,.8),
+    /* 轮廓改用**极淡的灰**而不是白：白底上白+白什么也勾不出来，
+       玻璃的两个大圆角会整个消失。3.5% 灰在白底上 ≈ 250，正是参考图边界的深浅，
+       压在彩色封面上又几乎看不出来，不会变回一条刺眼的白框。 */
+    inset 0 0 0 1px rgba(90,96,110,.035)
+}
+#home.bg-light .shelf-plinth{
+  background:linear-gradient(180deg,#fdfdfe 0%,#ffffff 38%,#f4f5f8 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(90,96,110,.09),          /* 台面上沿 = 书脚落在板上的那一线 */
+    inset 0 2px 0 rgba(255,255,255,.95),
+    0 12px 20px -10px rgba(40,42,60,.16),
+    0 26px 40px -20px rgba(40,42,60,.18)         /* 台面往地上投的宽软影 */
+}
+/* 书脚嵌进玻璃、落到台面上的接触影：贴着**玻璃下沿**最深、往上渐隐。
+   ⚠️ 位置改成 bottom（老版在 top，那是书只沉进 26px 细条时的画法）；
+      alpha 只留极淡一档 —— 下沿已经有一层渐白，两者叠太重书脚会发灰；
+      两端仍用 mask 收干净，别染成一整条黑线 */
+#home.bg-light .shelf-board::before{
+  content:"";position:absolute;left:0;right:0;bottom:0;height:14px;z-index:1;
+  border-radius:0 0 6px 6px;pointer-events:none;
+  background:linear-gradient(0deg,
+    rgba(40,36,30,.05) 0%,rgba(40,36,30,.02) 45%,rgba(40,36,30,0) 100%);
   -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 9%,#000 91%,transparent 100%);
   mask-image:linear-gradient(90deg,transparent 0,#000 9%,#000 91%,transparent 100%)
 }
-#home.bg-light .shelf-board .screw{z-index:2}
 
 /* ============ 剩下的深色浮层统一改「白玻璃」 ============
    前面 .bg-light 把 --frost 换成了白，但下面这几处把深色**写死**了 / 压根没写背景，

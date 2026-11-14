@@ -85,7 +85,7 @@
 .cover.s-square::after,
 .cover.s-hardcover::after{box-shadow:inset 0 0 0 1px rgba(0,0,0,.14)}
 /* 每一层都自己按封面圆角裁：background 本来就跟着 border-radius 走，补一条 inherit 就够了 */
-.cover .pattern,.cover .gloss{border-radius:inherit}
+.cover .pattern,.cover .texture,.cover .gloss{border-radius:inherit}
 /* ---- 光泽：斜向的一道亮带 + 顶部一片柔光（soft-light，只提亮不糊色） ---- */
 .cover .gloss{
   background:

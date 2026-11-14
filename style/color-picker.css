@@ -10,6 +10,14 @@
 /* ============ 自定义取色盘：网格 / 光谱 / 滑块 ============ */
 .cp-mask{
   position:absolute;inset:0;z-index:120;display:none;place-items:center;padding:18px;
+  /* ⚠️ 必须显式给一条单列：默认的隐式 auto 列会被 .cp-panel 的 max-content
+     （350px + 左右各 18px padding = 384px）撑宽，窄屏（360/375dp 手机）就横向溢出；
+     溢出后 justify-items:center 算出的负偏移被滚动容器裁成 0，面板从左边 18px 排到屏幕外，
+     看着就是「往右歪、没居中」。minmax(0,1fr) 把列钉在可视宽上，100% 才会正确收缩。 */
+  grid-template-columns:minmax(0,1fr);
+  /* 面板比屏幕高时（横屏 / 键盘弹起）退到顶部对齐，别让垂直居中把标题裁在屏幕外；
+     空间够时仍是居中，宽屏与竖屏视觉不变。.kb 态的 place-items 会继续盖掉这条。 */
+  align-items:safe center;
   background:rgba(20,22,38,.62);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)
 }
 .cp-mask.show{display:grid;animation:fadeIn .2s ease}
@@ -19,7 +27,9 @@
 .cp-panel{
   --cp-muted:rgba(255,255,255,.085);--cp-sub:rgba(255,255,255,.58);
   --cp-field:rgba(255,255,255,.09);--cp-field-bd:rgba(255,255,255,.16);
-  width:min(350px,100%);padding:18px;border-radius:24px;color:#f7f7f9;
+  /* min-width:0：grid item 默认 min-width:auto 会被标题等内容的 min-content 顶宽，
+     窄屏下又把面板撑出可视区；允许收缩才守得住上面那条单列。 */
+  width:min(350px,100%);min-width:0;padding:18px;border-radius:24px;color:#f7f7f9;
   background:rgba(35,38,50,.9);border:1px solid var(--frost-bd);
   backdrop-filter:var(--frost-fx);-webkit-backdrop-filter:var(--frost-fx);
   box-shadow:0 30px 60px -18px rgba(0,0,0,.7);animation:pop .24s cubic-bezier(.2,.9,.3,1.2)
@@ -126,12 +136,13 @@
 /* 取色期间让位的浮层：藏起来而不是关掉，取完色要原样回来（调用方的状态不能被破坏） */
 .ep-duck{opacity:0 !important;pointer-events:none !important}
 /* 取色期间让「看得见但不吃指针」的装饰层参与命中测试：
-   封面图案 / 光泽 / 书脊、内页模板网格都是 pointer-events:none，
+   封面图案 / 材质纹理 / 光泽 / 书脊、内页模板网格都是 pointer-events:none，
    elementsFromPoint 会把它们整层漏掉 —— 吸管就看不见图案、彩带和 1px 网格线
    （用户说的「取不到指向处的颜色」「颗粒度不够细」）。
    ⚠️ 只在 .ep-picking 期间开；点击已被取色器的捕获阶段拦下，不会误触页面。
    ⚠️ 别用 !important：.ep-duck 的 !important 要能继续压住让位的浮层。 */
 .ep-picking .cover .pattern,
+.ep-picking .cover .texture,
 .ep-picking .cover .gloss,
 .ep-picking .cover .spine,
 .ep-picking .paper .tplbg{pointer-events:auto}
@@ -169,6 +180,10 @@
 .ep-btn.ok{background:var(--accent);border-color:rgba(255,255,255,.32)}
 .ep-btn.ok:hover{filter:brightness(1.1)}
 .pat-grid,.tpl-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+/* 封面纹理三档小样：跟图案格同一副骨架，只是三列、近方形（纹理要看得清）、没有书脊那一竖条。
+   每格两层 .pv：.tex-base 是当前封面底色，.tex-pv 是这一档材质贴片。 */
+.tex-grid{grid-template-columns:repeat(3,1fr)}
+.tex-grid .pat{aspect-ratio:1/1.1;border-radius:10px}
 .pat,.tpl{
   aspect-ratio:148/210;border-radius:12px;border:2px solid rgba(255,255,255,.18);overflow:hidden;
   position:relative;background:#eee;transition:transform .15s,border-color .2s
@@ -199,11 +214,13 @@
 .pat .pspine.ghost{background:none}
 .pat .pspine.ghost::before{
   content:"";position:absolute;inset:0;
+  /* 2026-11-14 书槽变浅：与 home.css / diy-cover.css / io-doc.js 同一套浓度，
+     缩略图色标少几档但明暗强度同源（暗槽底 .09 对 .32 → 同比约 1/4） */
   background:linear-gradient(90deg,
-    rgba(0,0,0,.02) 0%,rgba(0,0,0,.05) 10%,
-    rgba(255,255,255,.28) 20%,rgba(255,255,255,.28) 40%,
-    rgba(0,0,0,.32) 50%,rgba(0,0,0,.07) 60%,
-    rgba(255,255,255,.16) 100%)
+    rgba(0,0,0,.01) 0%,rgba(0,0,0,.01) 10%,
+    rgba(255,255,255,.08) 20%,rgba(255,255,255,.08) 40%,
+    rgba(0,0,0,.09) 50%,rgba(0,0,0,.02) 60%,
+    rgba(255,255,255,.04) 100%)
 }
 .pat .pspine.hid{display:none}
 /* ---- 封面图案 · 最后一格「自定义」----

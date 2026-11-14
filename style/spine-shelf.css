@@ -53,6 +53,9 @@
 .spine-item.active::after{border-color:rgba(255,255,255,.82);box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
 .spine-item:focus-visible{outline:2px solid currentColor;outline-offset:3px}
 .spine-pattern{position:absolute;inset:0;z-index:0;opacity:.28;pointer-events:none}
+/* 封面材质：同 .spine-pattern 的层，但贴片按 px 铺（书脊太窄，百分比会缩成一片糊）。
+   DOM 里排在图案之前，材质在下、装饰图案在上，跟 coverHTML 的层序一致。 */
+.spine-texture{position:absolute;inset:0;z-index:0;opacity:.5;pointer-events:none}
 .spine-title{
   position:absolute;z-index:3;left:50%;top:28%;bottom:11%;transform:translateX(-50%);
   max-width:100%;overflow:hidden;white-space:nowrap;writing-mode:vertical-rl;text-orientation:mixed;

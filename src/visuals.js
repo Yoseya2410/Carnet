@@ -3,10 +3,10 @@
  * ---------------------------------------------------------------------
  * ① 封面与纸面的 SVG 图案：圆、星、心、叶（三角 / 小花两档已下线）
  * ② 封面明暗 coverLum、图案层 patternLayers / faceLayers（缩略图统一自动色、成品保留预设色）、
- *    模板纸面 tplStyle
+ *    封面纹理 COVER_TEXTURES / textureStyle（无纹理 / 纸纹 / 布纹）、模板纸面 tplStyle
  * ③ 色板 COLORS / GRADS / RIBBONS / PAT_COLORS、内页模板 TEMPLATES（含自定义图片模板）
  * ④ 文字贴字体 TEXT_FONTS / EN_FONTS 与字族解析 textFontStack（字族名一律单引号，多一个引号整条作废；
- *    EN_FONTS 后四档是项目自带的 woff2，face 字段供导出内嵌用）
+ *    EN_FONTS 后 17 档是项目自带的 woff2，face 字段供导出内嵌用）
  * ⑤ 内页底色色阶 PAPER_RAMPS、三级取值 pageBgOf，以及面板预览用的 pageBgShown
  * ⑥ 全项目共用的尺寸与阈值：PAGE_RATIO / PAGE_W_DEFAULT / LUM_DARK / 封面翻口圆角
  * ⑦ 装帧样式 BOOK_STYLES（笔记本 / 活页 / 方形画册 / 精装书）与内页比例 pageRatioOf
@@ -14,7 +14,7 @@
  *    凹陷的凹面柔影 frameInsetHTML（三者屏幕与导出共用，改一处四边同源）
  * ⑨ 活页封面内侧 coverInsideStyle（自动主色 / 与封面一致 / 自定义）、书槽开关 coverGrooveOn
  *
- * 对外接口：patternLayers, patternStyle, faceLayers, coverLum, isImgData, TEMPLATES, tplImgOf, TPL_IMGS_MAX, tplImgsOf, normTplFit, tplStyle, TEXT_FONTS, EN_FONTS, normFont, textFontVar, textFontStack, normEnFont, textEnVar, textEnStack, PAPER_RAMPS, pageBgOf, pageBgShown, OB_*_SVG, ROT_SVG, BOOK_STYLES, bookStyleOf, pageRatioOf, COVER_R_MIN, COVER_R_MAX, coverRadiusOf, coverRadiusVar, bookRadiusOf, INSIDE_MODES, INSIDE_PALETTE_MAX, normInsideMode, insideOf, insideModeOf, coverInsideStyle, dominantColorsOf, coverInsidePalette, enFontSample, coverGrooveOn, FRAMES, frameBoxStyle, frameImgStyle, frameInsetHTML
+ * 对外接口：patternLayers, patternStyle, faceLayers, COVER_TEXTURES, normTexture, texOf, textureStyle, textureLayerHTML, coverLum, isImgData, TEMPLATES, tplImgOf, TPL_IMGS_MAX, tplImgsOf, normTplFit, tplStyle, TEXT_FONTS, EN_FONTS, normFont, textFontVar, textFontStack, normEnFont, textEnVar, textEnStack, PAPER_RAMPS, pageBgOf, pageBgShown, OB_*_SVG, ROT_SVG, BOOK_STYLES, bookStyleOf, pageRatioOf, COVER_R_MIN, COVER_R_MAX, coverRadiusOf, coverRadiusVar, bookRadiusOf, INSIDE_MODES, INSIDE_PALETTE_MAX, normInsideMode, insideOf, insideModeOf, coverInsideStyle, dominantColorsOf, coverInsidePalette, enFontSample, enFontLabel, coverGrooveOn, FRAMES, frameBoxStyle, frameImgStyle, frameInsetHTML
  *
  * 依赖模块：core
  *
@@ -157,29 +157,82 @@ const FONT_ALIAS = { hei: 'plain' };
 /* 英文字体：排在中文前面，拉丁字走它、汉字自动落到后面的中文字体。
    ⚠️ 这里一档都不能带通用族（serif / monospace / cursive 之类）——通用族能匹配所有字符，
    写在前面会把中文字体整条截胡，汉字全变成默认字体。收尾的通用族留给中文字体那条栈。
-   前四档用系统字体；后四档是项目自带的 woff2（@font-face 见 style/base.css 顶部）。
+   前四档用系统字体；后面 17 档是项目自带的 woff2（@font-face 见 style/base.css 顶部），
+   按「打字机 / 像素 → 衬线 → 无衬线 → 手写 → 等宽点阵」分组排，老档位位置一律不动。
    · face：{ family, file }，导出时 io-doc.js 把 woff2 转 base64 内嵌进 XHTML，
      独立文档才认得这个字族。family 必须与 base.css 里的字族名一字不差。
    · fallback：内嵌拿不到字体时（file:// 下 fetch 被禁、文件被删）的近似系统字体链，
      只写具体字体名、不写通用族，免得截胡中文。
-   · hint：面板按钮的悬浮说明，写着原字体名，比两字中文名好认。 */
+   · hint：按钮的悬浮说明，写着**完整字体原名** + 中文风格，短名不丢信息。
+   · en：按钮上显示的**短名**（2026-11-14 用户定稿：原名太长，移动端一行放不下），
+     一律取原名的首词；完整原名可用 .workbuddy/_tmp_verify/_fontnames.js 从 woff2 的
+     name table 复核。按钮整体套了这一档的 css，短名本身就是用该字体渲染的样张，
+     不再加 Aa。前四档是「类别 / 系统字体栈」，没有字体原名，仍显示中文名 + Aa 样例。
+   ⚠️ 新增一档要同时动三处：base.css 的 @font-face、这里的表、README「字体」那节的表。 */
 const EN_FONTS = [
   { k: '',       n: '跟随中文', css: '' },
   { k: 'serif',  n: '衬线',    css: "'Georgia','Times New Roman',Cambria" },
   { k: 'mono',   n: '等宽',    css: "'Consolas','Menlo','Courier New'" },
   { k: 'script', n: '手写',    css: "'Segoe Script','Bradley Hand','Lucida Handwriting'" },
-  { k: 'courier', n: '打字机', hint: 'Courier Prime · 打字机等宽',
+  { k: 'courier', n: '打字机', en: 'Courier', hint: 'Courier Prime · 打字机等宽',
     css: "'CarnetCourierPrime'", fallback: "'Courier New','Courier'",
     face: { family: 'CarnetCourierPrime', file: 'CourierPrime-Regular.woff2' } },
-  { k: 'cutive', n: '复古等宽', hint: 'Cutive Mono · 复古打字机',
+  { k: 'cutive', n: '复古等宽', en: 'Cutive', hint: 'Cutive Mono · 复古打字机',
     css: "'CarnetCutiveMono'", fallback: "'Courier New','Courier'",
     face: { family: 'CarnetCutiveMono', file: 'CutiveMono-Regular.woff2' } },
-  { k: 'pixel', n: '像素', hint: 'Pixelify Sans · 像素风',
+  { k: 'pixel', n: '像素', en: 'Pixel', hint: 'Pixelify Sans · 像素风',
     css: "'CarnetPixelifySans'", fallback: "'Consolas','Courier New'",
     face: { family: 'CarnetPixelifySans', file: 'PixelifySans-Regular.woff2' } },
-  { k: 'elite', n: '旧打字机', hint: 'Special Elite · 做旧打字机',
+  { k: 'elite', n: '旧打字机', en: 'Elite', hint: 'Special Elite · 做旧打字机',
     css: "'CarnetSpecialElite'", fallback: "'Courier New','Courier'",
-    face: { family: 'CarnetSpecialElite', file: 'SpecialElite-Regular.woff2' } }
+    face: { family: 'CarnetSpecialElite', file: 'SpecialElite-Regular.woff2' } },
+
+  /* 衬线：古典书卷 / 新闻标题 / 高对比窄体 */
+  { k: 'crimson', n: '古典衬线', en: 'Crimson', hint: 'Crimson Pro · 古典书卷衬线',
+    css: "'CarnetCrimsonPro'", fallback: "'Georgia','Times New Roman'",
+    face: { family: 'CarnetCrimsonPro', file: 'CrimsonPro-Regular.woff2' } },
+  { k: 'domine', n: '标题衬线', en: 'Domine', hint: 'Domine · 新闻标题衬线',
+    css: "'CarnetDomine'", fallback: "'Georgia','Times New Roman'",
+    face: { family: 'CarnetDomine', file: 'Domine-Regular.woff2' } },
+  { k: 'playfair', n: '窄体衬线', en: 'Playfair', hint: 'Playfair 9pt SemiCondensed · 高对比窄衬线',
+    css: "'CarnetPlayfair'", fallback: "'Georgia','Times New Roman'",
+    face: { family: 'CarnetPlayfair', file: 'Playfair_9pt_SemiCondensed-Regular.woff2' } },
+
+  /* 无衬线：现代 / 几何 / 几何粗展示 */
+  { k: 'inter', n: '现代黑体', en: 'Inter', hint: 'Inter 18pt · 现代无衬线',
+    css: "'CarnetInter'", fallback: "'Arial','Helvetica'",
+    face: { family: 'CarnetInter', file: 'Inter_18pt-Regular.woff2' } },
+  { k: 'outfit', n: '几何黑体', en: 'Outfit', hint: 'Outfit · 几何无衬线',
+    css: "'CarnetOutfit'", fallback: "'Arial','Helvetica'",
+    face: { family: 'CarnetOutfit', file: 'Outfit-Regular.woff2' } },
+  { k: 'krona', n: '几何粗体', en: 'Krona', hint: 'Krona One · 几何展示粗体',
+    css: "'CarnetKronaOne'", fallback: "'Trebuchet MS','Arial'",
+    face: { family: 'CarnetKronaOne', file: 'KronaOne-Regular.woff2' } },
+
+  /* 手写：稚拙 / 马克笔 / 粉笔 */
+  { k: 'gaegu', n: '稚拙手写', en: 'Gaegu', hint: 'Gaegu · 韩系稚拙手写',
+    css: "'CarnetGaegu'", fallback: "'Comic Sans MS','Segoe Print'",
+    face: { family: 'CarnetGaegu', file: 'Gaegu-Regular.woff2' } },
+  { k: 'gochi', n: '马克笔', en: 'Gochi', hint: 'Gochi Hand · 马克笔手写',
+    css: "'CarnetGochiHand'", fallback: "'Comic Sans MS','Segoe Print'",
+    face: { family: 'CarnetGochiHand', file: 'GochiHand-Regular.woff2' } },
+  { k: 'schoolbell', n: '粉笔手写', en: 'Schoolbell', hint: 'Schoolbell · 粉笔手写',
+    css: "'CarnetSchoolbell'", fallback: "'Segoe Print','Comic Sans MS'",
+    face: { family: 'CarnetSchoolbell', file: 'Schoolbell-Regular.woff2' } },
+
+  /* 等宽 / 点阵：窄体等宽 + Matrix Mono 三种网点 */
+  { k: 'martian', n: '窄体等宽', en: 'Martian', hint: 'Martian Mono Condensed · 窄体等宽',
+    css: "'CarnetMartianMono'", fallback: "'Consolas','Courier New'",
+    face: { family: 'CarnetMartianMono', file: 'MartianMono_Condensed-Regular.woff2' } },
+  { k: 'mxprint', n: '打印点阵', en: 'Print', hint: 'Matrix Mono Print · 打印点阵等宽',
+    css: "'CarnetMatrixPrint'", fallback: "'Consolas','Courier New'",
+    face: { family: 'CarnetMatrixPrint', file: 'MatrixMonoPrint-Regular.woff2' } },
+  { k: 'mxraster', n: '栅格点阵', en: 'Raster', hint: 'Matrix Mono Raster · 栅格等宽',
+    css: "'CarnetMatrixRaster'", fallback: "'Consolas','Courier New'",
+    face: { family: 'CarnetMatrixRaster', file: 'MatrixMonoRaster-Regular.woff2' } },
+  { k: 'mxscreen', n: '屏幕点阵', en: 'Screen', hint: 'Matrix Mono Screen · 屏幕网点等宽',
+    css: "'CarnetMatrixScreen'", fallback: "'Consolas','Courier New'",
+    face: { family: 'CarnetMatrixScreen', file: 'MatrixMonoScreen-Regular.woff2' } }
 ];
 function normFont(k) {
   const key = FONT_ALIAS[k] || k;
@@ -187,13 +240,21 @@ function normFont(k) {
 }
 function textFontVar(k) { return (TEXT_FONTS.find(f => f.k === normFont(k)) || TEXT_FONTS[0]).css; }
 function normEnFont(k) { return EN_FONTS.some(f => f.k === k) ? k : ''; }
-/* 英文字体按钮上的拉丁样例（阅读器文字面板 / DIY 封面文字面板共用）：
-   这些字族只有拉丁字形，按钮上光写「衬线 / 等宽 / 手写」这种中文名，
-   点之前一点都看不出字体长什么样 —— 补一个套了对应字族的 Aa。
-   第一档「跟随中文」没有独立字族，不显示样例。 */
+/* 系统字体档（类别档）的拉丁样例：这些档没有单一原名字体，按钮上只有「衬线 / 等宽 / 手写」
+   这种中文名，点之前看不出效果 —— 补一个套了对应字族的 Aa。第一档「跟随中文」没有独立字族，
+   不显示样例。 */
 function enFontSample(f) {
   if (!f || !f.k || !f.css) return '';
   return `<span style="font-family:${f.css};font-size:1.16em;font-weight:600;font-style:normal;letter-spacing:.01em">Aa</span> `;
+}
+/* 英文字体按钮的名称（阅读器文字面板 / DIY 封面文字面板共用这一份）：
+   · 自带档显示字体原名（en），名字本身就是样张 —— 按钮整体已经套了这一档的 font-family，
+     所以这串拉丁字母会直接以该字体渲染，不用再另加 Aa；字号放大一点让点阵 / 细衬线看得清。
+   · 前四档没有原名，退回中文名 + Aa 样例（enFontSample）。
+   ⚠️ 原名只进 span 文本，不写 font-family —— 字族由按钮统一给，改一处两边一致。 */
+function enFontLabel(f) {
+  if (!f || !f.en) return `${enFontSample(f)}${f ? f.n : ''}`;
+  return `<span style="font-size:1.18em;font-weight:400;font-style:normal;letter-spacing:.01em">${f.en}</span>`;
 }
 function textEnVar(k) { return (EN_FONTS.find(f => f.k === normEnFont(k)) || EN_FONTS[0]).css; }
 /* 导出用：把 CSS 变量解析成字族原文（导出的 XHTML 是独立文档，认不到本页的变量）。
@@ -314,6 +375,120 @@ function faceLayers(cover, patKey, preview) {
     pos: face ? L.pos + ', center' : L.pos,
     rep: face ? L.rep + ', no-repeat' : L.rep
   };
+}
+
+/* ==================== 封面纹理（材质质感） ====================
+   j.cover.texture = 'none' | 'paper' | 'cloth'，缺省 / 非法值都按 'none' 处理，
+   所以老本子、旧导出文件不用迁移，外观跟加这个功能之前一模一样。
+
+   ⚠️ 纹理**只作用于封面底层**（底色）：层序是「底色 → 纹理 → 装饰图案 / 光泽 / 装订」。
+      上层一旦有图片 / 文字，就该盖住纹理，而不是被纹理压一层：
+      · 纯色 / 渐变封面 → 纹理铺在底色上，图案（印花）压在纹理上；
+      · 上传的封面图片 → 整张图盖住底色，纹理不显示；
+      · DIY 自定义封面 → 纹理铺在画布「底色与对象之间」，照片 / 文字压在纹理上，
+        合成 cover.img 时同样只烘底色那一层（见 editor.js diyExportHTML）。
+      ⚠️ 因此有 cover.img 的成品封面**不再另叠纹理层**：那张位图里该有的已经在了，
+         再叠一遍会压到照片文字上，也会把纹理叠成两遍。
+
+   ⚠️ 贴片用 canvas 同步画一次再转 PNG dataURL 缓存，不用 SVG filter / 外部图片：
+      ① 屏幕、DIY 画布、SVG foreignObject 栅格化（PDF / SVG / 长图）都认 PNG 背景图；
+      ② 固定种子伪随机，每次重绘 / 导出都是同一张图，纹理不会"跳一下"；
+      ③ 贴片只挂在 DOM 的 background-image 上，不烘进 cover.img 的**对象层** ——
+         DIY 画布和成品封面都把纹理垫在底色上，绝不压到照片 / 文字。
+   ⚠️ 贴片尺寸一律按「封面宽的百分比 + auto」给（auto 那维吃 PNG 的固有比例，
+      tile 永远不变形）：主页小封面 / 阅读器大封面 / 900px 导出封面疏密完全一致，
+      导出不需要再按 W 缩放。书脊是窄条，走 fixed 档用 px 保证材质密度不变。 */
+const COVER_TEXTURES = [
+  { k: 'none',  n: '无纹理', d: '光滑封面' },
+  { k: 'paper', n: '纸纹',   d: '细密纸纤维' },
+  { k: 'cloth', n: '布纹',   d: '经纬编织' }
+];
+function normTexture(t) { return COVER_TEXTURES.some(x => x.k === t) ? t : 'none'; }
+function texOf(cover) { return normTexture(cover && cover.texture); }
+/* 固定种子的 LCG：同一个档位永远画同一张贴片 */
+function texRand(seed) {
+  let s = seed >>> 0;
+  return () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296);
+}
+function texCanvas(S, draw) {
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const x = c.getContext('2d');
+  if (!x) return '';
+  draw(x, S);
+  try { return c.toDataURL('image/png'); } catch (_) { return ''; }
+}
+/* 纸纹：短而细的近水平纤维（黑白各半，深浅底都看得见）+ 少量颗粒。
+   线跨出贴片边界不补画 —— 浓度很低，平铺接缝看不出来。 */
+function paperTexURL() {
+  return texCanvas(96, (x, S) => {
+    const r = texRand(20261114);
+    x.lineCap = 'round';
+    for (let i = 0; i < 300; i++) {
+      const px = r() * S, py = r() * S, len = 1.5 + r() * 7, a = (r() - .5) * .9;
+      x.strokeStyle = r() < .55 ? 'rgba(0,0,0,.075)' : 'rgba(255,255,255,.13)';
+      x.lineWidth = .35 + r() * .55;
+      x.beginPath();
+      x.moveTo(px, py);
+      x.lineTo(px + Math.cos(a) * len, py + Math.sin(a) * len);
+      x.stroke();
+    }
+    for (let i = 0; i < 220; i++) {
+      x.fillStyle = r() < .55 ? 'rgba(0,0,0,.055)' : 'rgba(255,255,255,.10)';
+      x.beginPath();
+      x.arc(r() * S, r() * S, .25 + r() * .5, 0, Math.PI * 2);
+      x.fill();
+    }
+  });
+}
+/* 布纹：6px 一格，经纱 / 纬纱各画一深一浅两条，按棋盘交错谁压谁 ——
+   平纹编织的明暗就是这么来的。tile 本身 24×24，平铺后是一整块亚麻布。 */
+function clothTexURL() {
+  return texCanvas(24, (x, S) => {
+    const cell = 6;
+    for (let ry = 0; ry < S; ry += cell) for (let rx = 0; rx < S; rx += cell) {
+      const over = (((rx / cell) + (ry / cell)) & 1) === 0;
+      const weft = () => {
+        x.fillStyle = 'rgba(255,255,255,.13)'; x.fillRect(rx, ry + 1.1, cell, 2.1);
+        x.fillStyle = 'rgba(0,0,0,.055)';      x.fillRect(rx, ry + 3.5, cell, .9);
+      };
+      const warp = () => {
+        x.fillStyle = 'rgba(0,0,0,.06)';       x.fillRect(rx + 1.1, ry, 2.1, cell);
+        x.fillStyle = 'rgba(255,255,255,.10)'; x.fillRect(rx + 3.5, ry, .9, cell);
+      };
+      if (over) { warp(); weft(); } else { weft(); warp(); }
+    }
+  });
+}
+const __texURLs = { paper: null, cloth: null };
+function texURL(k) {
+  if (!__texURLs[k]) __texURLs[k] = (k === 'cloth' ? clothTexURL() : paperTexURL());
+  return __texURLs[k] || '';
+}
+/* fixed = true 给窄书脊用（按 px 铺，材质密度不随书脊宽变）。
+   返回空串表示「无纹理」——调用方直接把这段拼进 style 里，不用判空。 */
+function textureStyle(cover, fixed) {
+  const k = texOf(cover);
+  if (k === 'none') return '';
+  /* 有成品封面图（上传照片 / DIY 合成图）时这里一律不叠：
+     那张图是盖在底色之上的一层，纹理不能压到里面的照片和文字上。
+     DIY 的纹理由 diyExportHTML 铺在「底色与对象之间」，合成图里本来就带着；
+     普通上传封面则是整张图盖住底色，纹理自然看不见（用户要的就是图片覆盖纹理）。
+     ⚠️ 想强制取某一档（DIY 画布 / 合成）就传 { texture: 档位 } 这种不带 img 的伪 cover。 */
+  if (cover && cover.img) return '';
+  const url = texURL(k);
+  if (!url) return '';
+  const size = fixed
+    ? (k === 'paper' ? '96px 96px' : '24px 24px')
+    : (k === 'paper' ? '42% auto' : '9.8% auto');
+  return `background-image:url('${url}');background-size:${size};`
+    + `background-position:0 0;background-repeat:repeat;`;
+}
+/* 屏幕上的一层材质（.cover / .cover-board 等都有 .texture 的 CSS）。
+   导出是独立 XHTML 文档，吃不到本页 CSS，由 io-doc.js 自己写内联的那一层。 */
+function textureLayerHTML(cover, fixed) {
+  const s = textureStyle(cover, fixed);
+  return s ? `<div class="texture" style="${s}"></div>` : '';
 }
 
 /* ==================== 装帧样式 ====================
@@ -474,7 +649,10 @@ function coverFaceStyle(cv) {
     ? `background-image:url('${cv.img}');background-size:cover;background-position:center;`
     : `background:${cv.value};`;
   return { bg, pat: cv.img ? '' : patternStyle(cv.pattern, cv),
-    patKey: cv.img ? 'none' : (cv.pattern || 'none') };
+    patKey: cv.img ? 'none' : (cv.pattern || 'none'),
+    /* 纹理是封面这张皮本身的材质：图片封面 / 自定义内衬都照叠，
+       跟图案不同（图案压在照片上会糊，所以有图就不画）。 */
+    tex: textureStyle(cv) };
 }
 function coverImgStyle(src) {
   return `background-image:url('${src}');background-size:cover;background-position:center;`;
@@ -572,10 +750,13 @@ function coverInsideStyle(j) {
   const mode = insideModeOf(j);
   if (mode === 'match') return coverFaceStyle(cv);
   const ins = custom || {};
+  /* 内衬自己是一张纯色底皮，纹理照铺（用不带 img 的伪 cover：
+     封面有没有图片，都不影响内衬这张底色）；内衬若换成图片，则由图片盖住纹理。 */
+  const insTex = textureStyle({ texture: cv.texture });
   if (mode === 'custom') {
     const img = isImgData(ins.img) ? ins.img : '';
-    if (img) return { bg: coverImgStyle(img), pat: '', patKey: 'none' };
-    return { bg: `background:${normHex6(ins.color) || INSIDE_FALLBACK};`, pat: '', patKey: 'none' };
+    if (img) return { bg: coverImgStyle(img), pat: '', patKey: 'none', tex: '' };
+    return { bg: `background:${normHex6(ins.color) || INSIDE_FALLBACK};`, pat: '', patKey: 'none', tex: insTex };
   }
   /* auto：从封面提取的候选色里挑 inside.pick 那一个（缺省 0 = 占比最多）。
      还没算好先给兜底色，异步算完自动重绘一次；palette / pick 一并回给编辑器渲染色块。 */
@@ -583,7 +764,7 @@ function coverInsideStyle(j) {
   const pk = Number(ins.pick);
   const pick = Number.isFinite(pk) ? clamp(Math.round(pk), 0, Math.max(0, list.length - 1)) : 0;
   const hex = list[pick] || firstHexOf(cv.value) || INSIDE_FALLBACK;
-  return { bg: `background:${hex};`, pat: '', patKey: 'none', palette: list, pick };
+  return { bg: `background:${hex};`, pat: '', patKey: 'none', palette: list, pick, tex: insTex };
 }
 /* ⚠️ 行内样式里写 url() 的两条规矩（相框的 FRAME_PHOTO_URL 就走这条）：
    ① 这串值还要塞进 style="…" 属性，url() 里只能用单引号 —— 双引号会把属性提前截断；
@@ -604,27 +785,26 @@ function frameColor(im, k) {
   const c = normHex6(im && im.frc);
   return c || FRAME_DEFAULT_COLOR[k] || '#ffffff';
 }
-/* 凹陷档的坑壁厚度（百分比 padding）与柔影强度共用同一个 w。
-   2026-11-13 对齐参考图后柔影层直接铺满整个盒（inset:0），两条渐变各按 px
-   长度收口，不再需要用对象宽高比把「按盒宽的 padding%」换算成「按盒高的
-   top/bottom%」—— 那套换算既依赖纸张比例，又容易把上下柔影挪歪。 */
-function frameInsetGeom(im) {
-  const w = frameWidth(im) / 100;
-  return { w, p: +((2.4 + w * 6) * 1.15).toFixed(2) };
-}
-/* 凹面柔影：独立 <i> 盖在整块白卡上，屏幕 / PDF / SVG foreignObject 都吃同一段内联样式。
+/* ==================== 凹陷档（固定几何，不吃粗细） ====================
+   2026-11-14 定稿：这一档**没有边框宽度可调**（面板粗细行已禁用），圆角、
+   柔影长度 / 深浅、两条外阴影一律用固定默认档，不再读 im.frw / frameWidth()。
+   ⚠️ padding 必须是 0：以前那圈 6.21% 的白色坑壁会在图片内侧留一道白边，
+      用户要的是「图片直接压进纸里，只显示图片」，坑壁本身不画。
+   ⚠️ 四角只有一个圆角：由 .pframe 的 border-radius + overflow:hidden 统一裁出
+      图片 / 柔影层 / 阴影；别再叠偏移的白色实边，那会在右上 / 左下画出第二个错位的圆角。 */
+const FRAME_INSET_R = 4;      // 四角小圆角（屏幕 / 导出都按 sc 缩放）
+/* 凹面柔影：独立 <i> 盖在图片上，屏幕 / PDF / SVG foreignObject 都吃同一段内联样式。
    ⚠️ 用两条 linear-gradient，别用 inset box-shadow：后者一加模糊就会把灰渗到
-      下 / 右两边（实测右边缘被压到 234），而参考图的下 / 右是干净纯白。渐变只铺
-      上 / 左两条、长度 L px，不铺满整张照片，右下完全不画。
-   ⚠️ alpha 按参考图逐像素标定：边缘 .10 → 3px .082 → 5px .055 → 7px .031
-      → 9px .012 → 11px 0（最暗 230/255），别改回四边均匀的灰方框。 */
-function frameInsetStyle(im, sc) {
-  const g = frameInsetGeom(im), s = sc || 1, px = v => (v * s).toFixed(2) + 'px';
-  const L = 7 + g.w * 8, a = .075 + g.w * .05;   // 默认 11px / .10
+      下 / 右两边（实测右边缘被压到 234）；渐变只铺上 / 左两条、长度 11px，
+      右下完全不画。alpha 序列 .13 → .107 → .072 → .040 → .016 → 0（11-14 用户要求
+      整体加深一档，从原来的 .10 起乘 1.3，最暗约 222/255），别调过头变成灰框。 */
+function frameInsetStyle(_im, sc) {
+  const s = sc || 1, px = v => (v * s).toFixed(2) + 'px';
+  const L = 11, a = .13;
   const stops = [[0, 1], [.27, .82], [.45, .55], [.64, .31], [.82, .12], [1, 0]]
     .map(([t, k]) => `rgba(0,0,0,${(a * k).toFixed(3)}) ${Math.round(t * 100)}%`).join(',');
   const grad = `linear-gradient(to bottom,${stops}),linear-gradient(to right,${stops})`;
-  return `position:absolute;inset:0;z-index:2;pointer-events:none;border-radius:0;`
+  return `position:absolute;inset:0;z-index:2;pointer-events:none;border-radius:${px(FRAME_INSET_R)};`
     + `background-image:${grad};background-size:100% ${px(L)},${px(L)} 100%;`
     + `background-position:top left,top left;background-repeat:no-repeat;`;
 }
@@ -678,18 +858,17 @@ function frameBoxStyle(im, sc) {
       + `border-image-repeat:stretch;`
       + `box-shadow:0 ${px(4 + w * 6)} ${px(11 + w * 20)} -${px(5)} rgba(20,22,40,.5);`;
   }
-  /* 凹陷：整块白卡被轻轻压进纸里（2026-11-13 按参考图重做）。
-     ① 坑壁（padding 区）用纯白，与白照片连成一整块，不再透出纸色露一圈异色边；
-     ② 左上外侧一条柔和外投影落在纸上，下 / 右一律不画高光、不画亮线；
-     ③ 白卡左上内侧的两条柔影由 frameInsetHTML 那层渐变负责。
-     ⚠️ 别再给框壁加 inset 阴影 / 下右白高光：那会变成一圈凸起的灰框 —— 参考图
-        只有左上一条灰带，右下是干净的硬边。默认参数（w=.5）= -3px -3px 6px -2px /.26，
-        与 frameInsetStyle 的 11px 渐变一起按参考图逐像素标定过。 */
+  /* 凹陷：图片直接压进纸里（2026-11-14 定稿）。
+     ① `padding:0` + 透明底 —— 图片占满盒，内侧不再留白色坑壁；
+     ② 四角只有一个圆角：`border-radius` + `overflow:hidden` 统一裁图片 / 柔影层 / 阴影。
+        ⚠️ 别再叠偏移的白色实边（右上是第二个错位圆角），也别给框壁加 inset 阴影；
+     ③ 左上一道较深的主影（.34），右下一条很淡很宽的影（.045，不压成灰框），
+        都随 sc 缩放；11-14 用户要求加深一档：原 .26 / .03 → .34 / .045；
+     ④ 左上内侧柔影由 frameInsetHTML 那层渐变负责（同乘 1.3）。这一档不吃 im.frw。 */
   if (k === 'inset') {
-    const p = frameInsetGeom(im).p;
-    const d = 1.5 + w * 3, blur = 3 + w * 6, sp = 1 + w * 2;
-    return `padding:${p}%;background:#fff;`
-      + `box-shadow:-${px(d)} -${px(d)} ${px(blur)} -${px(sp)} rgba(0,0,0,${(.20 + w * .12).toFixed(2)});`;
+    return `padding:0;background:transparent;border-radius:${px(FRAME_INSET_R)};overflow:hidden;`
+      + `box-shadow:-${px(3)} -${px(3)} ${px(6)} -${px(2)} rgba(0,0,0,.34),`
+      + `${px(12)} ${px(12)} ${px(22)} -${px(2)} rgba(0,0,0,.045);`;
   }
   return '';
 }

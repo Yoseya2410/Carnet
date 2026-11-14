@@ -29,6 +29,8 @@ function normalizeJournal(raw) {
       type: (cv.type === 'solid' || cv.type === 'gradient') ? cv.type : (/gradient/i.test(val) ? 'gradient' : 'solid'),
       value: val,
       pattern: normPat(cv.pattern),
+      /* 封面纹理：非法 / 老文件没这个字段都落到「无纹理」，外观跟旧版一致 */
+      texture: normTexture(cv.texture),
       img: (typeof cv.img === 'string' && cv.img) ? cv.img : null,
       /* 自定义封面草稿：新版是阅读器同款 images / texts，老文件可能是 items。
          结构合法才留（打开页面时 normDiyCover 还会再逐字段洗一遍、并把 items 换算过来）。

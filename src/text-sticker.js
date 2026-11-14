@@ -608,10 +608,11 @@ function buildSheet() {
   /* 中文字体：每档用自己那套字族显示，点之前就看得出写出来是什么样 */
   $('#tsFonts').innerHTML = TEXT_FONTS.map(f =>
     `<button data-f="${f.k}" title="${f.n}" style="font-family:${f.css || 'inherit'}">${f.abbr}</button>`).join('');
-  /* 英文字体：每档都补一个套了对应字族的 Aa 样例（含衬线 / 等宽 / 手写这些系统字体档），
-     否则按钮上只有中文名，点之前看不出字体效果。自带四档会在这一刻触发 woff2 下载。 */
+  /* 英文字体：自带档直接把字体原名用该字体渲染出来（enFontLabel，按钮整体套了对应字族），
+     前四档系统字体仍走中文名 + Aa 样例。中文风格说明留在 title 里，鼠标停上去还能看。
+     开面板这一刻 17 档会触发 woff2 下载（合计约 890KB，缓存后只拉一次，首屏不受影响）。 */
   $('#tsEnFonts').innerHTML = EN_FONTS.map(f =>
-    `<button data-ef="${f.k}" title="${f.hint || f.n}" style="${f.css ? 'font-family:' + f.css : ''}">${enFontSample(f)}${f.n}</button>`).join('');
+    `<button data-ef="${f.k}" title="${f.hint || f.n}" style="${f.css ? 'font-family:' + f.css : ''}">${enFontLabel(f)}</button>`).join('');
   $('#tsColors').innerHTML = TEXT_COLORS.map(c =>
     `<button data-c="${c}" style="background:${c}" title="${c}"></button>`).join('')
     + '<button class="custom" data-c="__custom" title="自定义颜色"></button>';
@@ -634,13 +635,41 @@ function buildSheet() {
     shPaint();
     shPush(kind);
   };
-  /* 面板上的按钮都吃 pointerdown：比 click 跟手，也不会被底下页面把手势抢走 */
+  /* 面板上的按钮都吃 pointerdown：比 click 跟手，也不会被底下页面把手势抢走。
+     ⚠️ 移动端「中文字体 / 英文字体」这两行改成横向滚动后多了个坑：手指按在按钮上
+        开始左右拖，pointerdown 会立刻把字体换掉（实测拖一次误选了「手写」）。
+        所以只有「这行确实能横滑 + 手指 / 触控笔」才走「按下记起点 → 抬起且位移 < 8px
+        才执行」，滚动开始时的 pointercancel 直接作废；鼠标点按与脚本派发的合成事件
+        （pointerType 不是 touch/pen）仍按原来的 pointerdown 立即执行，手感和验证都不变。
+        dragSafe 分支不调 preventDefault，免得跟原生横向滚动抢手势。 */
   const bind = (sel, fn) => {
     const box = $(sel); if (!box) return;
+    let down = null;
     box.addEventListener('pointerdown', e => {
       const b = e.target.closest('button'); if (!b) return;
-      e.preventDefault(); e.stopPropagation();
-      fn(b);
+      e.stopPropagation();
+      const dragSafe = box.scrollWidth > box.clientWidth + 1
+        && (e.pointerType === 'touch' || e.pointerType === 'pen');
+      if (!dragSafe) { e.preventDefault(); fn(b); return; }
+      down = { b, x: e.clientX, y: e.clientY, sl: box.scrollLeft };
+    });
+    box.addEventListener('pointermove', e => {
+      if (down && (Math.abs(e.clientX - down.x) > 8 || Math.abs(e.clientY - down.y) > 8)) down = null;
+    });
+    box.addEventListener('pointerup', e => {
+      /* down 还活着就说明「没明显位移、没 cancel、没滚起来」，直接执行；
+         别再拿 pointerup 的坐标复核一次——CDP / 部分浏览器派发的抬起坐标会漂，
+         实测会让触摸轻点白点一下。 */
+      if (!down) return;
+      const d = down; down = null;
+      e.preventDefault(); fn(d.b);
+    });
+    box.addEventListener('pointercancel', () => { down = null; });
+    /* 兜底：这一行相对按下时真的滚起来了，那次按下就不算点击（有些浏览器不发 pointercancel）。
+       ⚠️ 必须比 scrollLeft 的变化量，不能见 scroll 就清 —— 程序化 scrollLeft=0 的
+          scroll 事件是异步到的，会正好落在下一次轻点的 pointerdown 之后，把点击吃掉。 */
+    box.addEventListener('scroll', () => {
+      if (down && Math.abs(box.scrollLeft - down.sl) > 2) down = null;
     });
   };
   bind('#tsFonts', b => act(t => { t.font = b.dataset.f; }, 'font'));
@@ -844,7 +873,7 @@ function refitVisibleTexts() {
   if (changed) save();
   return changed;
 }
-/* 自带的四款英文字体是懒加载的：换字体那一刻量到的还是回退字体的字宽，
+/* 自带的英文字体是懒加载的：换字体那一刻量到的还是回退字体的字宽，
    字体真正到位后再贴一次，否则贴合框会按旧宽度把新字形裁掉 */
 if (typeof document !== 'undefined' && document.fonts && document.fonts.addEventListener) {
   let fontRefitTimer = 0;

@@ -17,7 +17,7 @@
      笔记本 —— 左侧一条封面彩带（= 书脊）；选「透明」时整列不画（彩带与书槽都没有）
      活页手帐 —— 左侧什么都不画（干净硬壳）
      方形画册 / 精装书 —— 左侧一道浅压槽
-   共同的那几层（由下往上）：底色 → 图案 → 光泽 → 装订。
+   共同的那几层（由下往上）：底色 → 纹理（封面材质）→ 图案 → 光泽 → 装订。
    ⚠️ **有彩带时不叠压槽**：带子只是一条平色带 + 右侧柔和接触影（见 home.css）；
       只有本来就没彩带的装帧（方形画册 / 精装书）才画压槽，
       且压槽保留原来那套暗槽底＋亮槽沿的立体断面（用户复评「之前的更逼真」），
@@ -51,6 +51,7 @@ function coverHTML(j) {
      左侧书脊两角由 CSS 的 --cr-left 定死，不跟着变。主页 / 书架 / 搜索缩略图 /
      编辑器预览 / 飞入动画都走这同一个 coverHTML，所以只需在这里写一次。 */
   return `<div class="cover s-${st.k}" style="${bg}${coverRadiusVar(j)}">
+    ${textureLayerHTML(j.cover)}
     <div class="pattern" data-pat="${j.cover.img ? 'none' : (j.cover.pattern || 'none')}" style="${pat}"></div>
     <div class="gloss"></div>
     ${bind}
@@ -116,20 +117,37 @@ function renderShelf(order, sel) {
   const W = Math.max((wrap.clientWidth || 0) - padX, 240);
   const bw = Math.round(clamp(W * 0.205, 86, 158));   // 书宽 ≈ 容器宽的两成，不过窄不过宽
   const gap = Math.round(clamp(W * 0.032, 14, 44));   // 间隙也跟着缩放
-  const endPad = Math.round(clamp(gap * 0.85, 10, 26));  // 搁板两端要留出的余量
   wrap.style.setProperty('--sbw', bw + 'px');
   wrap.style.setProperty('--sgap', gap + 'px');
+  /* 玻璃 / 台面**每排一样长**：变量挂在 wrap 上，所有排共用。
+     取可用宽的 95%（两端各再让出约 2.5%）：整条铺满会显得过长，
+     参考图里板子左右各留一小截空白，收一点更接近。
+     ⚠️ 旧版按这一排书的实际宽度算 boardW（min(W, max(inner+endPad*2, W*.86))），
+        书多的排板子长、书少的排短，一排排参差不齐；铆钉又固定在板子两端，
+        书一多就会戳到铆钉外面去。
+     ⚠️ 改这个系数要连着看下面的 usable：板子一短、铆钉往内移，
+        每行能放的书就会少一本，别只改数值不看分行结果。 */
+  const boardW = Math.round(W * 0.95);
+  wrap.style.setProperty('--bw', boardW + 'px');
   /* 一本手帐本在书架上实际占多宽：只有方形画册更宽（一样高、只是方） */
   const wOf = j => (bookStyleOf(j).k === 'square' ? bw * SHELF_SQ_K : bw);
-  /* 逐本试放：usable 是「这一排书最多能占多宽」。取 W 减两端的最小余量 ——
-     只要求**最小**余量而不是完整的 endPad：够放下就尽量多放一本，
-     搁板长度另有下限（W*0.86），少留一点余量看着照样是一块完整的板子。
-     ⚠️ 关键是 inner ≤ usable ≤ W：boardW 取的是 min(W, inner + endPad*2)，
-        只要书排不超出 usable，它就既不会超出搁板、也不会超出屏幕。
-     cur.length 为 0 时无条件放，保证每行至少有一本（哪怕一本画册比 usable 还宽，
-     也不会出现空行死循环） */
-  const minPad = Math.round(clamp(gap * 0.4, 6, 14));
-  const usable = Math.max(W - minPad * 2, 1);
+  /* 铆钉直径 / 距板边都按**板宽**同比算，由这里统一挂到 #shelfWrap：
+     CSS 只吃变量、不再自带一套 clamp，彻底避免两边公式不同步。
+     约 2% 板宽 = 参考图里铆钉离板端的比例，各尺寸看着一样。
+     ⚠️ 书排在板子里居中，只要 inner ≤ usable（两铆钉内缘之间的净宽），
+        整排书就落在两颗铆钉之间，封面不会被压住（用户 2026-11-14 的要求）。
+     ⚠️ usable **只扣铆钉本身，不再额外留白**（用户 2026-11-15：收短板子后
+        「原本一排放的书少了，不要改变原本一排放的书」）。板长从 W 收到 W*.95
+        已经吃掉 5%，再留 rivetGap 会让 390 窄屏的 3 本/排掉成 2 本/排。
+        现在各视口都刚好放得下原来的本数，同时仍严格保证书不压铆钉、不超出板子。 */
+  const rivetD = Math.round(clamp(boardW * .021, 12, 20));
+  const rivetX = Math.round(clamp(boardW * .020, 6, 22));
+  wrap.style.setProperty('--rivet-d', rivetD + 'px');
+  wrap.style.setProperty('--rivet-x', rivetX + 'px');
+  const usable = Math.max(boardW - 2 * (rivetX + rivetD), 1);
+  /* 逐本试放：cur.length 为 0 时无条件放，保证每行至少有一本（不会出现空行死循环）。
+     单本最宽的方形画册 bw×SHELF_SQ_K 也小于 usable（W 最小 240 时 122 < 176），
+     所以不会出现「一本书本身比铆钉内净宽还宽」的情况。 */
   const rows = [];
   let cur = [], curW = 0;
   for (const j of js) {
@@ -145,17 +163,15 @@ function renderShelf(order, sel) {
 
   let html = '', s = 0;
   for (const row of rows) {
-    const inner = row.reduce((a, j) => a + wOf(j), 0) + gap * (row.length - 1);
-    /* 搁板长度：至少比这一排书占的宽度多出两端余量，同时尽量铺满整格。
-       上限是容器宽，保证不会溢出屏幕；下限保证整排书一定站得下。
-       上面已经保证 inner ≤ usable ≤ W，所以 boardW 一定不会小于 inner ——
-       书排永远落在板子上，不会戳出去 */
-    const boardW = Math.round(Math.min(W, Math.max(inner + endPad * 2, W * 0.86)));
-    html += '<div class="shelf-row" style="--bw:' + boardW + 'px">' +
+    html += '<div class="shelf-row">' +
       '<div class="shelf-books">' +
       row.map((j, k) => bookItemHTML(j, s + k, sel)).join('') +
       '</div>' +
+      /* 一排 = 书 + 前挡玻璃（.shelf-board，书脚沉进去）+ 玻璃脚下的白色台面（.shelf-plinth）。
+         台面是独立的一层 DOM，不能拿 ::after 画在玻璃上：它要自己投落地影，
+         而且圆角跟玻璃上沿的大圆角不是一套（见 shelf.css）。 */
       '<div class="shelf-board"><i class="screw sl"></i><i class="screw sr"></i></div>' +
+      '<div class="shelf-plinth"></div>' +
       '</div>';
     s += row.length;
   }
@@ -200,6 +216,8 @@ function spineItemHTML(j, i) {
     : `background:${j.cover.value};`;
   const ink = coverLum(j.cover) > 0.58 ? '#28241f' : '#fffaf2';
   const pat = j.cover.img ? '' : patternStyle(j.cover.pattern, j.cover);
+  /* 书脊是一条窄条，材质贴片按 px 铺才不会被"封面宽百分比"缩成一片糊 */
+  const tex = textureStyle(j.cover, true);
   const name = esc(j.name);
   /* ⚠️ 渲染一律不带选中态 —— 单层书架默认谁都不选中：
      抬高 + 下方预览只由鼠标悬停驱动（见 spineSetHover 与 home-events 的 pointerover / pointerout），
@@ -207,6 +225,7 @@ function spineItemHTML(j, i) {
   return `<button type="button" class="spine-item"
     data-i="${i}" data-id="${j.id || ''}" title="${name}" aria-label="${name}，${j.pages.length} 页"
     aria-pressed="false" style="--spine-p:${spineWidthRatio(j)};--spine-h:${h};--spine-ink:${ink};${bg}">
+    ${tex ? `<span class="spine-texture" style="${tex}"></span>` : ''}
     <span class="spine-pattern" style="${pat}"></span>
     <span class="spine-title">${name}</span>
     ${lockNeedsKey(j) ? LOCK_FLAG_HTML : ''}

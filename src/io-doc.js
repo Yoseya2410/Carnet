@@ -5,7 +5,7 @@
  * ② 纯前端拼 PDF：JPEG 转字节流、写 PDF 对象表 buildPdf
  * ③ 竖向拼接生成 SVG 矢量长图 exportJournalSVG
  * ④ 导出字体探测 exportFontStack：导出文档吃不到本页的 @font-face，只能退到系统字体
- * ⑤ 项目自带的四款英文字体：按本子实际用到的档位转 base64 内嵌进 SVG，PDF / SVG 都能用真字体
+ * ⑤ 项目自带的 17 款英文字体：按本子实际用到的档位转 base64 内嵌进 SVG，PDF / SVG 都能用真字体
  *
  * 对外接口：pageExportHTML, pageExportXHTML, buildPdf, exportJournalPDF, exportJournalSVG,
  *            probeExportFont, prepareExportEnFaces, exportEnFaceCSS, exportPages, renderExportCanvas, canvasBytes
@@ -60,8 +60,9 @@ async function probeExportFont() {
   return __expHand;
 }
 /* ==================== 导出用的项目自带英文字体 ====================
-   手写体太大（2.55MB）且系统里没有，导出只能探测后退化成楷体；四款英文字体不一样，
-   加起来不到 140KB，可以把 woff2 直接转成 base64 写进 SVG 根级的 <style> 里。
+   手写体太大（2.55MB）且系统里没有，导出只能探测后退化成楷体；17 款英文字体不一样，
+   合计约 890KB（其中 Gaegu 290KB、Playfair / Inter 各约 118KB），仍可以把 woff2 直接转成
+   base64 写进 SVG 根级的 <style> 里 —— 关键是只嵌这一本真正用到的那几档，大字体也一样。
    已实测：SVG-as-image 的「安全静态模式」允许 data: 的 @font-face，栅格化出来的像素
    跟回退字体明显不同；而且根级 <style> 一处定义，所有 foreignObject 都能吃到。
    ⚠️ 只内嵌这一本真正用到的档位 —— 没用到时 <style> 为空，老导出结果一个字节都不变。
@@ -126,6 +127,10 @@ function pageExportHTML(j, idx, W, H) {
     const cv = j.cover || {};
     const bg = cv.img ? `background-image:url('${cv.img}');background-size:cover;background-position:center;` : `background:${cv.value || '#ddd'};`;
     const pat = (cv.pattern && cv.pattern !== 'none' && !cv.img) ? patternStyle(cv.pattern, cv) : '';
+    /* 封面材质：跟屏幕 coverHTML 同一份 textureStyle()（贴片尺寸按封面宽百分比，
+       导出不用再乘 sc）。⚠️ 有封面图时 textureStyle 返回空：上传图 / DIY 合成图
+       盖在底色之上，不能在导出里再把纹理压到照片和文字上。 */
+    const tex = textureStyle(cv);
     const st = bookStyleOf(j);
     /* 装订那一列与屏幕封面严格一致（2026-11-09 用户定稿）：
        ① 有彩带 → 只画一条平色带，**不叠压槽**；
@@ -139,13 +144,15 @@ function pageExportHTML(j, idx, W, H) {
     /* 与 home.css / book-style.css 同一套：画册 6%、精装书 8%、其余 6.5% */
     const w = st.k === 'square' ? 6 : st.k === 'hardcover' ? 8 : 6.5;
     /* 与 home.css 完全同一套：左亮右暗，亮沿 22%~38% 加宽成平台、暗底 50%~62% 收窄；
-       色标按视觉位置写 90deg，导出吃不到本页 CSS 所以必须内联。 */
+       色标按视觉位置写 90deg，导出吃不到本页 CSS 所以必须内联。
+       ⚠️ 2026-11-14 书槽变浅：alpha 与 home.css / diy-cover.css / color-picker.css
+          四处同源（暗槽底 .09，白底最暗约 232），只降浓度、几何档位不动。 */
     const groove = `background:linear-gradient(90deg,`
-      + `rgba(0,0,0,.02) 0%,rgba(0,0,0,.07) 12%,`
-      + `rgba(255,255,255,.30) 22%,rgba(255,255,255,.30) 38%,`
-      + `rgba(255,255,255,.20) 44%,`
-      + `rgba(0,0,0,.34) 50%,rgba(0,0,0,.26) 56%,rgba(0,0,0,.08) 62%,`
-      + `rgba(255,255,255,.04) 78%,rgba(255,255,255,.18) 100%)`;
+      + `rgba(0,0,0,.01) 0%,rgba(0,0,0,.02) 12%,`
+      + `rgba(255,255,255,.08) 22%,rgba(255,255,255,.08) 38%,`
+      + `rgba(255,255,255,.05) 44%,`
+      + `rgba(0,0,0,.09) 50%,rgba(0,0,0,.07) 56%,rgba(0,0,0,.02) 62%,`
+      + `rgba(255,255,255,.01) 78%,rgba(255,255,255,.05) 100%)`;
     /* 彩带是纯色带（ribbonSpine 已不给渐变，去掉彩带上的黑影）；
        右侧两层接触影是彩带压在封面上的投影，用户明确要保留。
        ⚠️ 只加外投影，不加上下折边暗边 / 槽沿细线；没彩带的装帧走 groove 分支，不吃这条。
@@ -162,6 +169,7 @@ function pageExportHTML(j, idx, W, H) {
     const rL = (3 * cs).toFixed(1), rR = (coverRadiusOf(j) * cs).toFixed(1);
     const radius = `border-radius:${rL}px ${rR}px ${rR}px ${rL}px;`;
     return `<div style="position:relative;width:${W}px;height:${H}px;overflow:hidden;${radius}${bg}">`
+      + (tex ? `<div style="position:absolute;inset:0;${tex}"></div>` : '')
       + `<div style="position:absolute;inset:0;${pat}"></div>`
       + `<div style="position:absolute;inset:0;background:linear-gradient(112deg,rgba(255,255,255,.28) 0%,rgba(255,255,255,0) 34%,rgba(255,255,255,0) 68%,rgba(255,255,255,.12) 100%)"></div>`
       + bind

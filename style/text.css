@@ -313,6 +313,23 @@
   .ef-hist button{width:34px;height:34px}
   .objbar .ob{width:29px;height:29px}
 }
+/* ===== 移动端字体两行：中文一行、英文一行，左右拖动 ========================
+   21 档英文字体按 .ts-chips 的 flex-wrap 会在窄屏叠成六七行，把字体页撑得过长。
+   改成每行各自横向滚动：中文字体一行、英文字体一行，手指左右拖着看后面的档位。
+   ⚠️ 只作用于这两条容器，其它 .ts-chips（字号 / 格式…）保持原来的换行排布。
+   ⚠️ (pointer:coarse) 覆盖手机横屏（视口 >620px，但侧栏面板仍只有 352px 宽）；
+      (max-width:620px) 覆盖桌面窄窗口。桌面宽屏 + 鼠标不命中，依旧多行平铺。
+   ⚠️ 隐藏横条是这两条的例外（统一滚动条在 base.css）：整行按钮的观感更干净，
+      右侧露出半个按钮就是「还能滑」的提示。 */
+@media (pointer:coarse), (max-width:620px){
+  #tsFonts,#tsEnFonts{
+    flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none;
+    padding-bottom:3px
+  }
+  #tsFonts::-webkit-scrollbar,#tsEnFonts::-webkit-scrollbar{display:none}
+  #tsFonts button,#tsEnFonts button{flex:0 0 auto;white-space:nowrap}
+}
 
 /* 日历模板 */
 

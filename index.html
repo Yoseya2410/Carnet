@@ -371,6 +371,15 @@
         </div>
       </div>
 
+      <!--pnid:TexSec--><!-- 封面纹理：封面这张皮的材质，跟装饰图案互不影响，图片封面照样生效 -->
+      <div class="fold-sec" data-sec="texture" id="edTexSec">
+        <label class="fold-head" id="edTexHead">封面纹理<span class="fold-hint" id="edTexHint"></span><i class="fold-caret"></i></label>
+        <div class="fold-body">
+          <div class="pat-grid tex-grid" id="edTextures"></div>
+          <p class="tpl-note">纹理只铺在封面底色这一层：装饰图案、上传的封面图片，以及自定义封面上的照片 / 文字都压在纹理之上；主页、阅读器与导出的封面用的是同一套。</p>
+        </div>
+      </div>
+
       <!--pnid:ImgSec-->
       <div class="fold-sec" data-sec="image" id="edSecImg">
         <label class="fold-head" id="edImgHead">上传封面图片<span class="fold-hint" id="edImgHint"></span><i class="fold-caret"></i></label>
@@ -630,7 +639,7 @@
          见 style/diy-cover.css 末尾的横屏媒体查询。增删块时别把这两个壳拆散。 -->
     <div class="diy-main">
       <div class="diy-stage" id="diyStage">
-        <div class="diy-paper" id="diyPaper"><div class="diy-pcontent" id="diyContent"></div></div>
+        <div class="diy-paper" id="diyPaper"><div class="diy-texture" id="diyTexture"></div><div class="diy-pcontent" id="diyContent"></div></div>
       </div>
       <div class="diy-side" id="diySide">
         <!-- 横屏：拖这条左边缘改侧栏宽度；竖屏没有侧栏，整条隐藏 -->

@@ -75,11 +75,11 @@ index.html
 | # | 文件 | 行数 | 职责 | 依赖 |
 |---|---|---|---|---|
 | 1 | `core.js` | 128 | 通用工具 `$ / $$ / uid / clamp / enc / esc / shade`、**高频事件逐帧合帧 `frameQueue`**；输入法弹起时锁定应用高度（底栏不被顶起，编辑文字时底栏跟着抬起）、编辑中把页面抬到键盘上方；`window.__kbHeight()` 对外暴露当前键盘高度（编辑面板据此把自己顶上去） | 无 | |
-| 2 | `visuals.js` | 517 | 封面与纸面的视觉素材：圆 / 星 / 心 / 叶 SVG 图案（**三角、小花两档 2026-11-08 已删除**，老数据经 `PAT_MAP` 落回「无」）、封面明暗 `coverLum`、图案层 `patternLayers / faceLayers`（有封面图片时不叠图案；**缩略图统一用自动色 `c`、真实封面保留圆橙 / 星金 / 心粉 / 叶绿的预设色**，用户设了 `patColor` 时两边都以它为准）；色板 `COLORS / GRADS / RIBBONS / PAT_COLORS`（彩带含「透明」档 `RIBBON_NONE`，书脊背景走 `ribbonSpine`）与内页模板 `TEMPLATES`；文字贴用的 4 档中文字体 `TEXT_FONTS`（手写/楷/宋/默认；**黑体 2026-10-02 撤掉**，老数据里的 `'hei'` 靠 `FONT_ALIAS` 落到「默认字体」）、8 档英文字体 `EN_FONTS`（前 4 档系统字体 + 后 4 档项目自带 woff2：Courier Prime / Cutive Mono / Pixelify Sans / Special Elite；**一律不带通用族、字体名用单引号且必须成对**——栈末多一个引号会让整条 `font-family` 作废，宋体/黑体就是这么废掉的；英文栈排在中文字体**前面**；自带字体那几档多带 `face`（导出内嵌用）与 `fallback`（内嵌失败时的近似系统字体链））、7 档文字色 `TEXT_COLORS`、6 档高亮色 `TEXT_BGS`；对象工具条图标 `OB_*_SVG`、旋转手柄上的转圈箭头 `ROT_SVG`；**内页底色**：九组「由浅到深」的色阶 `PAPER_RAMPS`、`normPaperBg`；**全项目共用的尺寸与阈值** `PAGE_RATIO`（默认内页 A5 = `210/148`）/ `PAGE_W_DEFAULT / LUM_DARK`（只认 `#rgb / #rrggbb`）、三级取值 `pageBgOf`（单页 > 整本 > 模板）、`pageBgStyle / pageBgDark`、**预览版 `pageBgShown / pageBgDarkShown`**（读到 `window.__bgPv` 就先按面板上正在挑的那一档画，`pg.bg` 不动）、任意色值的亮度 `hexLum` | core |；**装帧样式** `BOOK_STYLES / normBookStyle / bookStyleOf / isRingStyle`（每档自带三个数：`asp` = 封面宽÷高、`pageAsp` = 内页宽÷高、`pageHScale` = 同比例展示时内页相对封面的高度 —— **笔记本 A5 148×210、活页封面 B6 125×176 而内页 95×170（比封面短 6mm）、方形画册 1:1**）、`pageRatioOf` / `coverRatioOf` / `pageHeightScaleOf`；**图片边框** `FRAMES / FRAME_COLORS / FRAME_DEFAULT_COLOR / normFrame / normHex6 / frameWidth / frameColor / frameBoxStyle / frameImgStyle / hasFrame`，「相框」档改用整张金色雕花图片做 9-slice 边框（素材内嵌在 `assets/frame-gold.js` 的 `FRAME_PHOTO_URL`），`framePhotoGeom()` 是 slice 宽度与照片 inset 的唯一来源 |
+| 2 | `visuals.js` | 517 | 封面与纸面的视觉素材：圆 / 星 / 心 / 叶 SVG 图案（**三角、小花两档 2026-11-08 已删除**，老数据经 `PAT_MAP` 落回「无」）、封面明暗 `coverLum`、**封面纹理 `COVER_TEXTURES / textureStyle`**（无纹理 / 纸纹 / 布纹；贴片由固定种子的 canvas 同步生成 PNG dataURL 并缓存，按封面宽百分比等比缩放，屏幕 / 缩略图 / 导出同源；**只铺在底色层**：`cover.img` 一律不叠，DIY 由 `diyExportHTML` 把纹理烘在「底色与对象之间」并在换档时重合成，照片 / 文字盖在纹理上）、图案层 `patternLayers / faceLayers`（有封面图片时不叠图案；**缩略图统一用自动色 `c`、真实封面保留圆橙 / 星金 / 心粉 / 叶绿的预设色**，用户设了 `patColor` 时两边都以它为准）；色板 `COLORS / GRADS / RIBBONS / PAT_COLORS`（彩带含「透明」档 `RIBBON_NONE`，书脊背景走 `ribbonSpine`）与内页模板 `TEMPLATES`；文字贴用的 4 档中文字体 `TEXT_FONTS`（手写/楷/宋/默认；**黑体 2026-10-02 撤掉**，老数据里的 `'hei'` 靠 `FONT_ALIAS` 落到「默认字体」）、8 档英文字体 `EN_FONTS`（前 4 档系统字体 + 后 4 档项目自带 woff2：Courier Prime / Cutive Mono / Pixelify Sans / Special Elite；**一律不带通用族、字体名用单引号且必须成对**——栈末多一个引号会让整条 `font-family` 作废，宋体/黑体就是这么废掉的；英文栈排在中文字体**前面**；自带字体那几档多带 `face`（导出内嵌用）与 `fallback`（内嵌失败时的近似系统字体链））、7 档文字色 `TEXT_COLORS`、6 档高亮色 `TEXT_BGS`；对象工具条图标 `OB_*_SVG`、旋转手柄上的转圈箭头 `ROT_SVG`；**内页底色**：九组「由浅到深」的色阶 `PAPER_RAMPS`、`normPaperBg`；**全项目共用的尺寸与阈值** `PAGE_RATIO`（默认内页 A5 = `210/148`）/ `PAGE_W_DEFAULT / LUM_DARK`（只认 `#rgb / #rrggbb`）、三级取值 `pageBgOf`（单页 > 整本 > 模板）、`pageBgStyle / pageBgDark`、**预览版 `pageBgShown / pageBgDarkShown`**（读到 `window.__bgPv` 就先按面板上正在挑的那一档画，`pg.bg` 不动）、任意色值的亮度 `hexLum` | core |；**装帧样式** `BOOK_STYLES / normBookStyle / bookStyleOf / isRingStyle`（每档自带三个数：`asp` = 封面宽÷高、`pageAsp` = 内页宽÷高、`pageHScale` = 同比例展示时内页相对封面的高度 —— **笔记本 A5 148×210、活页封面 B6 125×176 而内页 95×170（比封面短 6mm）、方形画册 1:1**）、`pageRatioOf` / `coverRatioOf` / `pageHeightScaleOf`；**图片边框** `FRAMES / FRAME_COLORS / FRAME_DEFAULT_COLOR / normFrame / normHex6 / frameWidth / frameColor / frameBoxStyle / frameImgStyle / hasFrame`，「相框」档改用整张金色雕花图片做 9-slice 边框（素材内嵌在 `assets/frame-gold.js` 的 `FRAME_PHOTO_URL`），`framePhotoGeom()` 是 slice 宽度与照片 inset 的唯一来源 |
 | 3 | `storage.js` | 166 | IndexedDB 封装 `DB`（降级 localStorage）、防抖保存 `save()`；显示偏好 `prefs` 与背景读写 `setBg / applyBg`（同一份背景铺 `#home / #reader / body`，body 兜住画布露底）；**改名后旧键 → 新键的一次性迁移** `migrateLegacyStorage()` | core | |
 | 4 | `lock.js` | 670 | 手帐本加密：纯 JS MD5（UTF-8，保密问题答案 → 32 位 hex）、WebCrypto `PBKDF2-SHA256 (120000) → AES-GCM 256` 派生、随机 salt + 12 字节 iv；**密文信封** `sealJournal / unsealJournal`（整本内容一次加密，外壳只留书名 / 封面配色图案 / 装帧 / 页数空壳）；本机钥匙缓存 `carnet_lock_keys_v1`（**只存派生后的 raw AES 密钥 `rk:`**，不存密码原文）、`persistJournals / exportJournalBody`（落盘与导出一律密文）、`guardUnlocked`（两参，解锁后按入口各自的 `done` 落地）/ `autoUnlockQuiet` 解锁守卫、解锁 / 设置 / 换密钥 / 取消加密 / 立即上锁五套弹窗；书架锁徽章 `LOCK_FLAG_HTML` | core, visuals, storage |
 | 5 | `io-export.js` | 187 | 导出地基：稳定序列化 `stableStringify`、摘要 `checksum`、资产计数 `countAssets`；单本导出、「另存为 / 系统分享 / 下载」`deliverBlob`、`downloadBlob` | core, storage | |
-| 6 | `io-doc.js` | 282 | PDF / SVG 导出：每页渲染成 XHTML（`pageExportXHTML`，文字串带上英文字族、斜体、下划线 / 删除线、高亮；**图片与文字按 `z` 混排**，跟应用里的上下层一致；**底色走 `pageBgOf`，单页 > 整本 > 模板**，跟屏幕上同一套取舍）、JPEG 转字节流、手写 PDF 对象表 `buildPdf`、竖向拼 `foreignObject` 生成矢量长图；导出前 `probeExportFont` 实测手写体画不画得出来，画不出整段按楷体导；**四款自带英文字体**按这一本实际用到的档位把 woff2 转 base64 写进 SVG 根级 `<style>`（`prepareExportEnFaces`），独立文档也认得这个字族，没用到时一字不增 | core, visuals |；导出时**图片边框**（`<img>` 外再套一层 div，样式由 `frameBoxStyle` 现算）与**便利贴**（文字外框带纸色底 + 内高光 + 落地影 + 右下折角）一起画进去，方形画册按 1:1 出页 |
+| 6 | `io-doc.js` | 282 | PDF / SVG 导出：每页渲染成 XHTML（`pageExportXHTML`，文字串带上英文字族、斜体、下划线 / 删除线、高亮；**图片与文字按 `z` 混排**，跟应用里的上下层一致；**底色走 `pageBgOf`，单页 > 整本 > 模板**，跟屏幕上同一套取舍）、JPEG 转字节流、手写 PDF 对象表 `buildPdf`、竖向拼 `foreignObject` 生成矢量长图；导出前 `probeExportFont` 实测手写体画不画得出来，画不出整段按楷体导；**17 款自带英文字体**按这一本实际用到的档位把 woff2 转 base64 写进 SVG 根级 `<style>`（`prepareExportEnFaces`），独立文档也认得这个字族，没用到时一字不增 | core, visuals |；导出时**图片边框**（`<img>` 外再套一层 div，样式由 `frameBoxStyle` 现算）与**便利贴**（文字外框带纸色底 + 内高光 + 落地影 + 右下折角）一起画进去，方形画册按 1:1 出页 |
 | 7 | `io-share.js` | 112 | 书架多选后**一本一个文件**批量导出；支持时只问一次目标文件夹（`showDirectoryPicker`），否则逐个下载 | core, io-export, io-doc | |
 | 8 | `io-import.js` | 171 | 导入：`normalizeJournal` 补全并保留未知字段、`readJournals` 兼容三种写法且带 checksum 校验、`importJournals` 按内容摘要查重后入库并出核对报告 | core, storage, io-export |、**装帧样式 `style` 的归一**（缺 / 乱填一律落回 `classic`） |
 | 9 | `io-example.js` | 125 | 首次使用的自动导入：列出 `example/` 下的手帐本文件（目录列表优先，`manifest.json` 兜底），逐个导入并写标记保证只导一次；帮助与反馈邮件入口 | core, storage, io-import | |
@@ -239,10 +239,13 @@ index.html
 - 没彩带的装帧（方形画册 / 精装书）→ **画压槽**（`.spine.ghost`），保留带暗槽底＋亮槽沿的
   立体断面（23:02 用户复评「之前的更逼真」）；
   仍然去掉三样：上下两端折边暗边、四周黑色投影、槽沿那条 1px 浅白线；
-  23:15 方向改为「左亮右暗」，23:32 又把**亮槽沿加宽、暗槽底收窄**：
-  屏幕 / 导出色标写成 `.30白 22%~38% 平台 + .34黑 50% / .26黑 56% / .08黑 62%`，
-  缩略图写成 `.28白 20%~40% + .32黑 50% / .07黑 60%`，
+  23:15 方向改为「左亮右暗」，23:32 又把**亮槽沿加宽、暗槽底收窄**（几何档位从此定稿）：
+  屏幕 / 导出色标 `22%~38% 亮平台 + 50%/56%/62% 暗底`，缩略图 `20%~40% + 50%/60%`，
   都按**视觉位置**从左到右写 `90deg`（不再做 270deg 镜像换算）；
+  **2026-11-14 用户要求「书槽浅一点」**：只降浓度、几何档位一个都不动，
+  屏幕 / DIY 画布 / 导出暗槽底 `.34→.09`、亮平台 `.30→.08`，缩略图 `.32→.09` / `.28→.08`；
+  白封面上最暗 **168→232**，正好对齐参考图的 233。⚠️ 黑与白必须一起降
+  （只降黑会在彩色封面上留下一道突兀的亮平台）；四处同源别只改一边。
 - 活页 → 整列不输出。
 
 **封面暗角（`.cover::after`）**：一组带模糊的 `inset` 明暗（上缘亮、下缘暗、右缘暗、靠书脊那道
@@ -303,16 +306,27 @@ index.html
   `border-image-width` 同一套基准）；`width/height` 必须写百分比，`auto` 会退回素材原始像素把框撑爆；
   ③ slice 宽度、框条宽度、照片 inset 全走 `framePhotoGeom()` 一个函数，拖粗细时三者一起缩放。
   这一档不吃边框色（颜色行会淡下去），但粗细拖动条照常可用。小样也铺同一张素材（`buildFrSheet`）。
-- **凹陷**（2026-11-13 按参考图重做）：整块**纯白卡**被压进纸里，只有左上一条柔和灰带，
-  下 / 右是干净的硬边。三件事必须一起做，缺一就不像：
-  ① `.pframe` 的坑壁用 `background:#fff`，padding 区与白照片连成一整块，不再透纸色露一圈异色边；
-  ② 盒上只画**左上外侧**的一条柔和外投影 `-3px -3px 6px -2px rgba(0,0,0,.26)`。
-     ⚠️ 绝不加下 / 右白高光，也别给框壁加 `inset` 阴影 —— 那会变成一圈凸起的灰框；
-  ③ 白卡左上内侧的两条柔影由 `frameInsetHTML()` 插的独立 `<i class="pinset-shade">` 负责：
-     两条 `linear-gradient`（`to bottom` / `to right`）、`background-size:100% 11px,11px 100%`，
-     alpha 按参考图逐像素标定 `.10 → .082 → .055 → .031 → .012 → 0`（最暗 230/255）。
-     ⚠️ 别换回 `inset box-shadow`：一模糊就会把灰渗到下 / 右（实测右边缘被压到 234），右下不再干净。
-  粗细拖动条同时控制坑壁厚度、外投影与柔影长度 / 深浅；`decor.css` 的六档小样必须与之同源。
+- **凹陷**（2026-11-13 按参考图重做，11-14 定稿：**图片直接压进纸里，只显示图片**）：
+  左上一条较深的柔和灰带，右 / 下各有一条很浅很宽的灰带，四角一点点圆角。四件事必须一起做：
+  ① `padding:0;background:transparent` —— 图片占满盒，**内侧不留白色坑壁**（上一版 6.21% 的
+     padding 会露一圈白边，用户明确要去掉）；
+  ② 四角**只有一个圆角**：`border-radius:4px;overflow:hidden`（`FRAME_INSET_R`，导出按 `sc` 缩放）
+     统一裁图片 / 柔影层 / 阴影。⚠️ 别再叠偏移的白色实边 `3px 3px 0 0 #fff` —— 它右上 / 左下
+     会画出第二个错位的圆角（用户报的「两个圆角重叠」），左侧还会留白边；
+  ③ 盒上两条外阴影：`-3px -3px 6px -2px rgba(0,0,0,.34)`（左上主影）、
+     `12px 12px 22px -2px rgba(0,0,0,.045)`（右下淡影，很淡，不压成灰框）。
+     **11-14 用户要求阴影整体加深一档**：主影 `.26→.34`、淡影 `.03→.045`（白卡实测左侧
+     最暗 226→217、右侧 247→244），三层同比加深，别只调其中一条；
+  ④ 左上内侧柔影由 `frameInsetHTML()` 的独立 `<i class="pinset-shade">` 负责：两条
+     `linear-gradient`（`to bottom` / `to right`）、`background-size:100% 11px,11px 100%`、
+     alpha `.13 → .107 → .072 → .040 → .016 → 0`（原来是 `.10` 起，同乘 1.3），柔影层同款圆角。
+     ⚠️ 别换回 `inset box-shadow`；`decor.css` 小样的三条 alpha 与外影数值必须一起跟着改。
+  **这一档几何全固定、不吃 `im.frw`**：`frameInsetGeom()` 已删除，`frameInsetStyle()` 用固定
+  11px / .10；边框面板里只有凹陷档把粗细标题 + 滑块一起 `dim`、`input.disabled`，
+  `pickFrameWidth()` 也直接挡住（`img-frame.js` / `decor.css .fr-slider.dim`）。
+  ⚠️ 无边框档沿用老行为：标题淡但滑块仍可拖（一拖自动切到纯色档），别一起禁掉。
+  ⚠️ 滑块那个 div 只有 `data-page-node-id="FRWidths"`，**没有 id**，JS 里要用 `#frsheet .fr-slider` 找。
+  `decor.css` 的小样同源（蓝色图片 `inset:0` 占满、无白边、3px 圆角）。
 
 ⚠️ **边框尺寸一律用百分比（相对盒子宽 / 高）**：封面、书架、缩略图、导出四处的像素尺寸都不一样，
    写死 px 会「小图上边框占满、大图上细得看不见」。只有阴影 / 细线那几个 px 需要按导出缩放（`sc` 参数）。
@@ -397,7 +411,7 @@ WebCrypto 不提供 MD5，所以 `md5Hex()` 是手写的标准 RFC 1321（中文
 
 | # | 文件 | 行数 | 职责 |
 |---|---|---|---|
-| 1 | `base.css` | 109 | CSS 变量（色板、毛玻璃、圆角、阴影、**默认界面背景 `--app-bg`**、**文字贴字族 `--font-hand` / `--font-kai`**、**滚动条 `--sb-*`**）与全屏骨架；`#app` 高度由 JS 锁定。**`--app-bg` 是主页 / 阅读器 / body 三处共用的那一份默认背景**（阅读器不再自己写深色渐变，否则默认档下主页是暖白、阅读器是深蓝，两个画面）。顶部 `@font-face` 加载项目自带的 `assets/font/carnet-hand.woff2`（2.55MB，GB2312 全覆盖子集；另备一份 `.woff` 兜底）与 `assets/font/en/` 下四款英文字体（各自不到 62KB，懒加载）。**文件名必须是纯 ASCII**：非 ASCII 名在部分静态托管上会被回落成 index.html，字体请求看着 200、内容是 HTML，字族静默失效（症状：字母仍是手写体——退到了系统自带字体，中文变成楷体 / 雅黑）。排查直接看控制台自检，或手动跑 `window.carnetFontOK()`。字族名 `CarnetHand`，排在 `--font-hand` 回退链最前；旧的 `851tegakizatsu.ttf`（28MB）已弃用、不再被引用。**滚动条全项目只此一份**：用 `*` 兜住所有滚动容器，改浓淡只动 `--sb-size / --sb-track / --sb-thumb(-hi/-act)` 四个变量；别再往各样式文件里单独写 `::-webkit-scrollbar`（那边选择器更具体会盖掉这里），书架 `.shelf-wrap` 是唯一例外——它故意藏起来 | |
+| 1 | `base.css` | 109 | CSS 变量（色板、毛玻璃、圆角、阴影、**默认界面背景 `--app-bg`**、**文字贴字族 `--font-hand` / `--font-kai`**、**滚动条 `--sb-*`**）与全屏骨架；`#app` 高度由 JS 锁定。**`--app-bg` 是主页 / 阅读器 / body 三处共用的那一份默认背景**（阅读器不再自己写深色渐变，否则默认档下主页是暖白、阅读器是深蓝，两个画面）。顶部 `@font-face` 加载项目自带的 `assets/font/carnet-hand.woff2`（2.55MB，GB2312 全覆盖子集；另备一份 `.woff` 兜底）与 `assets/font/en/` 下 17 款英文字体（合计约 890KB，懒加载，导出只嵌用到的档位）。**文件名必须是纯 ASCII**：非 ASCII 名在部分静态托管上会被回落成 index.html，字体请求看着 200、内容是 HTML，字族静默失效（症状：字母仍是手写体——退到了系统自带字体，中文变成楷体 / 雅黑）。排查直接看控制台自检，或手动跑 `window.carnetFontOK()`。字族名 `CarnetHand`，排在 `--font-hand` 回退链最前；旧的 `851tegakizatsu.ttf`（28MB）已弃用、不再被引用。**滚动条全项目只此一份**：用 `*` 兜住所有滚动容器，改浓淡只动 `--sb-size / --sb-track / --sb-thumb(-hi/-act)` 四个变量；别再往各样式文件里单独写 `::-webkit-scrollbar`（那边选择器更具体会盖掉这里），书架 `.shelf-wrap` 是唯一例外——它故意藏起来 | |
 | 2 | `controls.css` | 22 | 通用控件：输入框、按钮、标签 | |
 | 3 | `home.css` | 124 | 主页容器（**没有顶栏底栏**：两条栏都是 `position:absolute` 浮层，不占布局高度，栏本身 `pointer-events:none` 只有按钮收点击；滑动时 `#home.bars-away` 整块淡出让开）、封面（左侧彩带 / 压槽、图案层、高光、页数徽章；**有彩带不叠压槽**，笔记本透明档整列不输出，本来没彩带的装帧才用 `.spine.ghost` 画原来那套立体断面压槽（上下折边暗边 / 四周黑影 / 槽沿浅白线不画，断面本身保留），活页整列不输出；**尺寸 `clamp(158px,min(44vw,40vh),246px)`：窄屏按宽度走占满屏、矮屏按高度让一让**）、底栏毛玻璃圆钮；浮层高度记在 `--topbar-h / --botbar-h` 供正文避让 | |
 | 4 | `book-style.css` | 110 | 装帧样式与封面拟物：光泽与明暗 `.gloss`、暗角与内描边 `::after`；**封面圆角是不对称的小圆角**（`3px 9px 9px 3px`，画册 `4px 8px 8px 4px`：书脊侧近乎直角、翻口侧一小点圆弧；开太大就成圆角卡片而不是一本书）；硬壳左侧的彩带 `.spine`（笔记本透明档整列不画，见 `home.css`）；活页封面**不画环**（`rings` 只决定内页中缝的环数，环在 reader.css 的 `.grings`）；弹力绑带 `.band`；方形画册 1:1 开本 `.s-square`；编辑器里的样式选择卡 `.sty-*`；**左右滑动模式的落地影 `.carousel .book-item .cover`**（五层由实到虚：接触影 → 近 / 中 / 远 → 环境影，x 偏移逐层加大模拟左上光源的半影外扩，色偏冷灰蓝而非纯黑；`.active` 那本再压深一档做远近关系）。改阴影注意：这条选择器比 `.cover` 那条更具体，两边都要看 |
@@ -412,7 +426,7 @@ WebCrypto 不提供 MD5，所以 `md5Hex()` 是手写的标准 RFC 1321（中文
 | 13 | `confirm.css` | 29 | 破坏性操作前的二次确认框 | |
 | 14 | `book-anim.css` | 75 | 开合书动画：封面飞入放大成书、`.cover-ghost` **窗口 + `.cover-ghost-fit` 内容层**（窗口用 width/height 展开、内容只做等比 scale，所以封面全程不变形）、合书退场、封面单独成页态。⚠️ `ghostOut` 关键帧里**不能再动画 `border-radius`**：CSS 动画层级高于内联样式，会把 JS 给细长书脊设的 1.5px 小圆角顶掉 | |
 | 15 | `view-toggle.css` | 43 | 展示模式切换按钮（三格：多层书架 = 一摞书 `books` / 单层书架 = 一排书脊 `rows` / 左右滑动 = 一本合着的书 `book-2`，图标写在 `index.html` 里，Tabler 描边风格）：浅色毛玻璃胶囊 + **白色圆钮滑块**（容器 `data-vt` 驱动 `translateX`，每格 32px、加一格就多一档位移），选中那格的图标吃深色 `#20222c` | |
-| 16 | `shelf.css` | 137 | 书架模式：成排的书 + 亚克力搁板（含金属螺丝）、拖动排序时的淡坑与悬浮副本；书架吃满整屏高度，上下内边距用 `--topbar-h / --botbar-h` 让每排都能滑出浮层按钮的遮挡区 | |
+| 16 | `shelf.css` | 137 | 多层书架：一排书 + **前挡玻璃 `.shelf-board`** + **脚下白色台面 `.shelf-plinth`** + 左右两颗铆钉；拖动排序时的淡坑与悬浮副本；书架吃满整屏高度，上下内边距用 `--topbar-h / --botbar-h` 让每排都能滑出浮层按钮的遮挡区。⚠️ 几何全按书宽 `--sbw` 同比：玻璃高 `.41×`（≈书高 29%，`--glass-h`）、上沿圆角按玻璃高的 `.38`（大圆角，台面只有 7px 小圆角）、台面厚 `.09×`；书脚靠 `.shelf-books{margin-bottom:calc(0px - var(--glass-h))}` **整段沉进玻璃**，正好落在台面上沿。⚠️ 玻璃与台面都必须 `pointer-events:none`（盖住书脚 29%，否则点击 / 悬停 / 长按全被挡住）。⚠️ **所有排等长**：`--bw` 由 `renderShelf` 挂在 `#shelfWrap` 上、取**可用宽的 95%**（`boardW = W*.95`，整条铺满显得过长），不再按该排书数伸缩；`--rivet-d / --rivet-x` 也由 `renderShelf` 按板宽的约 2% 算好挂上去，CSS 只吃变量（两边各写一套 clamp 曾让净宽算错）。分行净宽 `usable = boardW − 2×(rivetX + rivetD)` **只扣铆钉本身、不再额外留白**：板长从 W 收到 W*.95 已吃掉 5%，再留白会让 390 窄屏原本的 3 本/排掉成 2 本/排（用户要求收短不许改变每排本数）；这样既保证书落在两铆钉之间、铆钉不压封面，各视口本数也不变。**浅底那套近乎全透的玻璃 + 书脚渐白 + 接触影在 `background.css` 的 `#home.bg-light` 下**（上沿亮线 1px/.40 白 + 3.5% 灰轮廓勾圆角，别调回 1.5px/.95 白）；铆钉贴图是 `assets/shelf-rivet.png`（参考图裁的透明车削金属圆片，CSS 里留了银色渐变兜底） | |
 | 17 | `menus.css` | 109 | 向上弹出的分享 / 导出菜单、书架多选时的底部选择条、封面上的勾选圈、纸面右键菜单 `.addmenu.pmenu`（fixed 跟随鼠标，挂在 `#reader` 直属子节点上，避开 `.book` 那层 filter）。**选择条按钮配色**：导出 = 黑色半透明玻璃（浅底 `rgba(17,19,24,.08)` + 深字 / 深底 `rgba(255,255,255,.1)` + 白字）、删除 = 淡红透明 + 红字，两者都 `box-shadow:none`；`purpose-del` 下删除只是红更浓一档，别恢复深色实心 + `0 8px 18px -8px` 大黑影。⚠️ 末尾别再给 `.primary` 单独设白字 | |
 | 18 | `decor.css` | 152 | 图片边框 `.pframe`（边框画在它的 padding 上）与**图片边框**面板 `#frsheet`（`.fr-*` 六档小样 / 颜色 / 粗细）；**贴纸**面板 `#stsheet`（`.st-grid` 便利贴 / 胶带 / 手绘三档格子）；便利贴皮肤 `.ptext-wrap.note .ptxt`（纸色底 + 内高光 + 落地影 + 右下折角） |
 | 19 | `background.css` | 235 | 背景设置面板，以及**浅色背景时整套界面换「白玻璃」**那一套（`bg-light`）：面板底色走 `--frost / --frost-bd / --frost-fx` 三个变量（下拉菜单 / 确认框 / 取色盘一次全变），遮罩、弹窗、搜索栏、底部面板那些写死底色的逐个换；面板内文字一律换深色。⚠️ **选择器挂 `#home` 还是 `#reader` 要看元素真长在哪**：`.rbot`（底栏）和 `.scrub`（页数轴）是阅读器里的，写 `#home.bg-light .rbot …` 永远命中不了 | |
@@ -444,6 +458,7 @@ WebCrypto 不提供 MD5，所以 `md5Hex()` 是手写的标准 RFC 1321（中文
   id: 'x1a2b3c…',              // 内部唯一 id
   name: '旅行手记',
   cover: { type: 'solid|gradient', value: '#f4a9b8', pattern: 'heart', patColor: '#e0668a',
+           texture: 'none',        // 封面材质：none 无纹理 / paper 纸纹 / cloth 布纹；缺省 = none
            img: null, diym: null },  // diym = {bg,images,texts} 封面草稿（阅读器同款对象）；img = 合成后的成品封面图
   ribbon: '#c98a8a',           // 封面彩带（书脊）颜色；'none' = 透明，隐藏彩带且左侧不画书槽
   style: 'classic',            // 装帧样式：classic 精装 / ring 活页 / personal Personal 活页 / square 方形画册
@@ -471,7 +486,7 @@ WebCrypto 不提供 MD5，所以 `md5Hex()` 是手写的标准 RFC 1321（中文
 ```js
 {
   id, name, created, style, ribbon, template, tplFit, pageBg,
-  cover: { type, value, pattern, patColor, radius, groove, inside: { mode, color, pick } },
+  cover: { type, value, pattern, patColor, texture, radius, groove, inside: { mode, color, pick } },
   pages: [{}, {}, …],                    // 只留页数空壳，供书脊厚度 / 页数角标 / 结构校验用
   lock: { v: 1, mode: 'question|password', q, salt, check: { iv, data }, fp },
   enc:  { iv, data }                    // AES-GCM(JSON.stringify(整本明文，去掉 lock/enc))
@@ -535,9 +550,25 @@ WebCrypto 不提供 MD5，所以 `md5Hex()` 是手写的标准 RFC 1321（中文
 上下层用 `nextZ()`、盒子下发用 `applyBox() / applyRot()`，图片边框复用 `FRAMES / frameBoxStyle`，
 贴纸复用 `stickers.js` 的便利贴 / 胶带 / 我的贴纸库，文字面板复用 `TEXT_*` 色板与字体档 ——
 **添加图片、文字、贴纸的逻辑与阅读器一致**（拖动、四角缩放、旋转手柄、工具条、双击改字都在）。
+⚠️ **图片四角是自由拉伸**（2026-11-14）：`editor.js` 的 `g.mode === 'scale'` 里 `w / h` 各改各的，
+不再乘同一个 `k`；按住 `Shift` 才回到等比。手指位移先用 `rot` 转回对象自身方向（否则转过角度后
+横竖会串），再用 `rotShift()` 补旋转后的中心位移，对角才钉得住。文字贴仍是「拖角连字号一起等比放大」。
+换图 `diyAddImage(file, swapId)` 只换 `src`，**不按新图比例重算 `h`** —— 否则用户拉出来的框一换图
+就被打回固定比例。数据 `w / h` 本就独立，`normDiyCover` / `diyDone` / `diyExportHTML` / 导出都不重算，
+所以这套改动只在手势层，不碰普通内页图片对象。
 「完成」把纸面塞进 SVG `foreignObject` 栅格化成一张图写进 `cover.img` —— 主页 / 阅读器 /
 PDF / 长图 / 源文件导出本来就有「有封面图就铺图」这一条路，所以这些渲染点一个字节都不用改。
 ⚠️ 合成用的 `diyExportHTML()` 必须全内联（foreignObject 读不到本页 CSS），`<img>` 要自闭合 `/>`。
+⚠️ **画布与成品的边框必须同源**（2026-11-14 修「凹陷框编辑时与成品不一样」）：两件事一起做，
+缺一件就不一致 ——
+① **图片对象外层盒不能带 `overflow:hidden`**：`.pframe` 的几条外阴影（凹陷的左上主影 / 右下淡影、
+   拍立得 / 纯色 / 相框的投影）都画在盒子**外面**，一裁整条阴影就没了，成品只剩内侧柔影。
+   实测改前成品四边外侧全是纸色 247，编辑器却是 209 / 235。文字贴仍保留裁切（防超框字溢出）。
+② **px 缩放基准统一为 `PAGE_W_DEFAULT = 340`**：`imgWrapHTML(im, i, sc)` 新增可选 `sc`，
+   阅读器内页纸宽就是 340 故默认 `sc=1`；DIY 画布更宽，`renderDiyPaper()` 传
+   `diy.W / PAGE_W_DEFAULT`，`diyExportHTML()` 传 `W / PAGE_W_DEFAULT`。
+   以前画布写死 `sc=1`、导出写 `W/340`，成品缩回画布宽时阴影 / 圆角 / 柔影长度差 33%。
+   两者同源后，成品显示到任意宽度都按「该宽度 / 340」缩放，与画布严格对齐。
 草稿与成品图都随手帐数据走，导入时 `normalizeJournal` 只做结构校验，打开页面时 `normDiyCover`
 再逐字段洗（含把上一版 `items` 老草稿换算成 images/texts）。
 从 DIY 切回内置图案会撤掉 `cover.img` 但**保留草稿**，随时能回页面接着改。
@@ -688,7 +719,7 @@ PDF / 长图 / 源文件导出本来就有「有封面图就铺图」这一条�
      界面上「点了宋体却没变化」就是这么来的（2026-10-02 修过这条）；
    - 英文那几档**绝对不能带通用族**（`serif / monospace / cursive`），否则会连汉字一起截胡，
      中文字体整条失效。英文栈要排在中文字体**前面**。
-   - 项目自带的那四档，字族名必须和 `style/base.css` 的 `@font-face` **一字不差**：
+   - 项目自带的那些内嵌档位，字族名必须和 `style/base.css` 的 `@font-face` **一字不差**：
      `EN_FONTS.face.family` 就是导出时往独立文档里注册的名字，写错了导出会静默退回
      `fallback`，页面上却看着完全正常（最难查的一种）。加一档要同时动 CSS、`EN_FONTS`
      和下面「字体」那节的表三处。
@@ -717,7 +748,14 @@ PDF / 长图 / 源文件导出本来就有「有封面图就铺图」这一条�
    `_bgsheet2.js` 底色弹窗、`_edit4.js` 编辑器、`_pb.js` 一键成书（真实菜单 + 排序 / 铺满 / 空选）、
    `_pb2.js` 成书截图、`_refcheck.js` 整理后的综合核对、
    `_decor.js` 四种装帧 / 图片边框 / 便利贴 / 胶带贴纸四项新功能、
-   `_enfonts.js` 四款自带英文字体档位 / 面板 / 导出内嵌 / 栅格化像素、
+   `_enfonts.js` 自带英文字体档位 / 面板 / 导出内嵌 / 栅格化像素、
+   `_newfonts.js` 17 档全链路（字族名 ↔ CSS ↔ 磁盘文件 / 逐支加载 / 汉字不截胡 /
+   DIY 文字面板 / 375px 窄屏滚动 / 大字体导出内嵌）、
+   `_enfontnames.js` 面板名称与自渲染（按钮文本 / computed 字族 / 栅格化像素差 /
+   DIY 同表 / 375px 无横向溢出）、
+   `_shortfonts.js` 短名 + 移动端两行横向拖动（真实触摸拖动不误选 / 轻点仍能选中 /
+   中文一行英文一行 / 手机横屏与桌面回归 / DIY 同款）、
+   `_fontnames.js` 从 woff2 的 name table 读字体原始 family 名（纯 Node，zlib 解 brotli）、
    `_fslink.js` 文字贴四角「字随框缩放」：等比 / 对角固定 / 换行不变 / Alt / 开关 / 图片不受影响 / 上下限 / 面板与导出 / 真实鼠标、
    `_tbfit.js` 文字框紧贴内容：微拖不跳变 / 短句长段落贴合 / 增删字跟着变 / 老数据首绘贴合 / 手动行宽 / 导出一致 / 截图）、
    `_lock.js` 加密主链路 23 项（MD5 标准值 / 启用加密 / 落盘密文 / 刷新免密 / 上锁 / 输错输对 /
@@ -729,10 +767,13 @@ PDF / 长图 / 源文件导出本来就有「有封面图就铺图」这一条�
    先在本目录起 `python -m http.server 8777`，再 `node .workbuddy/_tmp_verify/_mod.js`
    （`playwright-core` 就装在同目录的 `node_modules` 里，不用额外设 `NODE_PATH`），
    结果写到同目录的 `_xxx_out.txt`。
-`_enfonts.js`（8787）、`_fslink.js`（8788）、`_tbfit.js`（8792）、`_lock.js`（8795）、
-`_lock2.js`（8796）、`_lock3.js`（8803）、`_lock4.js`（8806）自带静态服务，不用先起 8777，
-直接 `node _enfonts.js` / `node _fslink.js` / `node _tbfit.js` / `node _lock.js` / `node _lock2.js` /
-`node _lock3.js` / `node _lock4.js` 即可；`_enfonts.js` 带 `font/woff2` MIME，四个加密脚本都跑在
+`_enfonts.js`（8787）、`_newfonts.js`（8791）、`_enfontnames.js`（8793）、`_shortfonts.js`（8794）、
+`_fslink.js`（8788）、`_tbfit.js`（8792）、
+`_lock.js`（8795）、`_lock2.js`（8796）、`_lock3.js`（8803）、`_lock4.js`（8806）自带静态服务，不用先起 8777，
+直接 `node _enfonts.js` / `node _newfonts.js` / `node _enfontnames.js` / `node _shortfonts.js` /
+`node _fslink.js` / `node _tbfit.js` /
+`node _lock.js` / `node _lock2.js` / `node _lock3.js` / `node _lock4.js` 即可；四个字体脚本都带 `font/woff2` MIME，
+`_fontnames.js` 不起服务、直接 `node _fontnames.js` 打印 17 支字体的原始 family 名；四个加密脚本都跑在
 `http://127.0.0.1`（安全上下文，`crypto.subtle` 可用），且用系统 Chrome 而非 Playwright 自带内核。
 
 11. **高频事件一律走 `frameQueue()`**（在 `core.js`）：`pointermove / scroll / input / 滑块` 只 `push()`
@@ -776,30 +817,65 @@ PDF / 长图 / 源文件导出本来就有「有封面图就铺图」这一条�
 | `assets/font/carnet-hand.woff` | 3.51 MB | 同内容的 woff 版，给不认 woff2 的老浏览器兜底 |
 | `assets/font/851tegakizatsu.ttf` | 27 MB | 母字体，全 URO 20902 字。留着是为了能随时重裁，**运行时不加载**（没有任何地方引用它） |
 
-### 四款自带英文字体（文字贴「英文字体」后四档）
+### 17 款自带英文字体（文字贴「英文字体」的自带档位）
 
-| 文件 | 大小 | 面板档位 | 字族名 |
-| --- | --- | --- | --- |
-| `assets/font/en/CourierPrime-Regular.woff2` | 26 KB | 打字机 | `CarnetCourierPrime` |
-| `assets/font/en/CutiveMono-Regular.woff2` | 30 KB | 复古等宽 | `CarnetCutiveMono` |
-| `assets/font/en/PixelifySans-Regular.woff2` | 15 KB | 像素 | `CarnetPixelifySans` |
-| `assets/font/en/SpecialElite-Regular.woff2` | 60 KB | 旧打字机 | `CarnetSpecialElite` |
+| 文件 | 大小 | 分组 | 面板短名 `en` | 字体原名 / 中文说明（`title`） | 字族名 |
+| --- | --- | --- | --- | --- | --- |
+| `assets/font/en/CourierPrime-Regular.woff2` | 26 KB | 打字机 / 像素 | Courier | Courier Prime · 打字机等宽 | `CarnetCourierPrime` |
+| `assets/font/en/CutiveMono-Regular.woff2` | 30 KB | 打字机 / 像素 | Cutive | Cutive Mono · 复古打字机 | `CarnetCutiveMono` |
+| `assets/font/en/PixelifySans-Regular.woff2` | 15 KB | 打字机 / 像素 | Pixel | Pixelify Sans · 像素风 | `CarnetPixelifySans` |
+| `assets/font/en/SpecialElite-Regular.woff2` | 60 KB | 打字机 / 像素 | Elite | Special Elite · 做旧打字机 | `CarnetSpecialElite` |
+| `assets/font/en/CrimsonPro-Regular.woff2` | 36 KB | 衬线 | Crimson | Crimson Pro · 古典书卷衬线 | `CarnetCrimsonPro` |
+| `assets/font/en/Domine-Regular.woff2` | 26 KB | 衬线 | Domine | Domine · 新闻标题衬线 | `CarnetDomine` |
+| `assets/font/en/Playfair_9pt_SemiCondensed-Regular.woff2` | 115 KB | 衬线 | Playfair | Playfair 9pt SemiCondensed · 高对比窄衬线 | `CarnetPlayfair` |
+| `assets/font/en/Inter_18pt-Regular.woff2` | 113 KB | 无衬线 | Inter | Inter 18pt · 现代无衬线 | `CarnetInter` |
+| `assets/font/en/Outfit-Regular.woff2` | 20 KB | 无衬线 | Outfit | Outfit · 几何无衬线 | `CarnetOutfit` |
+| `assets/font/en/KronaOne-Regular.woff2` | 15 KB | 无衬线 | Krona | Krona One · 几何展示粗体 | `CarnetKronaOne` |
+| `assets/font/en/Gaegu-Regular.woff2` | 284 KB | 手写 | Gaegu | Gaegu · 韩系稚拙手写 | `CarnetGaegu` |
+| `assets/font/en/GochiHand-Regular.woff2` | 20 KB | 手写 | Gochi | Gochi Hand · 马克笔手写 | `CarnetGochiHand` |
+| `assets/font/en/Schoolbell-Regular.woff2` | 22 KB | 手写 | Schoolbell | Schoolbell · 粉笔手写 | `CarnetSchoolbell` |
+| `assets/font/en/MartianMono_Condensed-Regular.woff2` | 17 KB | 等宽 / 点阵 | Martian | Martian Mono Condensed · 窄体等宽 | `CarnetMartianMono` |
+| `assets/font/en/MatrixMonoPrint-Regular.woff2` | 31 KB | 等宽 / 点阵 | Print | Matrix Mono Print · 打印点阵等宽 | `CarnetMatrixPrint` |
+| `assets/font/en/MatrixMonoRaster-Regular.woff2` | 32 KB | 等宽 / 点阵 | Raster | Matrix Mono Raster · 栅格等宽 | `CarnetMatrixRaster` |
+| `assets/font/en/MatrixMonoScreen-Regular.woff2` | 31 KB | 等宽 / 点阵 | Screen | Matrix Mono Screen · 屏幕网点等宽 | `CarnetMatrixScreen` |
 
-四支都是随项目自带的开源拉丁字体（字族定义见 `style/base.css` 顶部，档位表见 `visuals.js`
-的 `EN_FONTS`）。它们只含拉丁字形，汉字靠 CSS 的逐字符回退落到后面的中文字体，所以英文栈
-必须排在中文字体前面、且**不能带通用族**（见开发约定第 8 条）。`@font-face` 是懒加载的，
-首屏一个请求都不多；打开「编辑文字 → 字体」面板时，八个按钮各自用自己那套字族显示，
-那一刻才会把用到的字体拉下来。文件名同样必须是纯 ASCII，理由同上手写体。
+**面板按钮显示短名**（2026-11-14 用户定稿）：原名太长（如 `Playfair 9pt SemiCondensed`），
+移动端一行放不下，一律取首词；清单里没列到的 4 支按同规则补 `Pixel / Elite / Crimson /
+Screen`，`Outift` 按字体原名写作 `Outfit`。完整原名 + 中文风格仍在按钮 `title`
+（`EN_FONTS.hint`，可用 `.workbuddy/_tmp_verify/_fontnames.js` 复核）和上表里，信息不丢。
+按钮整体套这一档的字族，所以**短名本身就是用该字体渲染的样张**，不再加 `Aa`；前四档是
+类别 / 系统字体栈（跟随中文 / 衬线 / 等宽 / 手写），没有字体原名，仍显示中文名 + `Aa`。
+阅读器文字面板与 DIY 封面文字面板共用 `visuals.js` 的 `enFontLabel()`，改名只动这一处。
+
+**移动端两行 + 左右拖动**：`@media (pointer:coarse), (max-width:620px)` 下，`text.css` 的
+`#tsFonts` / `#tsEnFonts` 与 `diy-cover.css` 的 `.diy-fonts-cn` / `.diy-fonts-en` 都改成
+`flex-wrap:nowrap; overflow-x:auto`：中文字体一行、英文字体一行，手指左右拖看后面的档位；
+桌面宽屏 + 鼠标不命中，仍是原来的多行平铺。⚠️ DIY 那两行必须同时给
+`.diy-font-row{flex-wrap:nowrap}` 和 chips 的 `flex:1 1 0`，否则 chips 按内容宽（约 1.6k px）
+被挤到标签下一行。⚠️ `text-sticker.js` 的 `bind()` 只对「触摸 + 这一行真能横滑」走
+`pointerup` 确认（位移 >8px / 滚动 / `pointercancel` 都作废），避免左右拖时误换字体；
+鼠标点按与脚本派发的合成事件仍按 `pointerdown` 立即执行，手感和历史验证脚本都不变。
+
+17 支都是随项目自带的开源拉丁字体，合计约 890KB（字族定义见 `style/base.css` 顶部，档位表见
+`visuals.js` 的 `EN_FONTS`）。**全部只含拉丁字形** —— 连 Gaegu（韩文手写）、Inter、Playfair
+这几支大文件也逐支用无头浏览器量过汉字像素，与「不存在的字族」渲染完全一致；汉字靠 CSS 的
+逐字符回退落到后面的中文字体，所以英文栈必须排在中文字体前面、且**不能带通用族**
+（见开发约定第 8 条）。`@font-face` 是懒加载的，首屏一个请求都不多；打开「编辑文字 → 字体」
+面板时，21 个按钮（4 档系统字体 + 17 档自带）那一次才把这批字体拉下来，浏览器缓存后不再
+重复请求。文件名同样必须是纯 ASCII，理由同上手写体。
+
+**新增一档要同时动三处**：`style/base.css` 的 `@font-face`（字族名与 `face.family` 一字不差）、
+`visuals.js` 的 `EN_FONTS`（`k` 是落到本子数据里的 key，既有档位一律不许改）、上面这张表。
 
 **导出为什么也能用真字体**：导出的 XHTML 要塞进 SVG 图片里栅格化，是个独立文档，吃不到本页的
-`@font-face` —— 手写体 2.55MB 太大，只能探测后退化成楷体；这四支合计不到 140KB，
-`io-doc.js` 的 `prepareExportEnFaces()` 会按这一本**实际用到的档位**把 woff2 转成 base64，
-写进 SVG 根级 `<style>`（PDF 每页一份、SVG 长图全书一份）。已用无头浏览器对照实验坐实：
-SVG-as-image 的「安全静态模式」允许 `data:` 的 `@font-face`，有内嵌时栅格化像素跟回退字体
-明显不同，且根级一处定义所有 `foreignObject` 共用。`font-display:block` 不能省 —— 导出是
-「Image 一 load 就画」，`swap` 会先把回退字体画进画布。没用到的档位一律不内嵌，老本子的
-导出结果一个字节都不变；`file://` 下 `fetch` 被拦掉时静默降级到 `EN_FONTS.fallback` 的
-近似系统字体链。
+`@font-face` —— 手写体 2.55MB 太大，只能探测后退化成楷体；英文字体虽然合计约 890KB，但
+`io-doc.js` 的 `prepareExportEnFaces()` 只按这一本**实际用到的档位**把 woff2 转成 base64，
+写进 SVG 根级 `<style>`（PDF 每页一份、SVG 长图全书一份），用到 Gaegu 这种大字体也只是一份。
+已用无头浏览器对照实验坐实：SVG-as-image 的「安全静态模式」允许 `data:` 的 `@font-face`，
+有内嵌时栅格化像素跟回退字体明显不同，且根级一处定义所有 `foreignObject` 共用。
+`font-display:block` 不能省 —— 导出是「Image 一 load 就画」，`swap` 会先把回退字体画进画布。
+没用到的档位一律不内嵌，老本子的导出结果一个字节都不变；`file://` 下 `fetch` 被拦掉时
+静默降级到 `EN_FONTS.fallback` 的近似系统字体链。
 
 **文件名必须是纯 ASCII。** 它曾经叫 `手写体.woff2`，部署后中文变楷体 / 雅黑、英文却还是手写体。
 根因不是缺字形，而是部分静态托管**解析不了非 ASCII 路径就回落成 index.html** —— 字体请求拿到的是

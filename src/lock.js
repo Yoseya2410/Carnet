@@ -182,7 +182,7 @@ function lkShell(j, lock, enc) {
     /* ⚠️ 这里只挑外观字段，绝不能写 ...cv —— 会把 cover.img / diym / inside.img 一起带出来 */
     cover: {
       type: cv.type, value: cv.value, pattern: cv.pattern, patColor: cv.patColor,
-      radius: cv.radius, groove: cv.groove, inside: ins
+      texture: cv.texture, radius: cv.radius, groove: cv.groove, inside: ins
     },
     pages: (Array.isArray(j.pages) ? j.pages : []).map(() => ({})),
     lock, enc

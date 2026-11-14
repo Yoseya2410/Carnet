@@ -69,22 +69,23 @@
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.5),0 2px 5px -2px rgba(20,22,40,.6)
 }
 .fr-ico[data-fr="photo"] i{inset:6% 8%}
-/* 凹陷：与 frameBoxStyle('inset') / frameInsetStyle 同源 —— 纯白坑壁 +
-   左上外投影，照片占满（inset:0），只在上 / 左压两条柔影渐变，下 / 右干净。
-   ⚠️ 别用 inset box-shadow：一模糊就把灰渗到右下，小样看着像一圈灰框。 */
+/* 凹陷：与 frameBoxStyle('inset') / frameInsetStyle 同源 —— 图片占满、没有白色坑壁，
+   左上主影 + 右下很淡的宽影，四角一个圆角（.fr-ico 自身 border-radius 裁所有层）。
+   ⚠️ 别加偏移的白色实边（右上 / 左下会多出第二个错位圆角），也别用 inset box-shadow。 */
 .fr-ico[data-fr="inset"]{
-  background:#fff;
-  box-shadow:-3px -3px 6px -2px rgba(0,0,0,.26)
+  background:#fff;border-radius:3px;
+  box-shadow:-3px -3px 6px -2px rgba(0,0,0,.34),
+             4px 4px 8px -1px rgba(0,0,0,.045)
 }
-/* i 就是窗里的照片：留出 7% 白坑壁（纸上 padding 6.21%，小样适度放大才看得见），
-   跟其它档一样用蓝色内块表达「框 + 照片」两层结构 */
-.fr-ico[data-fr="inset"] i{inset:7%}
-/* 柔影盖在白坑壁和蓝色照片之上：伪元素铺满小样，两条渐变各自只占上 / 左 7px */
+/* i 就是图片本身：inset:0 占满，不再留白边 */
+.fr-ico[data-fr="inset"] i{inset:0}
+/* 柔影盖在蓝色照片之上：伪元素铺满小样，两条渐变各自只占上 / 左 7px，
+   alpha 与纸面同一套曲线同乘 1.3（用户要求阴影加深一档） */
 .fr-ico[data-fr="inset"]::after{
-  content:"";position:absolute;inset:0;pointer-events:none;
+  content:"";position:absolute;inset:0;pointer-events:none;border-radius:3px;
   background-image:
-    linear-gradient(to bottom,rgba(0,0,0,.10) 0%,rgba(0,0,0,.082) 27%,rgba(0,0,0,.055) 45%,rgba(0,0,0,.031) 64%,rgba(0,0,0,.012) 82%,rgba(0,0,0,0) 100%),
-    linear-gradient(to right,rgba(0,0,0,.10) 0%,rgba(0,0,0,.082) 27%,rgba(0,0,0,.055) 45%,rgba(0,0,0,.031) 64%,rgba(0,0,0,.012) 82%,rgba(0,0,0,0) 100%);
+    linear-gradient(to bottom,rgba(0,0,0,.13) 0%,rgba(0,0,0,.107) 27%,rgba(0,0,0,.072) 45%,rgba(0,0,0,.040) 64%,rgba(0,0,0,.016) 82%,rgba(0,0,0,0) 100%),
+    linear-gradient(to right,rgba(0,0,0,.13) 0%,rgba(0,0,0,.107) 27%,rgba(0,0,0,.072) 45%,rgba(0,0,0,.040) 64%,rgba(0,0,0,.016) 82%,rgba(0,0,0,0) 100%);
   background-size:100% 7px,7px 100%;
   background-position:top left,top left;background-repeat:no-repeat
 }
@@ -95,6 +96,10 @@
 /* ---- 粗细拖动条 ----
    拖动时实时画到纸上，所以滑块的响应要跟手：轨道细一点、滑块大一点（手指好抓） */
 .fr-slider{padding:2px 2px 6px}
+/* 只有凹陷档没有粗细可调：连拖动条一起淡下去、不再吃 pointer 事件。
+   ⚠️ #frWidthRow 只是标题，滑块是它的兄弟节点 .fr-slider；无边框档只淡标题，
+      滑块仍要能拖（一拖自动切到纯色档），别给它加 dim。 */
+.fr-slider.dim{opacity:.34;pointer-events:none}
 .fr-slider input[type="range"]{
   -webkit-appearance:none;appearance:none;width:100%;height:22px;background:none;cursor:pointer
 }

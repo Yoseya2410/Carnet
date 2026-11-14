@@ -1,12 +1,13 @@
 /* =====================================================================
  * Carnet · 书架模式   （样式 16 / 19）
  * ---------------------------------------------------------------------
- * ① 每排书 + 亚克力搁板（配金属螺丝）
+ * ① 每排书 + 前挡玻璃（上沿大圆角、近乎全透）+ 脚下白色台面（小圆角）
+ *    + 左右两颗车削金属铆钉
  * ② 拖动排序：被拎起的淡坑、跟随手指的悬浮副本
  *
  * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
  * ===================================================================== */
-/* ============ 书架模式：一行一本搁板，书本竖立摆上去 ============ */
+/* ============ 书架模式：一排书站在玻璃挡板后面、脚落在台面上 ============ */
 .shelf-wrap{
   flex:1;overflow-y:auto;overflow-x:hidden;
   /* 上下各空出浮层按钮的高度：任意一排都能滑到两条按钮之间的干净区域，不会被压在底下 */
@@ -18,14 +19,29 @@
   scrollbar-width:none;animation:fadeIn .28s ease
 }
 .shelf-wrap::-webkit-scrollbar{display:none}
-/* 一排 = 一列书 + 它脚下的搁板；排与排之间留出明显间距，上下两排不打架 */
-.shelf-row{margin-bottom:clamp(24px,3.6vh,42px)}
+/* 一排 = 一列书 + 它脚下的搁板；排与排之间留出明显间距，上下两排不打架。
+   ⚠️ 玻璃高度 / 上沿圆角 / 台面厚度 / 铆钉直径全部按 --sbw（书宽）同比缩放：
+      书封面高 ≈ --sbw × 210/148 ≈ 1.42×，参考图里玻璃挡住书脚约 29%（=.41×--sbw）、
+      台面厚约 6%（=.09×--sbw）。改其中一个就要连着看下面「书脚下沉」那条。 */
+.shelf-row{
+  margin-bottom:clamp(24px,3.6vh,42px);
+  --glass-h:calc(var(--sbw,120px) * .41);
+  /* 上沿大圆角按玻璃**高度**的 ~38% 走（参考图 40px / 116px ≈ 34%）：
+     ⚠️ 别拿书宽算（.30×--sbw 会把 65px 高的玻璃削成一个胶囊头），
+        也别小到跟台面 7px 差不多 —— 上下两种圆角要一眼分得出大小 */
+  --glass-r:clamp(14px,calc(var(--glass-h) * .38),44px);
+  --plinth-h:clamp(10px,calc(var(--sbw,120px) * .09),18px)
+}
+/* 铆钉直径 `--rivet-d` / 距板边 `--rivet-x` 由 JS 按板宽算好后挂在 #shelfWrap
+   （见 home-view.js renderShelf），CSS 只吃变量：两边各写一套 clamp 会让分行净宽算错。 */
 .shelf-row:last-child{margin-bottom:2px}
-/* ⚠️ margin-bottom 是负的：书脚要**沉进搁板里**，不是摞在板子上面（书是站在玻璃槽里的）。
-   沉多深要跟搁板高度配套 —— 板 30px 时沉 22px（留 8px 在书脚之下，别把板底穿透）；
-   板 13px（深色背景那条）只沉 7px。改板高时这两个数要一起动，不然书要么浮着要么穿出去。 */
-.shelf-books{display:flex;justify-content:center;align-items:flex-end;gap:var(--sgap,20px);position:relative;z-index:1;margin-bottom:-7px}
-#home.bg-light .shelf-books{margin-bottom:-26px}
+/* ⚠️ margin-bottom 是负的：书脚要**整段沉进玻璃挡板里**，不是摞在板子上面。
+   下沉量 = 玻璃高度，于是书脚正好落在玻璃下沿（也就是台面上沿）那一线。
+   玻璃是压在书前面的挡板（z-index 2 > 1），书是隔着玻璃看，不是被裁掉。 */
+.shelf-books{
+  display:flex;justify-content:center;align-items:flex-end;gap:var(--sgap,20px);
+  position:relative;z-index:1;margin-bottom:calc(0px - var(--glass-h))
+}
 /* 书架上不做轮播的缩放/明暗处理，全部原色 */
 .shelf-books .book-item,.shelf-books .book-item.active{filter:none;transform:none;cursor:pointer}
 /* 悬浮 / 选中 = 从架子上抬起来一点：鼠标停在哪本上，哪本就是当前这一本（见 home-events 的 mouseover）。
@@ -65,44 +81,71 @@
   .shelf-books .book-item:hover .cover-badge{opacity:.92}
   .shelf-books .book-item:hover .gear{pointer-events:auto}
 }
-/* 亚克力搁板：半透明玻璃条压在书脚前面，两端各一颗金属螺丝。
-   宽度由 JS 按这一排实际占用的长度算出来（--bw），保证整排书都站得下 */
+/* 前挡玻璃：半透明的一片，压在书脚前面，**上方两个角是大圆角**、下沿只收小圆角
+   （脚下的白色台面另算，见 .shelf-plinth）。宽度吃 `--bw`：由 JS 挂在 `#shelfWrap` 上、
+   **所有排共用同一个值**（可用宽的 95%，两端各留一小截），别改回按这一排书数各算各的。
+   浅底那套透明度/颜色在 background.css 覆盖，这里写的是深色背景下的较实的一片。 */
 .shelf-board{
-  position:relative;z-index:2;height:13px;width:var(--bw,94%);max-width:100%;margin:0 auto;border-radius:7px;
-  background:linear-gradient(180deg,rgba(255,255,255,.62),rgba(255,255,255,.30) 52%,rgba(255,255,255,.46));
-  box-shadow:0 12px 24px -10px rgba(20,22,40,.45),inset 0 1px 0 rgba(255,255,255,.65),inset 0 -1px 0 rgba(255,255,255,.28)
-}
-/* 浅色背景（含默认的白底）：搁板还是**亚克力玻璃**那条（跟深色背景同一套语言），
-   只是—— ① 更高：把书脚整段包进去，看着是「书立在一道玻璃槽里」而不是压在一根细条上；
-   ② 保留顶 / 底两道内高光（玻璃板的厚度感靠这两条，不是靠实色）
-   ⚠️ 上面还要压一层横向暗影（见 background.css 的 .shelf-board::before），
-      那是「这一排书落在板上的接触影」，没有它书看着像悬空拼贴上去的 */
-#home.bg-light .shelf-board{
-  height:34px;border-radius:9px;
-  /* ⚠️ 板身不能太透：全透就只剩上下两条亮边，看不出「板」这块东西在哪，
-     书也就无所谓「包进去」了。留 .5 上下、中间 .42，是「透但看得见是一块板」的度 */
-  background:linear-gradient(181deg,
-    rgba(255,255,255,.5) 0%,      /* 顶面：迎光的一条亮边 */
-    rgba(255,255,255,.45) 14%,
-    rgba(255,255,255,.4) 50%,     /* 板身 */
-    rgba(255,255,255,.45) 84%,
-    rgba(255,255,255,.6) 100%);   /* 底沿：玻璃收边 */
-  backdrop-filter:blur(1px) saturate(140%);
-  -webkit-backdrop-filter:blur(1.5px) saturate(140%);
+  position:relative;z-index:2;height:var(--glass-h);
+  width:var(--bw,94%);max-width:100%;margin:0 auto;
+  /* ⚠️ 玻璃挡住书脚 29%：必须让指针穿透，否则点封面下半截 / 悬停抬起 / 长按拖动
+     全被这块 div 接走（home-events 靠 e.target.closest('.book-item') 找书）。 */
+  pointer-events:none;
+  border-radius:var(--glass-r) var(--glass-r) 4px 4px;
+  background:linear-gradient(180deg,
+    rgba(255,255,255,.20) 0%,rgba(255,255,255,.08) 11%,
+    rgba(255,255,255,.07) 58%,rgba(255,255,255,.14) 84%,
+    rgba(255,255,255,.26) 100%);   /* 深底这档别收到全白：白台面下面还接一条，
+                                      玻璃下沿太亮会并成一条粗白杠 */
+  backdrop-filter:blur(2px) saturate(120%);
+  -webkit-backdrop-filter:blur(2px) saturate(120%);
   box-shadow:
-    0 12px 22px -12px rgba(30,28,24,.34),      /* 整块往地上投的软影 */
-    inset 0 1.5px 0 rgba(255,255,255,.95),     /* 顶面亮边 = 玻璃上沿 */
-    inset 0 -1.5px 0 rgba(255,255,255,.8),     /* 底沿亮边 = 玻璃下沿 */
-    inset 0 0 0 .5px rgba(255,255,255,.5);     /* 一圈轮廓，把板从背景里勾出来 */
+    0 8px 18px -14px rgba(0,0,0,.45),
+    inset 0 1px 0 rgba(255,255,255,.42),   /* 上沿亮线跟浅底一起压淡（别在深底留白杠） */
+    inset 0 -1px 0 rgba(255,255,255,.45),
+    inset 0 0 0 1px rgba(255,255,255,.14)
 }
-/* 深色自定义背景时还是原来那块半透明亚克力板 —— 实色板在深色背景上会很突兀 */
+/* ⚠️ 浅色背景（含默认白底）这次在 background.css 里单独覆盖成「近乎全透」的一片：
+   参考图的玻璃只留上沿一道亮线和极淡白雾，书封颜色几乎原样透出来。
+   那边还有一条书脚落在台面上的接触影（.shelf-board::before），别在这里重复画。 */
+/* 玻璃脚下那块**白色台面**（参考图里书下面的托板）：实心、小圆角、往地上投一片软影。
+   ⚠️ 必须是独立元素，不能并进 .shelf-board：两者的圆角不是一套，台面还要自己投影。 */
+.shelf-plinth{
+  position:relative;z-index:3;height:var(--plinth-h);
+  width:var(--bw,94%);max-width:100%;margin:0 auto;
+  pointer-events:none;       /* 同 .shelf-board：纯装饰，别抢书脚上的手势 */
+  border-radius:4px;
+  background:linear-gradient(180deg,rgba(255,255,255,.92),rgba(255,255,255,.78) 55%,rgba(236,238,244,.72));
+  box-shadow:
+    0 10px 20px -10px rgba(18,20,34,.38),
+    0 24px 34px -22px rgba(18,20,34,.30),
+    inset 0 1px 0 rgba(255,255,255,.9),
+    inset 0 -1px 0 rgba(255,255,255,.5)
+}
+/* 左右两颗固定的**车削拉丝金属圆片铆钉**。
+   贴图 = 用户给的参考图 IMG_4915 裁成透明圆片（assets/shelf-rivet.png，128px）：
+   四象限明暗 + 中心会聚的放射拉丝，缩到 12~20px 仍读得出金属纹。
+   ⚠️ 别改回纯 CSS conic-gradient：十几 px 的扇形会变成「派盘 / 塑料钮」；
+      也别加 repeating-conic 细拉丝，小尺寸必然起摩尔纹（实测皱成锡纸球）。
+   第二层 radial-gradient 只是图片没加载出来时的银色兜底。 */
 .shelf-board .screw{
-  position:absolute;top:50%;width:11px;height:11px;margin-top:-5.5px;border-radius:50%;
-  background:radial-gradient(circle at 35% 30%,#ffffff,#c9ccd8 55%,#9498a8);
-  box-shadow:inset 0 0 2px rgba(0,0,0,.4),0 1px 2px rgba(20,22,40,.3)
+  position:absolute;top:50%;z-index:2;
+  width:var(--rivet-d,18px);height:var(--rivet-d,18px);transform:translateY(-50%);
+  border-radius:50%;
+  background:
+    url("../assets/shelf-rivet.png") center / 100% 100% no-repeat,
+    radial-gradient(circle at 35% 28%,#ffffff,#c9ccd8 55%,#9498a8);
+  box-shadow:
+    0 0 0 .6px rgba(255,255,255,.75),      /* 一圈极细亮边，把圆片从玻璃里勾出来 */
+    0 1.5px 3px rgba(22,25,36,.32),       /* 拧在玻璃上的一点落地影 */
+    inset 0 -1px 2px rgba(60,64,74,.18)
 }
-.shelf-board .screw.sl{left:12px}
-.shelf-board .screw.sr{right:12px}
+.shelf-board .screw::after{
+  content:"";position:absolute;inset:0;border-radius:50%;pointer-events:none;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.32)
+}
+.shelf-board .screw.sl{left:var(--rivet-x,14px)}
+.shelf-board .screw.sr{right:var(--rivet-x,14px)}
 .shelf-empty{padding:9vh 20px;text-align:center;font-size:13.5px;opacity:.7;letter-spacing:.05em}
 /* ---- 书架拖动排序 ---- */
 /* 长按封面时不要出现系统的「保存图片 / 拷贝」浮层和点击高亮，

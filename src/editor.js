@@ -1,7 +1,7 @@
 /* =====================================================================
  * Carnet · 手帐本编辑器 · 新建 / 编辑弹窗   （脚本 23 / 28）
  * ---------------------------------------------------------------------
- * ① 名称、封面底色、封面图案与图案色、封面图片、彩带色、内页模板、页数
+ * ① 名称、封面底色、封面图案与图案色、封面纹理（无纹理 / 纸纹 / 布纹）、封面图片、彩带色、内页模板、页数
  * ② 每一项都是一块折叠小节 .fold-sec，收起时标题后跟当前取值 ED_SEC_HINT
  * ③ 图案颜色未选图案时整栏收起；页数只在新建时给填（编辑时整块隐藏）
  * ④ 内页模板：六档内置纸面 + 每张自定义图片各占一格 + 末尾「＋添加」（可一次选多张）。
@@ -34,6 +34,8 @@ const ED_SEC_HINT = {
   /* 图案：普通上传封面会被锁死收起（提示语另有说法）；DIY 封面本身就是从这栏进去的，不锁 */
   pattern: () => (ed.temp.cover.diym && ed.temp.cover.img ? '自定义封面'
     : (PATTERNS.find(p => p.k === normPat(ed.temp.cover.pattern)) || PATTERNS[0]).n),
+  /* 封面纹理：老本子没这个字段，texOf() 一律兜底成「无纹理」 */
+  texture: () => (COVER_TEXTURES.find(t => t.k === texOf(ed.temp.cover)) || COVER_TEXTURES[0]).n,
   image:  () => ed.temp.cover.img ? (ed.temp.cover.diym ? '自定义封面' : '已上传') : '',
   ribbon: () => ribbonIsNone(ed.temp.ribbon) ? '透明 · 隐藏彩带与书槽'
     : String(ribbonSpine(ed.temp.ribbon) || '').toUpperCase()
@@ -75,6 +77,36 @@ function openEditor(journal) {
   $('#mask').scrollTop = 0;
 }
 function closeEditor() { $('#mask').classList.remove('show'); }
+/* 切换封面纹理时，DIY 成品封面（cover.img）里那层底纹也要跟着换。
+   ⚠️ 成品是一张位图，纹理烘在「底色与对象之间」、渲染时不再叠，所以只能重合成一次；
+      纯色 / 渐变封面和「普通上传图片封面」没有这一层，直接跳过。
+   ⚠️ 只改 ed.temp 这份草稿副本：用户点「取消」，库里那本原样不动。
+      edSave 存的就是同一个对象引用，即使重合成晚于「完成」落定，也会同步到已保存的那本。
+   ⚠️ 连点几档时用序号只认最后一次，先完成的旧任务不能把新档位盖回去。 */
+let edTexJob = 0;
+async function refreshDiyCoverTexture(want) {
+  const cv = ed.temp && ed.temp.cover;
+  if (!cv || !cv.img || !cv.diym) return;
+  const d = normDiyCover(cv.diym);
+  if (!d) return;
+  const job = ++edTexJob;
+  const bakD = diy.d, bakRatio = diy.ratio;
+  diy.d = d; diy.ratio = coverRatioOf(ed.temp);
+  let src = '';
+  try {
+    const c = await diyRenderCanvas(744);
+    try { src = c.toDataURL('image/jpeg', .92); }
+    catch (_) { src = c.toDataURL('image/png'); }
+  } catch (e) {
+    toast('封面纹理刷新失败：' + ((e && e.message) || e));
+  } finally {
+    diy.d = bakD; diy.ratio = bakRatio;
+  }
+  if (!src || job !== edTexJob || !ed.temp || ed.temp.cover !== cv || cv.texture !== want) return;
+  cv.img = src;
+  /* 编辑器可能已经关掉（用户手快点了完成 / 取消）：数据照旧更新，但别再重绘隐藏的弹窗 */
+  if ($('#mask').classList.contains('show')) syncEditor();
+}
 /* 自定义「＋」色块直接追加到该组色块的末尾（同排显示，色值提示紧跟其后） */
 function appendCustomChip(boxSel, id, tipId, title) {
   const box = $(boxSel); if (!box) return;
@@ -172,6 +204,13 @@ function buildEditor() {
     + `<div class="pat diy-pat" data-diy="1" title="自定义封面：加图片、文字、改底色">
          <div class="pv" id="edDiyPv"></div><i class="pat-plus" id="edDiyPlus">＋</i><span>自定义</span>
        </div>`;
+  /* 封面纹理三档小样：每格「当前封面底色 + 这一档材质」，材质层由 textureStyle() 给，
+     跟真封面 / 导出封面同源。底色在 syncEditor 里跟着换，这里只建 DOM。 */
+  $('#edTextures').innerHTML = COVER_TEXTURES.map(t => `
+    <div class="pat tex-opt" data-tex="${t.k}" title="${t.d}">
+      <div class="pv tex-base"></div><div class="pv tex-pv" style="${textureStyle({ texture: t.k })}"></div>
+      <span>${t.n}</span>
+    </div>`).join('');
   /* 六档内置纸面 + 每张自定义图片模板 + 添加格，见 renderTplTiles() */
   renderTplTiles();
   // 绑定
@@ -197,6 +236,15 @@ function buildEditor() {
     syncEditor();
   });
   $('#edPatterns .diy-pat').onclick = () => openDiyCover();
+  /* 封面纹理：写进 cover.texture，点已选中的那档退回「无纹理」（跟图案栏手感一致）。
+     DIY 成品是「底色 + 纹理 + 对象」的合成位图，换档位要按新纹理重合成一次，
+     否则编辑器预览还留着上一档的纹理（见 refreshDiyCoverTexture）。 */
+  $$('#edTextures .tex-opt').forEach(s => s.onclick = () => {
+    const next = texOf(ed.temp.cover) === s.dataset.tex ? 'none' : s.dataset.tex;
+    ed.temp.cover.texture = next;
+    syncEditor();
+    refreshDiyCoverTexture(next);
+  });
   /* 图案颜色：预设色块 + 「自动」重置；「＋」接在末尾，走自定义取色盘 */
   $('#edPatColors').innerHTML =
     `<div class="swatch pat-auto" data-patcolor="" title="自动（跟随底色深浅）">自动</div>` +
@@ -415,6 +463,19 @@ function syncEditor() {
      传一份去掉 img 的 cover 副本，DIY 封面在场上时下面这排仍能正常挑图案。 */
   const cvPv = { ...ed.temp.cover, img: null };
   const isDiy = !!ed.temp.cover.img && !!ed.temp.cover.diym;
+  /* 封面纹理三档小样：底色跟着当前封面走（图片封面就用那张图），选中态只认 cover.texture。
+     老本子没这个字段时 texOf() 兜底成 none，第一格自然亮着。 */
+  {
+    const curTex = texOf(ed.temp.cover);
+    const texBg = ed.temp.cover.img
+      ? `url("${ed.temp.cover.img}") center/cover no-repeat`
+      : String(ed.temp.cover.value || '#eee');
+    $$('#edTextures .tex-opt').forEach(s => {
+      s.classList.toggle('on', s.dataset.tex === curTex);
+      const b = s.querySelector('.tex-base');
+      if (b) b.style.background = texBg;
+    });
+  }
   $$('#edPatterns .pat:not(.diy-pat)').forEach(s => {
     s.classList.toggle('on', !isDiy && ed.temp.cover.pattern === s.dataset.pat);
     /* 第三参数 true = 预览档：缩略图统一用自动色，真实封面仍走各自的预设色 */
@@ -425,6 +486,8 @@ function syncEditor() {
     pv.style.backgroundSize = L.size;
     pv.style.backgroundPosition = L.pos;
     pv.style.backgroundRepeat = L.rep;
+    /* 缩略图这一层把底色与印花合在一起（不透明），纹理叠上去就会盖住图案 ——
+       纹理只该作用于底层，所以这排只负责挑印花，质感由「封面纹理」小节预览。 */
     const sp = s.querySelector('.pspine');
     if (sp) {
       /* 只有「没彩带的装帧」走压槽断面；笔记本透明档直接整列收掉，
@@ -475,6 +538,7 @@ function syncEditor() {
     /* 预览吃的是阅读器同一份 coverInsideStyle()，主色算出来后会自动重绘一次 */
     const st = coverInsideStyle(ed.temp), pv = $('#edInsidePv');
     if (pv) pv.innerHTML = `<div style="position:absolute;inset:0;${st.bg}"></div>`
+      + (st.tex ? `<div style="position:absolute;inset:0;${st.tex}"></div>` : '')
       + (st.pat ? `<div style="position:absolute;inset:0;${st.pat}"></div>` : '');
     /* auto 模式列出从封面提取的候选主色（最多五个），点一个即切换内衬 */
     const pal = $('#edInsidePalette');
@@ -744,6 +808,12 @@ function diyPaperSkin() {
   /* 用 ribbonSpine 而不是 j.ribbon：非法值回落默认色；'none' 返回空串，
      但那一列已被 .no-spine 藏掉，不会露出 CSS 变量里的兜底色 */
   p.style.setProperty('--diy-ribbon', (noRb || coverNoSpine(j)) ? '' : ribbonSpine(j.ribbon));
+  /* 封面材质：只铺在画布底色上，#diyContent 里的图片 / 文字对象盖在它上面，
+     跟 diyExportHTML 的「底色 + 纹理 + 对象」同一套；成品封面不再另叠纹理层。
+     ⚠️ 用不带 img 的伪 cover：重进 DIY 时 ed.temp.cover.img 已有成品图，
+        但那是被当作对象带进画布的，底色纹理不该因此消失。 */
+  const tx = p.querySelector('.diy-texture');
+  if (tx) tx.style.cssText = textureStyle({ texture: j.cover.texture });
 }
 function diySizePaper() {
   const st = $('#diyStage').getBoundingClientRect();
@@ -932,7 +1002,7 @@ function diyFitAllTexts() {
   diy.d.texts.forEach(t => diyFitText(t.id));
   diyFitObjBars();                    // 框变了，工具条要跟着重新挑位置
 }
-/* 自带的四款英文字体是懒加载的：刚选完那一帧量到的还是回退字体的字宽，
+/* 自带的英文字体是懒加载的：刚选完那一帧量到的还是回退字体的字宽，
    字体真正到位后再贴一次，否则文字框会按旧宽度把新字形裁掉（阅读器同款，
    text-sticker.js 的 loadingdone 监听）。行内打字中不插手，免得打断输入。 */
 if (typeof document !== 'undefined' && document.fonts && document.fonts.addEventListener) {
@@ -956,8 +1026,12 @@ function renderDiyPaper() {
     hadFocus = !!oe && document.activeElement === oe;
     diyDetachInline();                            // 保留 diy.editing
   }
+  /* ⚠️ 边框里的 px 必须按纸宽缩放，且跟封面合成 diyExportHTML 用同一个基准
+     PAGE_W_DEFAULT：阅读器内页纸宽正好 340 所以那边 sc=1，DIY 画布常有 450px，
+     若这里仍用 1，画布上的阴影 / 圆角 / 柔影会比成品封面小一截（11-14 实测差 33%）。 */
+  const fsc = diy.W / PAGE_W_DEFAULT;
   $('#diyContent').innerHTML = diyObjs().map(({ k, o }) =>
-    k === 'img' ? imgWrapHTML(o, 0) : textWrapHTML(o, 0)).join('');
+    k === 'img' ? imgWrapHTML(o, 0, fsc) : textWrapHTML(o, 0)).join('');
   if (diy.sel) {
     const w = $(`#diyContent [data-id="${diy.sel.id}"]`);
     if (w) {
@@ -1013,13 +1087,15 @@ async function diyAddImage(file, swapId) {
   if (!diy.open) return;
   const src = await packTemplateImage(file);
   if (!isImgData(src)) { toast('这张图读不出来，换一张试试'); return; }
-  const r = await imgRatio(src);
   if (swapId) {
     const im = diy.d.images.find(x => x.id === swapId);
     diy.swapId = null;
-    if (im) { im.src = src; im.h = clamp(im.w * r / diy.ratio, .03, 1.4); renderDiyPaper(); }
+    /* 换图只换图源：w / h 是用户自己拉出来的框，别按新图的比例重算回去，
+       否则一换图就被打回「固定比例」。下面新建时才需要原图比例给个初始高度。 */
+    if (im) { im.src = src; renderDiyPaper(); }
     return;
   }
+  const r = await imgRatio(src);
   if (diyObjs().length >= DIY_MAX_OBJS) { toast('封面最多放 ' + DIY_MAX_OBJS + ' 个对象'); return; }
   const w = .42, h = clamp(w * r / diy.ratio, .03, 1.2);
   const im = { id: uid(), src, x: (1 - w) / 2, y: (1 - h) / 2, w, h,
@@ -1149,16 +1225,17 @@ function renderDiySheet() {
     if (!t) { box.innerHTML = `<div class="diy-hint">先点纸上的文字框，或按底栏「＋文字」新建一条</div>`; return; }
     box.innerHTML =
       `<div class="diy-row"><span class="diy-lab">内容</span><input class="diy-input" id="diyTextInput" value="${esc(t.text)}" placeholder="写点什么…"></div>`
-      + `<div class="diy-row"><span class="diy-lab">字体</span><div class="diy-chips">`
+      + `<div class="diy-row diy-font-row"><span class="diy-lab">字体</span><div class="diy-chips diy-fonts-cn">`
       + TEXT_FONTS.map(f => `<button class="diy-mini${normFont(t.font) === f.k ? ' on' : ''}" data-font="${f.k}">${f.n}</button>`).join('')
       + `</div></div>`
       /* 英文字体跟阅读器文字面板同一张表（EN_FONTS）：拉丁字母走这一档，汉字仍落回上面的中文字体。
-         每档都补 Aa 样例（含衬线 / 等宽 / 手写），挑之前就看得见字体效果；
-         悬浮提示写原字体名。第一档 k 是空串，判断选中 / 绑定都要用 !== undefined，别写成 if (d.ef)。 */
-      + `<div class="diy-row"><span class="diy-lab wide">英文字体</span><div class="diy-chips">`
+         自带档的按钮名就是字体原名、且整体套了对应字族，名字本身即样张；前四档系统字体仍走
+         中文名 + Aa 样例。悬浮提示另带中文风格说明。第一档 k 是空串，判断选中 / 绑定都要
+         用 !== undefined，别写成 if (d.ef)。 */
+      + `<div class="diy-row diy-font-row"><span class="diy-lab wide">英文字体</span><div class="diy-chips diy-fonts-en">`
       + EN_FONTS.map(f => `<button class="diy-mini${normEnFont(t.fontEn) === f.k ? ' on' : ''}"`
           + ` data-ef="${f.k}" title="${f.hint || f.n}"${f.css ? ` style="font-family:${f.css}"` : ''}>`
-          + `${enFontSample(f)}${f.n}</button>`).join('')
+          + `${enFontLabel(f)}</button>`).join('')
       + `</div></div>`
       + `<div class="diy-row"><span class="diy-lab">颜色</span><div class="diy-chips">`
       + TEXT_COLORS.map(c => `<button class="diy-sw${t.color === c ? ' on' : ''}" data-tcolor="${c}" style="background:${c}"></button>`).join('')
@@ -1231,23 +1308,35 @@ function renderDiySheet() {
 }
 /* ---- 合成封面图：foreignObject 是独立文档，所有样式必须内联 ---- */
 function diyExportHTML(W, H) {
+  /* 边框 px 的缩放基准跟屏幕画布（renderDiyPaper 的 diy.W / PAGE_W_DEFAULT）同源 */
+  const fsc = W / PAGE_W_DEFAULT;
+  /* 纹理只铺在**底色这一层**：下面所有图片 / 文字对象随后画上去，自然盖住纹理。
+     ⚠️ 传不带 img 的伪 cover 强制拿到贴片 —— 成品 coverHTML 对有 img 的封面不再叠纹理，
+        DIY 的纹理就靠这里烘进合成图的底色；画布（.diy-texture）与成品同为此结构，
+        照片 / 文字都压在纹理上，不会叠两遍也不会被压一层。 */
+  const tex = textureStyle({ texture: (ed.temp && ed.temp.cover ? ed.temp.cover.texture : '') });
   let s = `<div class="diy-canvas" style="position:relative;width:${W}px;height:${H}px;`
-    + `overflow:hidden;background:${diy.d.bg};">`;
+    + `overflow:hidden;background:${diy.d.bg};">`
+    + (tex ? `<div style="position:absolute;inset:0;${tex}"></div>` : '');
   diyObjs().forEach(({ k, o }) => {
+    /* ⚠️ 图片这一支绝不能带 overflow:hidden：.pframe 的两条外阴影（凹陷档左上主影
+       / 右下淡影、拍立得 / 纯色 / 相框的投影）都画在盒子外面，一裁整条阴影就没了，
+       成品封面只剩内侧柔影，跟画布上看到的两样（11-14 实测外侧全是纸色）。
+       文字贴仍保留裁切，避免超框的字溢到旁边对象上。 */
     const box = `position:absolute;left:${(o.x * 100).toFixed(3)}%;top:${(o.y * 100).toFixed(3)}%;`
       + `width:${(o.w * 100).toFixed(3)}%;height:${((o.h || .12) * 100).toFixed(3)}%;`
-      + `${o.rot ? `transform:rotate(${Number(o.rot)}deg);` : ''}overflow:hidden;`;
+      + `${o.rot ? `transform:rotate(${Number(o.rot)}deg);` : ''}`;
     if (k === 'img') {
       const img = `<img src="${o.src}" style="width:100%;height:100%;display:block;object-fit:fill;${frameImgStyle(o)}" />`;
       s += hasFrame(o)
-        ? `<div style="${box}"><div style="position:absolute;inset:0;box-sizing:border-box;${frameBoxStyle(o, W / PAGE_W_DEFAULT)}">${img}${frameInsetHTML(o, W / PAGE_W_DEFAULT)}</div></div>`
+        ? `<div style="${box}"><div style="position:absolute;inset:0;box-sizing:border-box;${frameBoxStyle(o, fsc)}">${img}${frameInsetHTML(o, fsc)}</div></div>`
         : `<div style="${box}">${img}</div>`;
     } else {
       const fs = (o.size || 5.5) / 100 * W;
       const fam = [textEnStack(o.fontEn), textFontStack(o.font)].filter(Boolean).join(',') || 'inherit';
       const nc = normHex6(o.note);
       const note = nc ? `background:${nc};padding:.5em .66em;border-radius:3px;` : '';
-      s += `<div style="${box}display:flex;align-items:center;font-family:${fam};`
+      s += `<div style="${box}overflow:hidden;display:flex;align-items:center;font-family:${fam};`
         + `font-size:${fs.toFixed(2)}px;color:${o.color || '#2b2f3d'};text-align:${o.align || 'left'};`
         + `line-height:${normFont(o.font) === 'hand' ? 1.42 : 1.32};letter-spacing:.01em;`
         + `${o.bold ? 'font-weight:700;' : ''}${o.italic ? 'font-style:italic;' : ''}`
@@ -1264,7 +1353,7 @@ async function diyRenderCanvas(W) {
     + `overflow:hidden;font-family:'PingFang SC','Microsoft YaHei','Segoe UI',sans-serif;">`
     + diyExportHTML(W, H) + `</div>`;
   /* 封面合成也是 SVG foreignObject 独立文档，读不到本页 @font-face：
-     用到了项目自带的四款英文字体时，把对应 woff2 转 base64 内嵌进 SVG 根级 <style>，
+     用到了项目自带的英文字体时，把对应 woff2 转 base64 内嵌进 SVG 根级 <style>，
      否则「完成」生成的 cover.img 会悄悄退回系统近似字体，跟画布上看到的不一样。
      跟 PDF / SVG 导出共用 io-doc.js 的 exportEnFaceCSS，字体缓存也共用。 */
   const enFaces = await exportEnFaceCSS(diy.d.texts);
@@ -1469,12 +1558,41 @@ $('#diyContent').addEventListener('pointermove', e => {
   } else if (g.mode === 'scale') {
     const signX = (g.h === 'tl' || g.h === 'bl') ? -1 : 1;
     const signY = (g.h === 'tl' || g.h === 'tr') ? -1 : 1;
-    const k = clamp(1 + (signX * dx / Math.max(g.ow, .06) + signY * dy / Math.max(g.oh, .06)) / 2, .35, 3);
-    o.w = clamp(g.ow * k, .04, 1.4);
-    o.h = clamp(g.oh * k, .03, 1.4);
-    /* 对角钉住：拖左边 / 上边时把 x / y 补回去 */
-    o.x = signX < 0 ? g.ox + g.ow - o.w : g.ox;
-    o.y = signY < 0 ? g.oy + g.oh - o.h : g.oy;
+    /* 手指位移先转回对象自己的方向（跟 page-edit.js 同一套）：对象转过角度后，
+       屏幕上的横 / 竖位移不等于盒子宽 / 高，直接用 dx / dy 会「拖右角却改了高」。
+       没旋转时 cos=1、sin=0，lx / ly 就等于 dx / dy，行为与原来完全一致。 */
+    const rad = (g.orot || 0) * Math.PI / 180, cs = Math.cos(rad), sn = Math.sin(rad);
+    const px = e.clientX - g.sx, py = e.clientY - g.sy;
+    const lx = (px * cs + py * sn) / r.width, ly = (-px * sn + py * cs) / r.height;
+    const isImg = g.ref.k === 'img';
+    /* 图片：宽高各改各的，不再锁原图比例（w / h 本来就是两个独立字段）；
+       按住 Shift 恢复等比，跟内页手感一致。文字贴仍是「拖角连字号一起等比放大」。 */
+    const k = clamp(1 + (signX * lx / Math.max(g.ow, .06) + signY * ly / Math.max(g.oh, .06)) / 2, .35, 3);
+    let nw, nh;
+    if (isImg && !e.shiftKey) {
+      nw = clamp(g.ow + signX * lx, .04, 1.4);
+      nh = clamp(g.oh + signY * ly, .03, 1.4);
+    } else if (isImg) {
+      /* 等比时以变化更大的那一轴为准，另一轴按起手时的宽高比反推 */
+      const kx = 1 + signX * lx / Math.max(g.ow, .06);
+      const ky = 1 + signY * ly / Math.max(g.oh, .06);
+      const kk = clamp(Math.abs(kx - 1) >= Math.abs(ky - 1) ? kx : ky, .35, 3);
+      nw = clamp(g.ow * kk, .04, 1.4);
+      nh = clamp(g.oh * kk, .03, 1.4);
+    } else {
+      nw = clamp(g.ow * k, .04, 1.4);
+      nh = clamp(g.oh * k, .03, 1.4);
+    }
+    o.w = nw; o.h = nh;
+    /* 对角钉住：拖左边 / 上边时把 x / y 补回去；旋转过的对象再补一段中心位移
+       （rotShift，与内页同源），否则宽高一变整块会被甩出去。 */
+    const nx0 = signX < 0 ? g.ox + g.ow - nw : g.ox;
+    const ny0 = signY < 0 ? g.oy + g.oh - nh : g.oy;
+    const sf = rotShift(r, g.orot,
+      ((nx0 + nw / 2) - (g.ox + g.ow / 2)) * r.width,
+      ((ny0 + nh / 2) - (g.oy + g.oh / 2)) * r.height);
+    o.x = nx0 + sf.x;
+    o.y = ny0 + sf.y;
     /* 文字贴拖四角 = 连字一起放大（跟阅读器一样）：只改框不改字号的话，
        下一次贴合内容会立刻把框收回去，看起来像「拖了没反应」。 */
     if (g.ref.k === 'txt') {

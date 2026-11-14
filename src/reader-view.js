@@ -99,6 +99,7 @@ function coverBoardHTML(j, extra) {
   const st = bookStyleOf(j), ins = coverInsideStyle(j);
   /* 板是封面的背面，圆角跟正面同一本（--cr）；宿主另有 border-radius:0 覆盖，见 reader.css */
   return `<div class="cover s-${st.k} cover-board${extra ? ' ' + extra : ''}" style="${ins.bg}${coverRadiusVar(j)}">`
+    + (ins.tex ? `<div class="texture" style="${ins.tex}"></div>` : '')
     + `<div class="pattern" data-pat="${ins.patKey}" style="${ins.pat}"></div>`
     + `</div>`;
 }
@@ -211,12 +212,15 @@ function rotStyle(o) {
   return `--rot:${r.toFixed(1)}deg;transform:rotate(${r.toFixed(1)}deg);`
     + `--cur-a:${cursorValue(r + 45)};--cur-b:${cursorValue(r - 45)};`;
 }
-function imgWrapHTML(im, i) {
+/* sc：边框里那几处 px（阴影 / 圆角 / 柔影长度 / 细线）按纸宽缩放的系数。
+   阅读器内页纸宽就是 PAGE_W_DEFAULT=340，默认 1；DIY 自定义封面画布更宽，
+   必须传 diy.W / PAGE_W_DEFAULT，才能跟封面合成（W / PAGE_W_DEFAULT）严格同源。 */
+function imgWrapHTML(im, i, sc) {
   const hw = im.h || clamp(im.w / 0.68, .04, IMG_MAX);   // 老数据补兜底高度，加载后自动校准
   /* 边框：把 <img> 塞进一层 .pframe，边框画在这一层上（padding 撑出来），图片一个字节都不改。
      样式由 frameBoxStyle 算出来 —— 导出用的是同一个函数，屏幕和 PDF / SVG 长得一模一样 */
   const pic = `<img class="pimg" draggable="false" decoding="async" src="${im.src}" alt="" style="${frameImgStyle(im)}">`;
-  const photo = hasFrame(im) ? `<div class="pframe" style="${frameBoxStyle(im)}">${pic}${frameInsetHTML(im)}</div>` : pic;
+  const photo = hasFrame(im) ? `<div class="pframe" style="${frameBoxStyle(im, sc)}">${pic}${frameInsetHTML(im, sc)}</div>` : pic;
   return `
     <div class="pimg-wrap${String(im.src).startsWith('data:image/svg') ? ' sticker' : ''}${im.locked ? ' locked' : ''}${im.fill ? ' fill' : ''}${im.fit ? ' fit' : ''}${tinyCls(im, hw)}${objWasEdited(im.id) ? ' obj-edited' : ''}" data-page="${i}" data-id="${im.id}"
          style="left:${(im.x * 100).toFixed(2)}%;top:${(im.y * 100).toFixed(2)}%;width:${(im.w * 100).toFixed(2)}%;height:${(hw * 100).toFixed(2)}%;${rotStyle(im)}">

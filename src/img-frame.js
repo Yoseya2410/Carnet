@@ -135,6 +135,8 @@ function pickFrameColor(hex) {
 }
 function pickFrameWidth(v, light) {
   const im = frObj(); if (!im) return;
+  /* 凹陷档没有「边框宽度」可调（粗细行已禁用、几何全固定）：挡住键盘 / 程序调用 */
+  if (normFrame(im.fr) === 'inset') return;
   im.frw = clamp(Math.round(+v || FRAME_W_DEFAULT), 1, 100);
   /* 标记成「新版连续值」：1~5 别再被 frameWidth() 当成老数据的 1/2/3 档折算 */
   im.frwV = 1;
@@ -209,7 +211,7 @@ function syncFrSheet(light) {
   }
   /* 拖动条当前值：换张图 / 松手时对齐；拖动途中**不回写**，免得把手指顶回去 */
   const wv = frameWidth(im), sl = $('#frWidth'), wn = $('#frWidthVal');
-  if (sl) sl.value = wv;
+  if (sl) { sl.value = wv; sl.disabled = (k === 'inset'); }
   if (wn) wn.textContent = wv;
   updateFrDemo(im);
   /* 五档小样里的颜色跟着当前边框色走：挑颜色的时候几张小样一起变，不用一档档点过去看 */
@@ -217,7 +219,7 @@ function syncFrSheet(light) {
   $$('#frGrid .fr-ico').forEach(el => {
     const kind = el.dataset.fr;
     if (kind === 'color') el.style.background = shown;
-    /* 凹陷档坑壁固定纯白（跟 frameBoxStyle 一致），不上用户选的边框色 */
+    /* 凹陷档没有坑壁、边框色对它无意义，不上用户选的边框色 */
     else if (kind === 'inset') el.style.background = '';
     /* 相框档的素材在 buildFrSheet 里一次写好，不跟着边框色重刷 */
     else if (kind === 'line') {
@@ -225,12 +227,17 @@ function syncFrSheet(light) {
       if (i) i.style.boxShadow = `inset 0 0 0 1.6px ${shown}`;
     }
   });
-  /* 无边框、凹陷、相框都没有「边框颜色」可挑：凹陷的坑壁是固定纯白，相框是固定素材
-     （金色雕花图片，染不上色）。颜色行淡下去，免得挑了半天看不出变化。
-     粗细那一行只在无边框时淡 —— 凹陷的坑壁厚度 + 柔影长度 / 深浅、相框的框条都还能拖。 */
+  /* 无边框、凹陷、相框都没有「边框颜色」可挑：凹陷是「图片直接压进纸里」、
+     没有坑壁也没有框条，相框是固定素材（金色雕花图片，染不上色）。颜色行淡下去。
+     ⚠️ 只有**凹陷**档把粗细彻底禁用（几何全固定，拖了也不会变）：标题 + 滑块一起淡、
+     input.disabled。无边框档沿用老行为 —— 标题淡但滑块仍可拖，一拖就自动切到纯色档，
+     别把这条便捷路径一起关掉；相框的框条、其余档照常可拖。 */
   const noColor = (k === 'none' || k === 'inset' || k === 'photo');
   const wrow = $('#frWidthRow');
-  if (wrow) wrow.classList.toggle('dim', k === 'none');
+  if (wrow) wrow.classList.toggle('dim', k === 'none' || k === 'inset');
+  /* ⚠️ #frsheet 里那根滑块只有 data-page-node-id、没有 id，用类选择器找 */
+  const wslider = $('#frsheet .fr-slider');
+  if (wslider) wslider.classList.toggle('dim', k === 'inset');
   const row = $('#frColorRow');
   if (row) row.classList.toggle('dim', noColor);
   const dots = $('#frColors');
