@@ -1,7 +1,8 @@
 /* =====================================================================
  * Carnet · 手帐本编辑器 · 新建 / 编辑弹窗   （脚本 23 / 28）
  * ---------------------------------------------------------------------
- * ① 名称、封面底色、封面图案与图案色、封面纹理（无纹理 / 纸纹 / 布纹）、封面图片、彩带色、内页模板、页数
+ * ① 名称、封面底色、封面图案与图案色、封面图片、自定义书脊、彩带色、内页模板、页数
+ *    （封面纹理不在这里：它在「自定义封面」页面的封面设置里，跟彩带色 / 圆角放一起）
  * ② 每一项都是一块折叠小节 .fold-sec，收起时标题后跟当前取值 ED_SEC_HINT
  * ③ 图案颜色未选图案时整栏收起；页数只在新建时给填（编辑时整块隐藏）
  * ④ 内页模板：六档内置纸面 + 每张自定义图片各占一格 + 末尾「＋添加」（可一次选多张）。
@@ -19,6 +20,119 @@
  * ===================================================================== */
 /* ==================== 编辑器 ==================== */
 const ed = { temp: null, isNew: true, fold: {} };
+
+/* ==================== 自定义书脊（单层书架那一根）====================
+   ed.temp.cover.spineImg 存一张烘好的位图：另传的书脊片，或从封面图上裁的窄条。
+   spineFrom 只用来在面板里显示来源；渲染一律只认 spineImg（见 visuals.js）。
+   裁切选区按「占封面宽的比例」记（x 左边界 / w 宽度），高度取整张封面，
+   所以裁出来天然是一条竖长图，正好贴书脊。
+   ⚠️ spCrop.open 只是面板的展开状态，不进数据：点「完成」前一切都活在 ed.temp
+      草稿里，点「取消」整本作废，跟其它设置一样。 */
+const spCrop = { x: .43, w: .14, dragging: false, open: false };
+/* 裁切源只认上传 / DIY 合成出来的位图封面；纯色 / 渐变封面请走「上传书脊片」 */
+function spineCropSrc() {
+  const img = ed.temp && ed.temp.cover && ed.temp.cover.img;
+  return isImgData(img) ? img : '';
+}
+function spineCropClamp() {
+  spCrop.w = clamp(spCrop.w, .04, .4);
+  spCrop.x = clamp(spCrop.x, 0, 1 - spCrop.w);
+}
+function syncSpineCropSel() {
+  spineCropClamp();
+  const sel = $('#edSpineSel');
+  if (sel) {
+    sel.style.left = (spCrop.x * 100).toFixed(2) + '%';
+    sel.style.width = (spCrop.w * 100).toFixed(2) + '%';
+  }
+  const num = $('#edSpineCropNum');
+  if (num) num.textContent = Math.round(spCrop.w * 100) + '%';
+  const ran = $('#edSpineWidth');
+  if (ran) ran.value = String(Math.round(spCrop.w * 100));
+}
+/* 舞台写死成图片实际显示尺寸：百分比选区才等于原图比例，裁切时不用换算留白。
+   CSS 的 shrink-to-fit 会按原图自然宽算舞台，图片被 max-height 压窄后就会多出空边。 */
+function spineCropFitStage() {
+  const stage = $('#edSpineCropWrap'), img = $('#edSpineSrc');
+  if (!stage || !img) return;
+  const w = img.offsetWidth, h = img.offsetHeight;
+  if (w && h) { stage.style.width = w + 'px'; stage.style.height = h + 'px'; }
+  else { stage.style.width = ''; stage.style.height = ''; }
+}
+function syncSpineCropStage() {
+  const src = spineCropSrc(), img = $('#edSpineSrc'), stage = $('#edSpineCropWrap');
+  if (img) {
+    if (img.dataset.src !== src) {
+      img.dataset.src = src;
+      img.onload = spineCropFitStage;
+      if (src) img.src = src; else img.removeAttribute('src');
+    }
+    img.hidden = !src;
+  }
+  if (stage) stage.hidden = !src;
+  const note = $('#edSpineCropNote');
+  if (note) note.textContent = src
+    ? '在封面上拖动选区或拉宽度滑块，选竖着的一条；点「用选区作书脊」裁下来。'
+    : '先到「上传封面图片」里选一张图，才能从封面上裁书脊；纯色 / 渐变封面请改用上传书脊片。';
+  const ok = $('#edSpineCropOk');
+  if (ok) ok.disabled = !src;
+  syncSpineCropSel();
+  /* 图已经在缓存里（切回 / 重开）时 onload 不会再触发，这里补量一次 */
+  if (src && img && img.complete && img.naturalWidth) spineCropFitStage();
+}
+/* 选区坐标是相对舞台（也就是图片显示框）的比例，裁的时候换算回原图像素 */
+function spineCropPointer(e) {
+  const stage = $('#edSpineCropWrap');
+  if (!stage || !spineCropSrc()) return;
+  const r = stage.getBoundingClientRect();
+  if (!r.width) return;
+  const px = clamp((e.clientX - r.left) / r.width, 0, 1);
+  spCrop.x = px - spCrop.w / 2;
+  syncSpineCropSel();
+}
+function spineCropCommit() {
+  const img = $('#edSpineSrc');
+  if (!img || !img.naturalWidth || !img.naturalHeight) { toast('封面图片还没读好'); return; }
+  spineCropClamp();
+  const sx = Math.round(img.naturalWidth * spCrop.x);
+  const sw = Math.max(1, Math.round(img.naturalWidth * spCrop.w));
+  const sh = img.naturalHeight;
+  const k = Math.min(1, 1200 / Math.max(sw, sh));   // 只压超长图，不放大
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(sw * k));
+  c.height = Math.max(1, Math.round(sh * k));
+  try {
+    const cx = c.getContext('2d');
+    cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height);  // 透明 PNG 别转 JPEG 后发黑
+    cx.drawImage(img, sx, 0, sw, sh, 0, 0, c.width, c.height);
+  } catch (_) { toast('裁切失败，换一张封面图试试'); return; }
+  let data = '';
+  try { data = c.toDataURL('image/jpeg', .9); } catch (_) {}
+  if (!isImgData(data)) { toast('裁切失败，换一张封面图试试'); return; }
+  ed.temp.cover.spineImg = data;
+  ed.temp.cover.spineFrom = 'crop';
+  spCrop.open = false;
+  syncEditor();
+  toast('已用封面裁出书脊');
+}
+/* 整个小节跟着 ed.temp 刷：模式 / 缩略图 / 裁切舞台 / 效果预览 / 状态字 */
+function syncSpineUI() {
+  const cur = spineImgOf(ed.temp), from = spineFromOf(ed.temp);
+  const mode = !cur ? 'auto' : (from === 'crop' ? 'crop' : 'upload');
+  $$('#edSpineModes button').forEach(b =>
+    b.classList.toggle('on', b.dataset.spinemode === (spCrop.open ? 'crop' : mode)));
+  const up = $('#edSpineUploadBox'); if (up) up.hidden = !cur || from !== 'upload';
+  const box = $('#edSpineCropBox'); if (box) box.hidden = !spCrop.open;
+  const clr = $('#edSpineClear'); if (clr) clr.disabled = !cur;
+  const th = $('#edSpineThumb'); if (th) th.style.backgroundImage = cur ? `url("${cur}")` : '';
+  const pv = $('#edSpinePreview');
+  if (pv) pv.style.cssText = spineBackdrop(ed.temp);
+  const tag = $('#edSpineState');
+  if (tag) tag.textContent = cur ? (from === 'crop' ? '封面裁切' : '已上传书脊片') : '跟随封面';
+  const pick = $('#edSpinePick');
+  if (pick) pick.textContent = cur && from === 'upload' ? '换一张' : '选择图片';
+  if (spCrop.open) syncSpineCropStage();
+}
 /* 折叠小节收起时，标题后面补一句当前取值（省得反复展开确认）。
    key 就是 .fold-sec 上的 data-sec，见 index.html 里的编辑器 */
 const ED_SEC_HINT = {
@@ -34,9 +148,10 @@ const ED_SEC_HINT = {
   /* 图案：普通上传封面会被锁死收起（提示语另有说法）；DIY 封面本身就是从这栏进去的，不锁 */
   pattern: () => (ed.temp.cover.diym && ed.temp.cover.img ? '自定义封面'
     : (PATTERNS.find(p => p.k === normPat(ed.temp.cover.pattern)) || PATTERNS[0]).n),
-  /* 封面纹理：老本子没这个字段，texOf() 一律兜底成「无纹理」 */
-  texture: () => (COVER_TEXTURES.find(t => t.k === texOf(ed.temp.cover)) || COVER_TEXTURES[0]).n,
   image:  () => ed.temp.cover.img ? (ed.temp.cover.diym ? '自定义封面' : '已上传') : '',
+  /* 自定义书脊：折叠时一眼看出这一根是跟着封面，还是用了自己传 / 裁的片子 */
+  spine:  () => spineImgOf(ed.temp)
+    ? (spineFromOf(ed.temp) === 'crop' ? '封面裁切' : '已上传书脊片') : '跟随封面',
   ribbon: () => ribbonIsNone(ed.temp.ribbon) ? '透明 · 隐藏彩带与书槽'
     : String(ribbonSpine(ed.temp.ribbon) || '').toUpperCase()
       + (coverGrooveOn(ed.temp) ? '' : ' · 书槽关'),
@@ -64,6 +179,8 @@ function openEditor(journal) {
   if (journal && !guardUnlocked(journal, () => openEditor(cur()))) return;
   ed.isNew = !journal;
   ed.temp = journal ? JSON.parse(JSON.stringify(journal)) : newJournal();
+  /* 每次开编辑器都收起裁切台，别把上一次那本的选区状态带过来 */
+  spCrop.open = false; spCrop.dragging = false;
   /* 非法色值回落默认彩带色；'none' 是合法的「透明」档，别把它归一化掉
      （色板要有选中态、预览封面要整列不画，点「完成」后原样写回数据） */
   ed.temp.ribbon = ribbonIsNone(ed.temp.ribbon) ? RIBBON_NONE : ribbonSpine(ed.temp.ribbon);
@@ -77,36 +194,6 @@ function openEditor(journal) {
   $('#mask').scrollTop = 0;
 }
 function closeEditor() { $('#mask').classList.remove('show'); }
-/* 切换封面纹理时，DIY 成品封面（cover.img）里那层底纹也要跟着换。
-   ⚠️ 成品是一张位图，纹理烘在「底色与对象之间」、渲染时不再叠，所以只能重合成一次；
-      纯色 / 渐变封面和「普通上传图片封面」没有这一层，直接跳过。
-   ⚠️ 只改 ed.temp 这份草稿副本：用户点「取消」，库里那本原样不动。
-      edSave 存的就是同一个对象引用，即使重合成晚于「完成」落定，也会同步到已保存的那本。
-   ⚠️ 连点几档时用序号只认最后一次，先完成的旧任务不能把新档位盖回去。 */
-let edTexJob = 0;
-async function refreshDiyCoverTexture(want) {
-  const cv = ed.temp && ed.temp.cover;
-  if (!cv || !cv.img || !cv.diym) return;
-  const d = normDiyCover(cv.diym);
-  if (!d) return;
-  const job = ++edTexJob;
-  const bakD = diy.d, bakRatio = diy.ratio;
-  diy.d = d; diy.ratio = coverRatioOf(ed.temp);
-  let src = '';
-  try {
-    const c = await diyRenderCanvas(744);
-    try { src = c.toDataURL('image/jpeg', .92); }
-    catch (_) { src = c.toDataURL('image/png'); }
-  } catch (e) {
-    toast('封面纹理刷新失败：' + ((e && e.message) || e));
-  } finally {
-    diy.d = bakD; diy.ratio = bakRatio;
-  }
-  if (!src || job !== edTexJob || !ed.temp || ed.temp.cover !== cv || cv.texture !== want) return;
-  cv.img = src;
-  /* 编辑器可能已经关掉（用户手快点了完成 / 取消）：数据照旧更新，但别再重绘隐藏的弹窗 */
-  if ($('#mask').classList.contains('show')) syncEditor();
-}
 /* 自定义「＋」色块直接追加到该组色块的末尾（同排显示，色值提示紧跟其后） */
 function appendCustomChip(boxSel, id, tipId, title) {
   const box = $(boxSel); if (!box) return;
@@ -204,13 +291,6 @@ function buildEditor() {
     + `<div class="pat diy-pat" data-diy="1" title="自定义封面：加图片、文字、改底色">
          <div class="pv" id="edDiyPv"></div><i class="pat-plus" id="edDiyPlus">＋</i><span>自定义</span>
        </div>`;
-  /* 封面纹理三档小样：每格「当前封面底色 + 这一档材质」，材质层由 textureStyle() 给，
-     跟真封面 / 导出封面同源。底色在 syncEditor 里跟着换，这里只建 DOM。 */
-  $('#edTextures').innerHTML = COVER_TEXTURES.map(t => `
-    <div class="pat tex-opt" data-tex="${t.k}" title="${t.d}">
-      <div class="pv tex-base"></div><div class="pv tex-pv" style="${textureStyle({ texture: t.k })}"></div>
-      <span>${t.n}</span>
-    </div>`).join('');
   /* 六档内置纸面 + 每张自定义图片模板 + 添加格，见 renderTplTiles() */
   renderTplTiles();
   // 绑定
@@ -236,15 +316,6 @@ function buildEditor() {
     syncEditor();
   });
   $('#edPatterns .diy-pat').onclick = () => openDiyCover();
-  /* 封面纹理：写进 cover.texture，点已选中的那档退回「无纹理」（跟图案栏手感一致）。
-     DIY 成品是「底色 + 纹理 + 对象」的合成位图，换档位要按新纹理重合成一次，
-     否则编辑器预览还留着上一档的纹理（见 refreshDiyCoverTexture）。 */
-  $$('#edTextures .tex-opt').forEach(s => s.onclick = () => {
-    const next = texOf(ed.temp.cover) === s.dataset.tex ? 'none' : s.dataset.tex;
-    ed.temp.cover.texture = next;
-    syncEditor();
-    refreshDiyCoverTexture(next);
-  });
   /* 图案颜色：预设色块 + 「自动」重置；「＋」接在末尾，走自定义取色盘 */
   $('#edPatColors').innerHTML =
     `<div class="swatch pat-auto" data-patcolor="" title="自动（跟随底色深浅）">自动</div>` +
@@ -397,6 +468,58 @@ function buildEditor() {
      照旧生效，新本子不再写这个字段。 */
   $('#edUpload').onclick = () => $('#coverFile').click();
   $('#edClearImg').onclick = () => { ed.temp.cover.img = null; syncEditor(); };
+  /* ---- 自定义书脊：跟随封面 / 上传书脊片 / 从封面图裁一条 ----
+     事件一律用 onxxx 属性赋值（buildEditor 每次开编辑器都会跑一遍，
+     用 addEventListener 会越叠越多）。 */
+  $('#edSpineModes').onclick = e => {
+    const b = e.target.closest('button[data-spinemode]'); if (!b) return;
+    const m = b.dataset.spinemode;
+    if (m === 'auto') {
+      delete ed.temp.cover.spineImg; delete ed.temp.cover.spineFrom;
+      spCrop.open = false; syncEditor();
+    } else if (m === 'upload') {
+      $('#spineFile').click();
+    } else {
+      if (!spineCropSrc()) { toast('先上传封面图片，才能从封面上裁书脊'); return; }
+      spCrop.open = true; syncEditor();
+    }
+  };
+  $('#edSpinePick').onclick = () => $('#spineFile').click();
+  /* 选图独立一个 input，change 统一走 readPickedFiles（移动端先把 File 读成 dataURL
+     再清 input，免得底层 Blob 被提前释放）；压缩到长边 800 足够贴 26~55px 的书脊 */
+  $('#spineFile').onchange = async e => {
+    const [f] = await readPickedFiles(e);
+    if (!f) return;
+    const src = await shrinkImageFile(f, 800, { q: .9, bg: '#fff' });
+    if (!isImgData(src)) { toast('这张图读不出来，换一张试试'); return; }
+    ed.temp.cover.spineImg = src;
+    ed.temp.cover.spineFrom = 'upload';
+    spCrop.open = false;
+    syncEditor();
+    toast('已设为自定义书脊');
+  };
+  $('#edSpineClear').onclick = () => {
+    delete ed.temp.cover.spineImg; delete ed.temp.cover.spineFrom;
+    spCrop.open = false; syncEditor();
+  };
+  $('#edSpineCropOk').onclick = spineCropCommit;
+  $('#edSpineWidth').oninput = e => {
+    spCrop.w = clamp(parseInt(e.target.value, 10) || 14, 4, 40) / 100;
+    syncSpineCropSel();
+  };
+  {
+    const stage = $('#edSpineCropWrap');
+    stage.onpointerdown = e => {
+      if (!spineCropSrc()) return;
+      spCrop.dragging = true;
+      try { stage.setPointerCapture(e.pointerId); } catch (_) {}
+      spineCropPointer(e);
+      e.preventDefault();
+    };
+    stage.onpointermove = e => { if (spCrop.dragging) spineCropPointer(e); };
+    stage.onpointerup = () => { spCrop.dragging = false; };
+    stage.onpointercancel = () => { spCrop.dragging = false; };
+  }
   $('#edName').oninput = e => { ed.temp.name = e.target.value; };
   $('#edPages').oninput = e => { ed.temp.pagesN = clamp(parseInt(e.target.value) || 1, 1, 200); };
 }
@@ -463,19 +586,6 @@ function syncEditor() {
      传一份去掉 img 的 cover 副本，DIY 封面在场上时下面这排仍能正常挑图案。 */
   const cvPv = { ...ed.temp.cover, img: null };
   const isDiy = !!ed.temp.cover.img && !!ed.temp.cover.diym;
-  /* 封面纹理三档小样：底色跟着当前封面走（图片封面就用那张图），选中态只认 cover.texture。
-     老本子没这个字段时 texOf() 兜底成 none，第一格自然亮着。 */
-  {
-    const curTex = texOf(ed.temp.cover);
-    const texBg = ed.temp.cover.img
-      ? `url("${ed.temp.cover.img}") center/cover no-repeat`
-      : String(ed.temp.cover.value || '#eee');
-    $$('#edTextures .tex-opt').forEach(s => {
-      s.classList.toggle('on', s.dataset.tex === curTex);
-      const b = s.querySelector('.tex-base');
-      if (b) b.style.background = texBg;
-    });
-  }
   $$('#edPatterns .pat:not(.diy-pat)').forEach(s => {
     s.classList.toggle('on', !isDiy && ed.temp.cover.pattern === s.dataset.pat);
     /* 第三参数 true = 预览档：缩略图统一用自动色，真实封面仍走各自的预设色 */
@@ -487,7 +597,7 @@ function syncEditor() {
     pv.style.backgroundPosition = L.pos;
     pv.style.backgroundRepeat = L.rep;
     /* 缩略图这一层把底色与印花合在一起（不透明），纹理叠上去就会盖住图案 ——
-       纹理只该作用于底层，所以这排只负责挑印花，质感由「封面纹理」小节预览。 */
+       纹理只该作用于底层，所以这排只负责挑印花，材质在「自定义封面 → 封面设置」里挑。 */
     const sp = s.querySelector('.pspine');
     if (sp) {
       /* 只有「没彩带的装帧」走压槽断面；笔记本透明档直接整列收掉，
@@ -580,6 +690,8 @@ function syncEditor() {
       box.innerHTML = `<span class="lk-state-ico">${LOCK_SVG}</span><div><b>${label}</b><small>${sub}</small></div>`;
     }
   }
+  /* 自定义书脊：模式 / 缩略图 / 裁切舞台 / 效果预览跟着 ed.temp 走 */
+  syncSpineUI();
   /* 折叠小节：统一刷新收起 / 展开，收起时把当前取值写在标题后面 */
   $$('#modal .fold-sec').forEach(sec => {
     const key = sec.dataset.sec; if (!key) return;
@@ -653,7 +765,10 @@ const diy = {
   box: false, editing: null, caretPt: null, hold: null, stopping: false,
   textId: null,                                // 文字面板对应哪条文字（关面板时选中可能已被清掉）
   sideW: 0, sideDrag: null,                // 侧栏宽度（横屏）与拖动手势
-  layerDrag: null, layerJustDragged: 0     // 图层拖拽排序 / 抑制拖完那一下 click
+  layerDrag: null, layerJustDragged: 0,    // 图层拖拽排序 / 抑制拖完那一下 click
+  /* 封面纹理是 DIY 草稿：在「封面设置」面板里改，画布 / 合成都读它，点「完成」才写回
+     ed.temp.cover.texture。点「返回」就整份丢掉，不会留下改了数据却没重合成的旧成品图。 */
+  tex: 'none'
 };
 function diyBgOK(v) {
   const s = String(v || '').trim();
@@ -813,7 +928,7 @@ function diyPaperSkin() {
      ⚠️ 用不带 img 的伪 cover：重进 DIY 时 ed.temp.cover.img 已有成品图，
         但那是被当作对象带进画布的，底色纹理不该因此消失。 */
   const tx = p.querySelector('.diy-texture');
-  if (tx) tx.style.cssText = textureStyle({ texture: j.cover.texture });
+  if (tx) tx.style.cssText = textureStyle({ texture: diy.tex });
 }
 function diySizePaper() {
   const st = $('#diyStage').getBoundingClientRect();
@@ -1213,6 +1328,13 @@ function renderDiySheet() {
           + `<button class="diy-mini" data-act="ribboncustom">＋自定义</button></div></div>`
           + `<div class="diy-hint">选「透明」时封面彩带隐藏，左侧也不画书槽。</div>`
         : `<div class="diy-hint">当前装帧没有彩带：方形画册 / 精装书显示书槽，活页封面保持干净。</div>`)
+      + `<div class="diy-row"><span class="diy-lab wide">封面纹理</span>`
+      + `<div class="diy-texs">`
+      + COVER_TEXTURES.map(t => `<button class="diy-tex${diy.tex === t.k ? ' on' : ''}"`
+          + ` data-diytex="${t.k}" title="${t.d}">`
+          + `<i class="diy-tex-pv" style="${texSwatchStyle(t.k)}"></i><span>${t.n}</span></button>`).join('')
+      + `</div></div>`
+      + `<div class="diy-hint">材质只铺在封面底色这一层，照片 / 文字都压在纹理上；白底小样就是白纸与白麻布的实际质感。</div>`
       + `<div class="diy-row"><span class="diy-lab wide">封面圆角</span>`
       + `<input class="diy-range" id="diyRadius" type="range" min="${COVER_R_MIN}" max="${COVER_R_MAX}" step="1" value="${r}">`
       + `<span class="diy-rval" id="diyRadiusVal">${r.toFixed(0)}px</span>`
@@ -1314,7 +1436,7 @@ function diyExportHTML(W, H) {
      ⚠️ 传不带 img 的伪 cover 强制拿到贴片 —— 成品 coverHTML 对有 img 的封面不再叠纹理，
         DIY 的纹理就靠这里烘进合成图的底色；画布（.diy-texture）与成品同为此结构，
         照片 / 文字都压在纹理上，不会叠两遍也不会被压一层。 */
-  const tex = textureStyle({ texture: (ed.temp && ed.temp.cover ? ed.temp.cover.texture : '') });
+  const tex = textureStyle({ texture: diy.tex });
   let s = `<div class="diy-canvas" style="position:relative;width:${W}px;height:${H}px;`
     + `overflow:hidden;background:${diy.d.bg};">`
     + (tex ? `<div style="position:absolute;inset:0;${tex}"></div>` : '');
@@ -1388,6 +1510,7 @@ function openDiyCover() {
   }
   diy.d = d; diy.sel = null; diy.sheet = ''; diy.stTab = 'note'; diy.drag = null; diy.swapId = null;
   diy.tap = { t: 0, id: '', x: 0, y: 0 }; diy.layerDrag = null; diy.layerJustDragged = 0;
+  diy.tex = texOf(cv);                   // 进页面时接上这本已有的材质档
   diy.box = false; diy.editing = null; diy.caretPt = null; diy.textId = null;
   diy.stopping = false; diyCancelHold();
   DIY_FRESH_TEXTS.clear();
@@ -1428,6 +1551,9 @@ async function diyDone() {
     ed.temp.cover.img = src;
     ed.temp.cover.diym = JSON.parse(JSON.stringify(diy.d));
     ed.temp.cover.pattern = 'none';       // 自定义封面本身就有底图，不再叠图案
+    /* 纹理在合成图里已经烘进「底色与对象之间」，这里把档位落盘：
+       以后主页 / 阅读器 / 导出都靠这张位图，textureStyle() 见 cover.img 一律不叠第二层。 */
+    ed.temp.cover.texture = diy.tex;
     closeDiyCover();
     syncEditor();
     toast('自定义封面已应用，点「完成」保存手帐本');
@@ -1697,7 +1823,13 @@ $('#diySheetBody').addEventListener('click', async e => {
       hex => { diy.d.bg = hex; renderDiyPaper(); renderDiySheet(); });
     return;
   }
-  /* 封面设置：彩带颜色（仅笔记本有这一行）/ 自定义取色 / 恢复默认圆角 */
+  /* 封面设置：封面纹理（草稿，点「完成」才落盘）/ 彩带颜色 / 自定义取色 / 恢复默认圆角。
+     换纹理要同时重刷画布那层材质，并立刻重绘面板把选中态挪过去。 */
+  if (d.diytex !== undefined) {
+    diy.tex = diy.tex === d.diytex ? 'none' : normTexture(d.diytex);
+    diyPaperSkin(); renderDiySheet();
+    return;
+  }
   if (d.ribbon !== undefined) {
     ed.temp.ribbon = d.ribbon;
     diyPaperSkin(); renderDiySheet();

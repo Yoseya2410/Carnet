@@ -53,7 +53,12 @@
 .book-item.active{transform:scale(1.05);filter:none}
 .book-item.active .gear{opacity:1;pointer-events:auto}
 /* 长按拖动排序：选中的那本被"拎"起来，其余平滑让位 */
-.carousel-wrap.sortmode{cursor:grabbing;touch-action:none;user-select:none;-webkit-user-select:none}
+/* ⚠️ 排序时必须放开 overflow：被拎起的书 translate(dx,dy) 会向上跟手，
+   平时那条 overflow:hidden 会在 .carousel-wrap 顶边把书的上半截齐刷刷裁平
+   （2026-11-15 用户截图：星星封面的书顶被切在标题下方）。
+   屏幕外的书不会因此露出来 —— body / #app 在 base.css 里都带 overflow:hidden，
+   裁切边界仍是屏幕四边，只是不再多一道 wrap 顶边的裁切。 */
+.carousel-wrap.sortmode{cursor:grabbing;touch-action:none;user-select:none;-webkit-user-select:none;overflow:visible}
 .carousel-wrap.sortmode .book-item{transition:transform .2s cubic-bezier(.25,.8,.3,1),filter .2s ease;will-change:transform}
 .carousel-wrap.sortmode .book-item.picked{transition:none;z-index:30;filter:drop-shadow(0 24px 30px rgba(6,8,20,.55))!important}
 

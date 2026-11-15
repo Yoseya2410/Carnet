@@ -1,16 +1,41 @@
 /* =====================================================================
- * Carnet · 背景设置面板与浅色适配   （样式 19 / 19）
+ * Carnet · 主页设置面板与浅色适配   （样式 19 / 19）
  * ---------------------------------------------------------------------
- * ① 背景面板（预设色 / 图片操作区）
+ * ① 主页设置面板（预设色 / 图片操作区 / 单层书架台面开关）
  * ② 浅色背景下文字与玻璃控件自动换深色
  *
  * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
  * ===================================================================== */
-/* ============ 背景设置面板 ============ */
+/* ============ 主页设置面板 ============ */
 /* 主页 / 阅读器 共用同一份背景，不再有切换页签 */
 .bg-label{font-size:12.5px;opacity:.72;margin:14px 0 8px;letter-spacing:.05em}
 .bg-note{font-size:11px;opacity:.5;margin-top:10px;letter-spacing:.03em}
 #bgClearImg[disabled]{opacity:.4;pointer-events:none}
+/* 标题栏左侧占位：.cp-head 是「38px | 1fr | 38px」，取色盘那格放吸管，
+   主页设置没有吸管，用这一格把标题顶回正中间、关闭按钮留在右端。 */
+.cp-head-pad{display:block;width:38px;height:38px}
+/* 单层书架台面开关：黑白两档，跟界面强调色一致，不用彩色 */
+.bg-opt{
+  display:flex;align-items:center;gap:12px;margin:16px 0 2px;padding-top:14px;
+  border-top:1px solid rgba(255,255,255,.12)
+}
+.bg-opt-tx{flex:1;min-width:0}
+.bg-opt-tx b{display:block;font-size:13px;font-weight:600;letter-spacing:.03em}
+.bg-opt-tx small{display:block;margin-top:4px;font-size:11px;opacity:.58;line-height:1.45}
+.bg-switch{position:relative;flex:0 0 auto;width:44px;height:26px;margin:0;cursor:pointer}
+.bg-switch input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer;z-index:1}
+.bg-switch i{
+  display:block;width:44px;height:26px;border-radius:999px;
+  background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);
+  transition:background .2s ease,border-color .2s ease
+}
+.bg-switch i::after{
+  content:"";position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.32);transition:transform .2s ease,background .2s ease
+}
+.bg-switch input:checked + i{background:rgba(255,255,255,.9);border-color:rgba(255,255,255,.9)}
+.bg-switch input:checked + i::after{transform:translateX(18px);background:#20222c}
+.bg-switch input:focus-visible + i{outline:2px solid #fff;outline-offset:3px}
 
 /* ============ 浅色背景下：所有浮层 / 面板 / 列表统一改成「白玻璃」 ============
    深色 tint 那套（--frost 默认 rgba(30,34,54,.6)）压在浅底上就是一块灰黑板 ——
@@ -32,7 +57,10 @@
 /* ---- 搜索栏 ---- */
 .bg-light .search-panel{
   color:#2b2f3d;
-  background:linear-gradient(180deg,rgba(255,255,255,.52),rgba(255,255,255,.30) 72%,rgba(255,255,255,0))
+  /* 整屏搜索页：整块均匀的白玻璃，不再从上往下渐隐成半屏。
+     ⚠️ 别降到 .4 —— 桌面宽屏下整排彩色封面会透到结果条底下，看着像没盖住；
+        .8 + backdrop blur 既能盖住整页，又还留着一层毛玻璃的通透感。 */
+  background:rgba(248,249,252,.4)
 }
 .bg-light .search-panel .text-input{
   background:rgba(255,255,255,.55);border-color:rgba(40,44,66,.16);color:#2b2f3d
@@ -42,9 +70,13 @@
   box-shadow:0 0 0 1px #000
 }
 .bg-light .search-close{color:#2b2f3d}
-/* 结果列表：每条是一片更亮的白玻璃，压在面板那层上才分得出层次 */
-.bg-light .sr-item{background:rgba(255,255,255,.3);border-color:rgba(255,255,255,.6)}
-.bg-light .sr-item:hover{background:rgba(255,255,255,.5)}
+/* 结果列表：面板已接近实白，靠「更白一点 + 淡灰描边 + 浅影」分出层次，
+   别再用纯白背景 + 纯白描边（盖住整页后那套会彻底看不见卡片边界） */
+.bg-light .sr-item{
+  background:rgba(255,255,255,.62);border-color:rgba(40,44,66,.09);
+  box-shadow:0 2px 8px -4px rgba(40,42,60,.16)
+}
+.bg-light .sr-item:hover{background:rgba(255,255,255,.9)}
 .bg-light .sr-item .meta{color:rgba(43,47,61,.62)}
 .bg-light .sr-item .nm mark{background:rgba(240,180,120,.62);color:#7a4a12}
 .bg-light .sr-empty{color:rgba(43,47,61,.6)}
@@ -55,7 +87,7 @@
   -webkit-backdrop-filter:blur(10px) saturate(120%)}
 .bg-light .confirm-mask{background:rgba(246,246,249,.34);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px)}
 
-/* ---- 弹窗（新建 / 编辑手帐本、背景设置…）---- */
+/* ---- 弹窗（新建 / 编辑手帐本、主页设置…）---- */
 .bg-light .modal{
   color:#2b2f3d;
   background:linear-gradient(180deg,rgba(255,255,255,.58),rgba(255,255,255,.46));
@@ -85,6 +117,9 @@
 .bg-light .tpl-fit button.on{background:var(--accent);color:#fff;border-color:rgba(40,44,66,.4)}
 .bg-light .tpl-note{color:rgba(43,47,61,.68);opacity:1}
 .bg-light .upload-thumb{border-color:rgba(40,44,66,.2)}
+/* 自定义书脊：裁切舞台与效果预览在白玻璃上换深描边 */
+.bg-light .sp-crop-stage{border-color:rgba(40,44,66,.2);background:rgba(40,44,66,.06)}
+.bg-light .sp-preview{box-shadow:2px 5px 8px -5px rgba(40,42,60,.3),inset 0 0 0 1px rgba(40,44,66,.16)}
 
 /* ---- 确认框 ---- */
 .bg-light .confirm-box{color:#2b2f3d;border-color:rgba(255,255,255,.7)}
@@ -246,6 +281,21 @@
     0 12px 20px -10px rgba(40,42,60,.16),
     0 26px 40px -20px rgba(40,42,60,.18)         /* 台面往地上投的宽软影 */
 }
+/* 单层书架台面（没有上面的玻璃）：浅底台面退成接近背景的一层淡白，
+   不再做厚实的白板 + 硬前沿（11-15 第三轮：台面别抢书的戏）。
+   ⚠️ 这里整条 background + box-shadow 覆盖了深色版，改那儿必须同步这里；
+      ::after 那条长影的渐变也要单独覆盖（几何在 spine-shelf.css，这里只换颜色）。 */
+#home.bg-light .spine-plinth{
+  background:linear-gradient(180deg,rgba(255,255,255,.34) 0%,rgba(255,255,255,.28) 60%,rgba(246,248,252,.24) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.45),
+    0 2px 5px -2px rgba(40,42,60,.10)
+}
+#home.bg-light .spine-plinth::after{
+  background:linear-gradient(180deg,
+    rgba(40,42,60,.20) 0%,rgba(40,42,60,.14) 16%,rgba(40,42,60,.085) 40%,
+    rgba(40,42,60,.04) 68%,rgba(40,42,60,0) 100%)
+}
 /* 书脚嵌进玻璃、落到台面上的接触影：贴着**玻璃下沿**最深、往上渐隐。
    ⚠️ 位置改成 bottom（老版在 top，那是书只沉进 26px 细条时的画法）；
       alpha 只留极淡一档 —— 下沿已经有一层渐白，两者叠太重书脚会发灰；
@@ -261,7 +311,7 @@
 
 /* ============ 剩下的深色浮层统一改「白玻璃」 ============
    前面 .bg-light 把 --frost 换成了白，但下面这几处把深色**写死**了 / 压根没写背景，
-   在浅底上依旧是一块黑板：取色盘（含背景设置面板）、吸管操作条、一键成书进度胶囊、
+   在浅底上依旧是一块黑板：取色盘（含主页设置面板）、吸管操作条、一键成书进度胶囊、
    确认框。这里一次性改成不透白的玻璃，并把里面的白字反成深字。
    ⚠️ 只改浮层本身，不动取样用的色板 / 色相条（那些得保持原色才取得准）。 */
 .bg-light .cp-mask{
@@ -281,6 +331,13 @@
 .bg-light .cp-hex:focus,.bg-light .cp-num:focus{border-color:rgba(17,19,24,.5);background:#fff}
 .bg-light .cp-x,.bg-light .cp-eye{color:#2b2f3d;background:transparent;border-color:transparent}
 .bg-light .cp-x:hover,.bg-light .cp-eye:hover{background:rgba(40,44,66,.07)}
+/* 台面开关：白玻璃上换成深色轨道 + 白圆钮，选中态反成深底白钮 */
+.bg-light .bg-opt{border-top-color:rgba(40,44,66,.12)}
+.bg-light .bg-switch i{background:rgba(40,44,66,.2);border-color:rgba(40,44,66,.2)}
+.bg-light .bg-switch i::after{background:#fff;box-shadow:0 1px 4px rgba(30,32,48,.24)}
+.bg-light .bg-switch input:checked + i{background:#2b2f3d;border-color:#2b2f3d}
+.bg-light .bg-switch input:checked + i::after{background:#fff}
+.bg-light .bg-switch input:focus-visible + i{outline-color:#2b2f3d}
 .bg-light .cp-prev{border-color:rgba(110,110,116,.58)}
 .bg-light .ep-btn{color:#2b2f3d;background:rgba(40,44,66,.07);border-color:rgba(40,44,66,.16)}
 .bg-light .ep-btn:hover{background:rgba(40,44,66,.14)}

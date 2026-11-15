@@ -162,7 +162,8 @@ async function verifyLockKey(lock, km) {
    明文 j  ↔  信封 { 明文元数据外壳, lock, enc }。
    · enc.data = AES-GCM(JSON.stringify(去掉 lock/enc 的整本手帐))，一次加密覆盖全部内容；
    · 外壳只留书架要用的：书名 / 封面配色图案 / 装帧 / 彩带 / 模板 / 页数空壳。
-     照片封面 cover.img、封面草稿 diym、封面内侧图片、tplImg / tplImgs 都不进外壳，
+     照片封面 cover.img、封面草稿 diym、封面内侧图片、自定义书脊片 cover.spineImg、
+     tplImg / tplImgs 都不进外壳，
      一并卷进密文里 —— 锁着的书在书架上就是一张纯色 / 图案封面。
    · pages 留一组空对象只为保持页数（书脊厚度、页数角标、normalizeJournal 的结构校验）。 */
 function journalHasLock(j) { return !!(j && j.lock && j.lock.v); }

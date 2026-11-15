@@ -2,13 +2,30 @@
  * Carnet · 单层书架模式   （样式 20 / 20）
  * ---------------------------------------------------------------------
  * ① 高低错落的单排书脊：底边对齐、紧挨着排，窄屏横向滑动
- * ② 简洁书脊：保留封面色、图案与竖排书名，不叠加几何装饰线
- * ③ 书脊宽度按页数走：--spine-min-w 保底，越厚越宽但差距克制
+ * ② 简洁书脊：保留封面色 / 图案 / 自定义书脊片，不显示书名、不叠几何装饰线
+ * ③ 书脊宽度按页数走：--spine-min-w 保底，越厚越宽但差距克制；
+ *    **粗细一律固定 px、不随屏幕宽度变化**（四档 media query 的 min/max-w 都是常数，
+ *    只有 --spine-max-h 仍按 vh 走 —— 长度跟着屏幕高度变，粗细不变）
  * ④ 下方预览图：悬停书脊即显示，移开淡出
  * ===================================================================== */
 .spine-wrap{
-  --spine-min-w:clamp(24px,2.4vw,32px);   /* 最窄：再薄的手帐本也有这么宽 */
-  --spine-max-w:clamp(31px,3.4vw,46px);   /* 最宽：页数堆到 64 页才到头 */
+  /* 台面厚度（11-15 第三轮定稿）：最初 8~12px 像一条白线，加到 14~22px 又变成
+     一块厚实显眼的板、抢了书的戏，最后收在 12~18px —— 比最初粗，但不靠厚度刷存在感。
+     ⚠️ 只在这里定义一次：.spine-row 的 padding-bottom 与台面 height 都吃这个变量。 */
+  --spine-plinth-h:clamp(12px,2vh,18px);
+  /* 台面下方留给长影的空间（11-15「阴影往下长一点、渐浅」）：
+     ⚠️ .spine-scroll 是 overflow-y:hidden，台面原来 bottom:6px，影一超过 6px 就被裁掉。
+        把台面（连书脚）整体上移这么一截，影才有地方往下渐隐。
+        台面 bottom、.spine-row 的 padding-bottom、::after 的 height 三处都吃这个变量，
+        缺一处书脚就会离台面、或影被裁。 */
+  --spine-shadow-space:clamp(48px,7vh,72px);
+  /* ⚠️ 书脊「粗细」一律用固定 px（2026-11-15 用户定稿）：不随屏幕宽度变化。
+     原来写 clamp(24px,2.4vw,32px) / clamp(31px,3.4vw,46px)，600~912px 被下限钉死在 28px、
+     1440px 又涨到 40px，同一个窗口拖宽拖窄书会忽粗忽细。四档 media query 里的
+     --spine-min-w / --spine-max-w 也全部去掉 vw，别只改这一处。
+     固定值取各档典型视口的原值，视觉几乎不变：桌面按 1080px 时的 26/37 定。 */
+  --spine-min-w:26px;                     /* 最窄：再薄的手帐本也有这么宽 */
+  --spine-max-w:37px;                     /* 最宽：页数堆到 64 页才到头 */
   --spine-max-h:clamp(250px,56vh,460px);   /* 最高那本的长度基准，各本再乘 --spine-h 错落 */
   flex:1;min-height:0;display:flex;flex-direction:column;
   padding:calc(var(--topbar-h,76px) + 1vh) 0 calc(var(--botbar-h,90px) + 2px);
@@ -23,7 +40,52 @@
 .spine-row{
   /* 书脊挨得紧才像一整排书：只留一条很细的缝，让相邻两本看出分界 */
   display:flex;align-items:flex-end;justify-content:center;gap:clamp(1px,.16vw,3px);
-  width:max-content;min-width:100%;height:100%;padding:18px 24px 2px
+  width:max-content;min-width:100%;height:100%;
+  position:relative;                  /* 台面 .spine-plinth 贴着书脚定位 */
+  padding:18px 24px calc(var(--spine-plinth-h) + var(--spine-shadow-space,48px))
+}
+/* ---- 台面关闭（默认，开关在「主页设置」）----
+   台面压根不进 DOM（renderSpineShelf 按 prefs.spinePlinth 决定），这里只把
+   「台面厚度 + 长影长度」那段 padding 收成一小截，让书排往下坐、不悬空。
+   ⚠️ --spine-shadow-space 同时被 .spine-detail 的负 margin 吃掉，改这里会连带
+      改预览图上叠的幅度，两处要一起看。id 级选择器优先于下面几档 media query。 */
+#spineWrap.no-plinth{
+  --spine-plinth-h:0px;
+  --spine-shadow-space:clamp(22px,3.2vh,36px)
+}
+#spineWrap.no-plinth .spine-row{padding-bottom:var(--spine-shadow-space,22px)}
+/* ---- 单层书架台面（2026-11-15）----
+   只要白色台面，不要上面的玻璃：书脚直接落在台面上沿。
+   长度由 syncSpinePlinth() 按「书排总宽」量出来写进 style.width：
+   比书排每端多出一点、书少时两端离屏幕边有明显留白、书多到要横滑时跟书排一起变长。
+   ⚠️ pointer-events:none（含 ::after）：台面与长影别抢书脚上的点击 / 长按排序。
+   ⚠️ 台面放在 .spine-row 里而不是 .spine-scroll 外面，横滑时它才跟书是一体的。
+   ⚠️ 「影往下长、渐浅」的几何三处同源：--spine-shadow-space = 台面 bottom =
+      .spine-row padding-bottom 多出来的那一截 = ::after 的 height。 */
+.spine-plinth{
+  position:absolute;left:50%;bottom:var(--spine-shadow-space,48px);
+  transform:translateX(-50%);z-index:0;
+  height:var(--spine-plinth-h);width:var(--spine-plinth-w,80%);min-width:120px;
+  pointer-events:none;border-radius:4px;
+  /* 11-15 第三轮「台面别太显眼，书才是主体」：台面退成一层接近背景的淡白，
+     去掉上一轮那套深灰板身渐变和 3px 硬前沿；重量感全部交给下面那条长影。
+     ⚠️ 深浅主题各一套，浅底在 background.css 整条覆盖，改这里必须同步那处。 */
+  background:linear-gradient(180deg,rgba(255,255,255,.26) 0%,rgba(250,251,254,.22) 60%,rgba(226,230,240,.19) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.32),
+    0 2px 5px -2px rgba(0,0,0,.28)
+}
+/* 往下拉长、越往下越淡的影。⚠️ box-shadow 的高斯衰减 6px 就没了（实测），
+   做不出「长而渐浅」，所以用一条线性渐变，两端用 mask 收干净、不拖出方边。
+   实测浅底：台面下 2px 影深 41 → 28px 13 → 40px 5 → 52px ≈0。 */
+.spine-plinth::after{
+  content:"";position:absolute;left:0;right:0;top:100%;
+  height:var(--spine-shadow-space,48px);pointer-events:none;
+  background:linear-gradient(180deg,
+    rgba(0,0,0,.38) 0%,rgba(0,0,0,.26) 16%,rgba(0,0,0,.15) 40%,
+    rgba(0,0,0,.07) 68%,rgba(0,0,0,0) 100%);
+  -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 5%,#000 95%,transparent 100%);
+  mask-image:linear-gradient(90deg,transparent 0,#000 5%,#000 95%,transparent 100%)
 }
 .spine-item{
   position:relative;flex:0 0 auto;isolation:isolate;overflow:hidden;
@@ -31,15 +93,25 @@
   /* 宽度 = 最窄 + (最宽-最窄) × 页数比例（--spine-p 由 spineWidthRatio 算，0~1） */
   width:calc(var(--spine-min-w) + (var(--spine-max-w) - var(--spine-min-w)) * var(--spine-p,.3));
   height:calc(var(--spine-max-h) * var(--spine-h,.8));
-  padding:0;border-radius:1.5px 2.5px 2px 1.5px;color:var(--spine-ink,#fff);
+  padding:0;border-radius:1.5px 2.5px 2px 1.5px;
   cursor:pointer;transform-origin:50% 100%;filter:saturate(.88) brightness(.96);
-  box-shadow:2px 5px 8px -5px rgba(10,12,20,.62),inset 0 0 0 1px rgba(255,255,255,.12);
+  /* 书脚那道落地影（2026-11-15 用户「每个书脊下面的阴影浅一点」）：
+     .62 → .28，只留一点「书坐在板上」的接触感，别压成一撮黑。
+     ⚠️ 排序中把整排压回基础档那条规则（#spineWrap.sorting .spine-item）也要同步改，
+        否则一长按所有书脚的影子又变重。 */
+  box-shadow:2px 5px 8px -5px rgba(10,12,20,.28),inset 0 0 0 1px rgba(255,255,255,.12);
   transition:transform .24s cubic-bezier(.22,.8,.3,1),filter .24s ease,box-shadow .24s ease
 }
 .spine-item::before{
   content:"";position:absolute;inset:0;z-index:1;pointer-events:none;
   background:linear-gradient(90deg,rgba(0,0,0,.25),rgba(0,0,0,.04) 20%,rgba(255,255,255,.15) 48%,rgba(255,255,255,0) 72%,rgba(0,0,0,.18));
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.22),inset 0 -1px 0 rgba(0,0,0,.25)
+  /* 书脊自己底边那条暗线也跟着收（.25 → .12），不然落地影淡了、底线还是一道黑 */
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22),inset 0 -1px 0 rgba(0,0,0,.12)
+}
+/* 自定义书脊片：立体断面压淡一档，让上传 / 裁好的成品图保持清晰，
+   只留一点点「圆柱书脊」的两侧明暗，别把片子上原本的字和纹样洗成灰条。 */
+.spine-item.custom-spine::before{
+  background:linear-gradient(90deg,rgba(0,0,0,.14),rgba(0,0,0,0) 22%,rgba(255,255,255,.10) 50%,rgba(255,255,255,0) 76%,rgba(0,0,0,.10))
 }
 .spine-item::after{
   content:"";position:absolute;inset:0;z-index:5;pointer-events:none;border-radius:inherit;
@@ -48,7 +120,7 @@
 .spine-item:hover{transform:translateY(-6px);filter:none}
 .spine-item.active{
   transform:translateY(-10px);filter:none;
-  box-shadow:3px 10px 15px -7px rgba(10,12,20,.68),inset 0 0 0 1px rgba(255,255,255,.2)
+  box-shadow:3px 10px 15px -7px rgba(10,12,20,.38),inset 0 0 0 1px rgba(255,255,255,.2)
 }
 .spine-item.active::after{border-color:rgba(255,255,255,.82);box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
 .spine-item:focus-visible{outline:2px solid currentColor;outline-offset:3px}
@@ -56,19 +128,21 @@
 /* 封面材质：同 .spine-pattern 的层，但贴片按 px 铺（书脊太窄，百分比会缩成一片糊）。
    DOM 里排在图案之前，材质在下、装饰图案在上，跟 coverHTML 的层序一致。 */
 .spine-texture{position:absolute;inset:0;z-index:0;opacity:.5;pointer-events:none}
-.spine-title{
-  position:absolute;z-index:3;left:50%;top:28%;bottom:11%;transform:translateX(-50%);
-  max-width:100%;overflow:hidden;white-space:nowrap;writing-mode:vertical-rl;text-orientation:mixed;
-  font-size:clamp(11px,1.05vw,15px);font-weight:600;line-height:1;letter-spacing:.12em;
-  text-shadow:0 1px 5px rgba(0,0,0,.16);pointer-events:none
-}
+/* 书脊上不再印书名（2026-11-15）：竖排字会把自定义书脊片挡掉，也和下方预览重复。
+   书名仍留在 .spine-item 的 title / aria-label 里，悬停与读屏都认得出是哪一本。 */
 /* 预览框只放一张封面（不再挂编辑按钮、也不重复书名页数），所以只需要装下封面那一块。
    封面尺寸同时受宽度和高度约束（min(vw,vh)），矮屏上自动让一让。
    ⚠️ 封面是**绝对定位**的：它要横着挪到「选中的那一根书脊」正下方（--px 由
       spineDetailShift() 量出来，是相对预览框中心的偏移），用 flow 布局只能永远居中。
       框本身仍占原来那一截高度，书脊的长度不受影响 */
 .spine-detail{
-  flex:0 0 clamp(138px,18vh,166px);position:relative;min-height:0;transition:opacity .16s ease
+  flex:0 0 clamp(138px,18vh,166px);position:relative;min-height:0;transition:opacity .16s ease;
+  /* 预览区上叠进台面长影：负 margin 把这一截高度还给 .spine-scroll（flex:1），
+     书排是贴 scroll 底边站的，scroll 一变高书就整体往下坐（幅度 = 阴影区高度）。
+     z-index 压过台面 ::after 那条长影，封面才真的「盖在阴影上」而不是躲在后面。
+     ⚠️ 整块不吃指针：书脚、横滑、长按排序都还在影区里，别被空预览框吞掉手势；
+        只有下面那张封面自己 pointer-events:auto。 */
+  margin-top:calc(0px - var(--spine-shadow-space,48px));z-index:3;pointer-events:none
 }
 /* 预览淡入淡出：整块内容换掉时给一点过渡，不至于一闪一闪 */
 .spine-detail-cover{animation:fadeIn .17s ease}
@@ -88,6 +162,7 @@
    默认 --px:0（没量到就老老实实居中），量到之后是「目标书脊中心 − 预览框中心」 */
 .spine-detail-cover.book-item{
   position:absolute;left:50%;top:clamp(12px,2vh,20px);flex:0 0 auto;filter:none;cursor:pointer;
+  pointer-events:auto;                 /* 预览框本身不吃事件，只有这张封面能点 */
   transform:translateX(calc(var(--px,0px) - 50%));
   transition:transform .26s cubic-bezier(.22,.8,.3,1)
 }
@@ -123,7 +198,7 @@
 #spineWrap.sorting .spine-item:hover,
 #spineWrap.sorting .spine-item.active{
   transform:none;filter:saturate(.88) brightness(.96);
-  box-shadow:2px 5px 8px -5px rgba(10,12,20,.62),inset 0 0 0 1px rgba(255,255,255,.12)
+  box-shadow:2px 5px 8px -5px rgba(10,12,20,.28),inset 0 0 0 1px rgba(255,255,255,.12)
 }
 #spineWrap.sorting .spine-item.active::after{border-color:transparent;box-shadow:none}
 /* 跟着手指走的悬浮副本。transition:none 必须留着 —— 它是 .spine-item 的克隆，
@@ -139,13 +214,14 @@
    把左边那几本推出滚动区（普通 center 在溢出时会让左侧滚不到，safe 会自动退回 flex-start） */
 @media (max-width:520px) and (orientation:portrait){
   .spine-wrap,#spineWrap.no-preview{
-    --spine-min-w:clamp(36px,9.5vw,46px);
-    --spine-max-w:clamp(48px,14vw,64px);
+    /* 粗细固定：取 390px 竖屏时的 37/55，320~520 不再从 43px 一路涨到 56px */
+    --spine-min-w:37px;
+    --spine-max-w:55px;
     --spine-max-h:clamp(240px,50vh,400px)
   }
-  /* ① 整排书作为**一块**垂直居中在屏幕中间：.spine-scroll 变成 flex 容器、row 高度收到内容高
-        （原来 row 是 height:100% + align-items:flex-end，书永远贴着可用区的底边，
-        上方空一大截；改成居中后上下留白对称）
+  /* ① 整排书**垂直居中**（用户 11-15 定稿）：手机没有预览框，桌面那招 .spine-detail
+        负 margin 在这里不生效；⚠️ 别改成 align-items:flex-end —— 书排会整块掉到屏幕
+        最底下、显得太低。默认关台面时 row 上下 padding 基本对称，居中就是书本身居中。
      ② row 内部仍然 align-items:flex-end —— 书是**站在同一条线**上的，
         只是高低错落；每本各自居中会让底边参差不齐，反而不像一排书 */
   /* justify-content 也要给：flex 容器默认靠左，书少时整排会贴着左边。
@@ -153,41 +229,41 @@
   .spine-scroll{display:flex;align-items:center;justify-content:center;justify-content:safe center}
   .spine-row{
     height:auto;align-items:flex-end;justify-content:center;justify-content:safe center;
-    padding:10px 14px
+    padding:10px 14px calc(var(--spine-plinth-h) + var(--spine-shadow-space,48px))
   }
-  .spine-title{font-size:13px}
 }
 @media (max-width:520px){
   .spine-row{padding-left:20px;padding-right:20px}
 }
-/* 矮屏（手机横屏 / 小窗）：书脊最容易缩成一小截，这里把高度和粗细都放大一档，
-   并把上下避让区收紧一点，尽量把屏幕高度让给书脊本身 */
+/* 矮屏（手机横屏 / 小窗）：书脊最容易缩成一小截，这里把高度收紧、避让区让开，
+   粗细仍是下面那套固定 px（高度短了，比例上自然更显粗），尽量把屏幕高度让给书脊本身 */
 /* ⚠️ 这两档都写成 `.spine-wrap,#spineWrap.no-preview`：手机同时带 no-preview，
    而 `#spineWrap.no-preview` 是 id 级选择器，只写 `.spine-wrap` 会被它压过 ——
    底部避让就变宽、书脊被挤上去顶出书排 */
 @media (max-height:620px){
   .spine-wrap,#spineWrap.no-preview{
     --spine-max-h:clamp(180px,52vh,300px);
-    --spine-min-w:clamp(26px,3vw,34px);
-    --spine-max-w:clamp(34px,4vw,48px);
+    /* 固定，取 900×600 时的原值 27/36 */
+    --spine-min-w:27px;
+    --spine-max-w:36px;
     padding-top:calc(var(--topbar-h,76px) - 14px);padding-bottom:calc(var(--botbar-h,90px) - 24px)
   }
   .spine-scroll{min-height:150px}
   .spine-detail{flex-basis:128px;padding-top:10px}
   .spine-detail-cover .cover{--cover-w:clamp(52px,9.5vh,66px);--cr-scale:.24}
 }
-/* 横屏：宽而矮，书脊按 vh 算会被压得很短 —— 直接把长度（高度）和粗细都提上来 */
+/* 横屏：宽而矮，书脊按 vh 算会被压得很短 —— 把长度（高度）提上来、粗细换一套固定 px */
 @media (orientation:landscape) and (max-height:560px){
   .spine-wrap,#spineWrap.no-preview{
     --spine-max-h:clamp(200px,60vh,300px);
-    --spine-min-w:clamp(28px,3.4vw,38px);
-    --spine-max-w:clamp(37px,4.6vw,54px);
+    /* 固定，取 844×390 横屏时的原值 29/39 */
+    --spine-min-w:29px;
+    --spine-max-w:39px;
     /* 上下避让都比常规档多留一点：横屏时顶栏 / 底栏几乎贴着屏幕边
        （实测：屏高 390 时顶栏到 78、底栏圆钮从 314 起），书脊伸过去会被压住 */
     padding-top:calc(var(--topbar-h,76px) - 10px);padding-bottom:calc(var(--botbar-h,90px) - 14px)
   }
   .spine-scroll{min-height:130px}
-  .spine-title{font-size:clamp(11px,1.4vw,15px)}
 }
 @media (prefers-reduced-motion:reduce){
   .spine-item{transition:none}

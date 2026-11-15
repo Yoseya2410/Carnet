@@ -132,8 +132,10 @@ async function migrateLegacyStorage() {
 /* 和手帐数据分开存，导出备份不受影响；背景图片压缩后放 IndexedDB，不占 localStorage */
 const PREF_KEY = 'carnet_prefs';
 function defaultPrefs() {
-  /* 主页和阅读器共用同一套背景，只有一份设置 */
-  return { view: 'carousel', bg: { mode: 'default', value: '', img: null } };
+  /* 主页和阅读器共用同一套背景，只有一份设置。
+     spinePlinth = 单层书架书脚下那条白色台面（含它下面的长影），默认不显示；
+     在「主页设置」面板里打开。老 prefs 没这个字段时 Object.assign 会补成 false。 */
+  return { view: 'carousel', bg: { mode: 'default', value: '', img: null }, spinePlinth: false };
 }
 async function savePrefs() {
   const ok = await DB.set(PREF_KEY, state.prefs);

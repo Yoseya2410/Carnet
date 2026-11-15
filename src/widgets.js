@@ -7,7 +7,7 @@
  *    （点吸管后浮层一律让位藏起，直接在活页面上点；从 elementsFromPoint 逐层合成取色，
  *      图片把屏幕坐标逆映射回原始像素采样，CSS 渐变 / 图案 / 模板细线则把 background-*
  *      塞进 SVG foreignObject 栅格化后再按点取样；放大镜按半个 CSS 像素取样，旋转 / 缩放都对得上）
- * ③ 背景设置面板 openBgPanel：预设色 / 自定义色 / 背景图片 / 恢复默认
+ * ③ 主页设置面板 openBgPanel：预设色 / 自定义色 / 背景图片 / 恢复默认 / 单层书架台面开关
  *
  * 对外接口：openColorPicker, closeColorPicker, openEyedropper, openBgPanel
  *
@@ -615,11 +615,13 @@ window.addEventListener('pointerup', ev => {
   epApply();                                // 松手即定，少一步操作
 }, true);
 
-/* ==================== 背景设置面板（主页 / 阅读器共用） ==================== */
+/* ==================== 主页设置面板（背景 / 单层书架台面） ==================== */
 const BG_PRESETS = ['#5b6182', '#445070', '#3a4358', '#232840', '#6e5a66', '#7a5c49', '#4f6b5d', '#3d5a66', '#8a8fa8', '#b8a98f'];
 function bgCur() { return state.prefs.bg || { mode: 'default', value: '', img: null }; }
 function syncBgPanel() {
   const b = bgCur();
+  /* 台面开关是 prefs，不跟背景那套 setBg 走；每次开面板都按当前值刷一次 */
+  $('#bgPlinth').checked = !!state.prefs.spinePlinth;
   const box = $('#bgColors');
   if (!box.dataset.built) {
     box.innerHTML = BG_PRESETS.map(c => `<div class="swatch" data-bgcolor="${c}" style="background:${c}" title="${c}"></div>`).join('')
@@ -647,6 +649,13 @@ function openBgPanel() {
 $('#bgClose').onclick = () => $('#bgMask').classList.remove('show');
 $('#bgOk').onclick = () => $('#bgMask').classList.remove('show');
 $('#bgMask').addEventListener('click', e => { if (e.target === $('#bgMask')) $('#bgMask').classList.remove('show'); });
+/* 单层书架台面：默认关。开关即时落盘 + 重绘当前单层书架，不用等「完成」。
+   只在 spine 视图下重绘，别的模式切回来时 renderSpineShelf 自己会按 prefs 决定。 */
+$('#bgPlinth').addEventListener('change', e => {
+  state.prefs.spinePlinth = !!e.target.checked;
+  savePrefs();
+  if (state.prefs.view === 'spine' && typeof renderSpineShelf === 'function') renderSpineShelf();
+});
 $('#bgReset').onclick = () => { setBg({ mode: 'default', value: '', img: null }); syncBgPanel(); toast('已恢复默认背景'); };
 $('#bgClearImg').onclick = () => { setBg({ mode: 'default', value: '', img: null }); syncBgPanel(); };
 $('#bgUpload').onclick = () => $('#bgFile').click();

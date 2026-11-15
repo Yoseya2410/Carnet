@@ -225,23 +225,22 @@ function spineWidthRatio(j) {
 function spineItemHTML(j, i) {
   const seed = spineSeed(j);                 // 只认这一本，不认它排在第几位
   const h = SPINE_HEIGHTS[(seed >>> 3) % SPINE_HEIGHTS.length];
-  const bg = j.cover.img
-    ? `background-image:url('${j.cover.img}');background-size:cover;background-position:center;`
-    : `background:${j.cover.value};`;
-  const ink = coverLum(j.cover) > 0.58 ? '#28241f' : '#fffaf2';
-  const pat = j.cover.img ? '' : patternStyle(j.cover.pattern, j.cover);
+  /* 自定义书脊片（另传的书脊 / 从封面裁下的窄条）是一张成品图：整根原样铺满，
+     不再叠封面图案与材质，否则窄条会被那些层糊成一片。底色唯一源见 visuals.js
+     的 spineBackdrop —— 主页与编辑器效果预览共用，没设过时跟封面同源。 */
+  const custom = !!spineImgOf(j);
+  const pat = (custom || j.cover.img) ? '' : patternStyle(j.cover.pattern, j.cover);
   /* 书脊是一条窄条，材质贴片按 px 铺才不会被"封面宽百分比"缩成一片糊 */
-  const tex = textureStyle(j.cover, true);
+  const tex = custom ? '' : textureStyle(j.cover, true);
   const name = esc(j.name);
   /* ⚠️ 渲染一律不带选中态 —— 单层书架默认谁都不选中：
      抬高 + 下方预览只由鼠标悬停驱动（见 spineSetHover 与 home-events 的 pointerover / pointerout），
      写死在这里的话，每重绘一次（保存、增删、排序、切模式）都会有一根永久抬在那儿 */
-  return `<button type="button" class="spine-item"
+  return `<button type="button" class="spine-item${custom ? ' custom-spine' : ''}"
     data-i="${i}" data-id="${j.id || ''}" title="${name}" aria-label="${name}，${j.pages.length} 页"
-    aria-pressed="false" style="--spine-p:${spineWidthRatio(j)};--spine-h:${h};--spine-ink:${ink};${bg}">
+    aria-pressed="false" style="--spine-p:${spineWidthRatio(j)};--spine-h:${h};${spineBackdrop(j)}">
     ${tex ? `<span class="spine-texture" style="${tex}"></span>` : ''}
-    <span class="spine-pattern" style="${pat}"></span>
-    <span class="spine-title">${name}</span>
+    ${custom ? '' : `<span class="spine-pattern" style="${pat}"></span>`}
     ${lockNeedsKey(j) ? LOCK_FLAG_HTML : ''}
   </button>`;
 }
@@ -306,8 +305,8 @@ function renderSpineDetail() {
      transform 过渡，看着就是封面从上一本底下"走"到这一本。
      所以这一帧先挂 .jump 掐掉过渡（见 spine-shelf.css），量完新位置再恢复给横滑用 */
   detail.classList.add('jump');
-  /* 只放封面：书名就印在书脊上，页数点开就有，这里不再重复，也不挂编辑按钮
-     （改这本走「长按书脊 → 原地松手」） */
+  /* 只放封面：书名不再印在书脊上（靠下方这张预览认书，书脊的 title / aria-label 仍留着），
+     页数点开就有，这里也不挂编辑按钮（改这本走「长按书脊 → 原地松手」） */
   detail.innerHTML = j ? `
     <div class="spine-detail-cover book-item active" data-i="${i}" data-spine-open
       role="button" tabindex="0" aria-label="翻开${esc(j.name)}">
@@ -328,6 +327,33 @@ function syncSpineSelection(animate) {
     if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
   });
 }
+/* 单层书架的白色台面：只有台面、没有上面的玻璃（用户 2026-11-15）。
+   长度跟着书排走：比所有书脊加起来的总宽再长出一截，书少时两端离屏幕边有明显留白；
+   书多到要横滑时台子跟着书排一起变长，横滑时它跟书是一体的。
+   ⚠️ 宽度必须按「第一根左边 → 最后一根右边」量真实占位，不能用 row.clientWidth：
+      书少时 row 会被 min-width:100% 撑成整屏宽，那样台子就永远不变短了。 */
+function syncSpinePlinth() {
+  const row = $('#spineRow'), plinth = $('#spinePlinth'), sc = $('#spineScroll');
+  if (!row || !plinth || !sc) return;
+  /* 开关关着时台面压根不进 DOM；万一被别的入口留下来了，也一律藏掉 */
+  if (!state.prefs.spinePlinth) { plinth.hidden = true; return; }
+  const items = [...row.querySelectorAll('.spine-item')];
+  if (!items.length || $('#spineWrap').hidden) { plinth.hidden = true; return; }
+  plinth.hidden = false;
+  const rr = row.getBoundingClientRect();
+  const a = items[0].getBoundingClientRect(), b = items[items.length - 1].getBoundingClientRect();
+  const booksW = Math.max(0, b.right - a.left);
+  const W = sc.clientWidth || window.innerWidth;
+  const edge = clamp(W * .045, 14, 40);      // 两端离屏幕边至少留这么多
+  const over = clamp(W * .04, 18, 44);       // 台面比书排每端多出的一截（桌面更明显）
+  const maxW = Math.max(120, W - 2 * edge);
+  let w = Math.min(booksW + 2 * over, maxW);
+  if (w < booksW + 4) w = booksW + 2 * over; // 书排宽过屏幕：台面跟书一起横滑，不硬压短
+  plinth.style.width = Math.round(w) + 'px';
+  /* 书排横滑溢出时 justify-content:safe center 会退回靠左，台面不能死钉在 row 的 50%，
+     要按「第一根左边 → 最后一根右边」的真实中心摆，才永远托在书脚下。 */
+  plinth.style.left = Math.round((a.left + b.right) / 2 - rr.left) + 'px';
+}
 function renderSpineShelf() {
   const row = $('#spineRow');
   if (!row) return;
@@ -335,12 +361,21 @@ function renderSpineShelf() {
   /* 手机 / 平板没有悬停，预览框整块收掉：点书脊直接翻开，省下的高度全给书脊 */
   const wrap = $('#spineWrap');
   if (wrap) wrap.classList.toggle('no-preview', !spineCanHover());
+  /* 台面可显隐（默认不显示，开关在「主页设置」）：关掉时连 DOM 都不放，
+     依附在台面上的那条长影自然也不画。no-plinth 类只负责收紧书脚下方那段留白。 */
+  const showPlinth = !!state.prefs.spinePlinth;
+  if (wrap) wrap.classList.toggle('no-plinth', !showPlinth);
+  const plinthHTML = showPlinth ? '<div class="spine-plinth" id="spinePlinth"></div>' : '';
   if (!state.journals.length) {
-    row.innerHTML = '<div class="spine-empty">书架还空着，点右下角 ＋ 新建一本吧</div>';
+    row.innerHTML = '<div class="spine-empty">书架还空着，点右下角 ＋ 新建一本吧</div>'
+      + (showPlinth ? '<div class="spine-plinth" id="spinePlinth" hidden></div>' : '');
     renderSpineDetail();
     return;
   }
-  row.innerHTML = state.journals.map((j, i) => spineItemHTML(j, i)).join('');
+  /* 台面放在最前面：它和 .spine-item 都是定位元素，DOM 靠前的先画，书脊才不会被台面压住 */
+  row.innerHTML = plinthHTML
+    + state.journals.map((j, i) => spineItemHTML(j, i)).join('');
+  if (showPlinth) requestAnimationFrame(syncSpinePlinth);
   /* 默认谁都不选中：预览收起、一根都不抬。
      ⚠️ 这里不能调 syncSpineSelection —— 它按 state.sel 把某一根扶起来，
         那就又变成「一进书架就有一本被选中」了。
@@ -427,9 +462,14 @@ function renderHome() {
     $('#carousel').innerHTML = state.journals.map((j, i) => bookItemHTML(j, i)).join('');
     requestAnimationFrame(() => layoutCarousel(true));
   }
-  /* 两种书架都把名称放在书籍本身或下方详情里，顶部不再重复 */
+  /* 两种书架都把名称放在书籍本身或下方详情里，顶部不再重复。
+     计数胶囊同理：1 / N 只服务「一次一本」的左右滑动，两种书架一屏就能看全，
+     再挂一个页码反而是重复信息（2026-11-15）。hidden 由这里统一管，
+     syncHomeHead() 照旧更新文本，别把 state.sel 一起清掉。 */
   const head = $('.home-head');
   if (head) head.hidden = view !== 'carousel';
+  const count = $('#countPill');
+  if (count) count.hidden = view !== 'carousel';
   /* 换模式 / 增删本时把「滑动中让开的浮层按钮」收回来，免得停在隐藏态 */
   $('#home').classList.remove('bars-away');
   syncHomeHead();

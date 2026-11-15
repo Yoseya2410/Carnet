@@ -106,3 +106,41 @@
 @keyframes mkspin{to{transform:rotate(360deg)}}
 .mk-tx{font-variant-numeric:tabular-nums}
 
+/* ============ 自定义书脊（编辑器折叠小节）============
+   裁切舞台用 inline-block 包住 <img>：舞台宽高 = 图片真正显示的宽高，
+   选区的 left/width 百分比才直接等于「占封面宽的比例」，不用换算 letterbox。 */
+.sp-modes{margin-top:12px}
+.sp-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px}
+/* 这两块显式给了 display，[hidden] 的 UA 样式压不过，得自己补一条 */
+.sp-row[hidden],.sp-crop-box[hidden]{display:none}
+.sp-thumb{width:34px;height:76px;background-size:100% 100%}
+.sp-crop-box{margin-top:12px;text-align:center}
+.sp-crop-stage{
+  /* 宽高由 JS 在图片 load 后写成「图片真正显示的宽高」：选区百分比才等于原图比例。
+     没图时整块收掉，别留一个空框。 */
+  position:relative;display:block;width:max-content;max-width:100%;margin:0 auto;
+  overflow:hidden;line-height:0;
+  border:1px solid rgba(255,255,255,.2);border-radius:9px;background:rgba(0,0,0,.2);
+  touch-action:none;cursor:ew-resize
+}
+.sp-crop-stage[hidden]{display:none}
+.sp-crop-stage img{display:block;width:auto;height:auto;max-width:100%;max-height:190px}
+.sp-crop-stage img[hidden]{display:none}
+.sp-crop-sel{
+  position:absolute;top:0;bottom:0;left:43%;width:14%;pointer-events:none;
+  border-left:2px solid #fff;border-right:2px solid #fff;
+  /* 超大投影当遮罩：超出舞台的部分被 overflow:hidden 裁掉，只剩选区里是亮的 */
+  box-shadow:0 0 0 1px rgba(0,0,0,.4),0 0 0 9999px rgba(8,10,18,.52)
+}
+.sp-crop-ctl{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:12px;opacity:.85}
+.sp-crop-ctl .ed-range{flex:1 1 auto}
+.sp-pv-row{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  margin:14px 0 10px;font-size:12px;opacity:.85
+}
+.sp-pv-row b{font-weight:600;opacity:.95}
+.sp-preview{
+  flex:0 0 auto;width:30px;height:150px;border-radius:2px;
+  box-shadow:2px 5px 8px -5px rgba(10,12,20,.6),inset 0 0 0 1px rgba(255,255,255,.14)
+}
+

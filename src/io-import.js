@@ -75,6 +75,11 @@ function normalizeJournal(raw) {
   if (cv.radius !== undefined && cv.radius !== null && cv.radius !== '' && Number.isFinite(Number(cv.radius)))
     out.cover.radius = clamp(Number(cv.radius), COVER_R_MIN, COVER_R_MAX);
   else delete out.cover.radius;
+  /* 自定义书脊：图只认 base64 位图（跟封面图 / 模板图同一道白名单），
+     来源标签只留 upload / crop。上面 ...cv 会把它们原样带过来，这里把脏值剔掉，
+     免得外链 / svg 文本混进 style 或下一次导出。 */
+  if (!isImgData(out.cover.spineImg)) delete out.cover.spineImg;
+  if (out.cover.spineFrom !== 'upload' && out.cover.spineFrom !== 'crop') delete out.cover.spineFrom;
   /* 活页封面内侧：只认合法模式 / hex 色 / base64 位图；老文件没这个字段就删掉（走 auto 主色）。
      ⚠️ 别把 insideDominant 之类的派生缓存写进来，主色一律在运行时按封面现算。 */
   if (cv.inside && typeof cv.inside === 'object') {

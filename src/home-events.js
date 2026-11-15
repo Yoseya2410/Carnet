@@ -408,7 +408,16 @@ $('#shelfWrap').addEventListener('click', e => {
     return;
   }
   const item = e.target.closest('.book-item');
-  if (!item) { shelfClearTouched(null); return; }
+  if (!item) {
+    /* 点周围空白 = 放手：抬起的那一本（.active）与露出的按钮（.touched）一起收回。
+       ⚠️ 手机上没有 mouseout，桌面那套「离开即取消」补不上这一下，
+          只清 .touched 会让书一直悬在半空（2026-11-15）。
+       顺手把长按留下的 fired 消费掉，免得点完空白后下一次点书被当成「抬手不翻开」。 */
+    shelfClearTouched(null);
+    shelfUnpick();
+    shelfHold.fired = false;
+    return;
+  }
   if (shelfHold.fired) { shelfHold.fired = false; return; }   // 长按的抬手被吞掉
   const i = +item.dataset.i;
   if (!Number.isFinite(i)) return;
@@ -872,9 +881,20 @@ function renderSearch(q) {
       openReader();
       return;
     }
-    /* 单层书架：滑到那一根书脊，并把预览切到它 —— 不然鼠标没停在书脊上，
-       下方空着，看不出搜索到底跳到哪一本了 */
-    if (state.prefs.view === 'spine') { selectJournal(i, true); spineSetHover(i); return; }
+    /* 单层书架：先定位到那一根书脊，再从架上抽出来翻开（跟直接点书脊同一个动画）。
+       ⚠️ 定位必须**同步、瞬时**完成：开书动画由 coverRect() 量书脊此刻的 rect，
+          用 smooth 或塞进 requestAnimationFrame 都会量到屏幕外的坐标，封面会从画外飞进来
+          （多层书架那条分支的注释说的是同一件事）。
+       ⚠️ 别走 selectJournal(i, true)：它在 spine 档里带 smooth 横滑，且只定位不翻开。 */
+    if (state.prefs.view === 'spine') {
+      state.sel = clamp(i, 0, Math.max(state.journals.length - 1, 0));
+      syncSpineSelection(false);               // 抬起这一根 + 预览切过去，但不做平滑滚动
+      const target = $(`#spineRow .spine-item[data-i="${state.sel}"]`);
+      if (target && target.scrollIntoView) target.scrollIntoView({ block: 'nearest', inline: 'center' });
+      if (typeof spineDetailShift === 'function') spineDetailShift();   // 滚完重新对位预览
+      spineOpen(state.sel);                    // 抽出 → openReader()，起飞点才落在视口里
+      return;
+    }
     selectJournal(i, true);    // 左右滑动：先滑到这一本，再点一下封面才翻开（跟平时翻书一致）
   });
 }
@@ -960,7 +980,7 @@ function toggleMenu(el) {
   closeMenus();
   if (open) el.classList.add('show');
 }
-/* 右上角「菜单」：导入 / 一键成书 / 导入 PDF / 背景设置 / 帮助与反馈。
+/* 右上角「菜单」：导入 / 一键成书 / 导入 PDF / 主页设置 / 帮助与反馈。
    后三项原先挂在底栏那颗「更多」上，现在一并收在这里（底栏只留 分享 · 删除 · 新建） */
 $$('#homeMenu button').forEach(b => b.onclick = () => {
   closeMenus();

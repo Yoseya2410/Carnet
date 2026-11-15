@@ -21,7 +21,7 @@
   background:rgba(20,22,38,.62);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)
 }
 .cp-mask.show{display:grid;animation:fadeIn .2s ease}
-/* 取色盘要压在「背景设置」面板上面。 */
+/* 取色盘要压在「主页设置」面板上面。 */
 #cpMask{z-index:170;overflow-y:auto}
 .cp-mask.kb{place-items:start center;padding-top:4vh}
 .cp-panel{
@@ -180,10 +180,8 @@
 .ep-btn.ok{background:var(--accent);border-color:rgba(255,255,255,.32)}
 .ep-btn.ok:hover{filter:brightness(1.1)}
 .pat-grid,.tpl-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-/* 封面纹理三档小样：跟图案格同一副骨架，只是三列、近方形（纹理要看得清）、没有书脊那一竖条。
-   每格两层 .pv：.tex-base 是当前封面底色，.tex-pv 是这一档材质贴片。 */
-.tex-grid{grid-template-columns:repeat(3,1fr)}
-.tex-grid .pat{aspect-ratio:1/1.1;border-radius:10px}
+/* 封面纹理三档小样已搬进「自定义封面 → 封面设置」（见 diy-cover.css 的 .diy-tex），
+   这里不再有 .tex-grid：编辑手账本页不显示纹理设置。 */
 .pat,.tpl{
   aspect-ratio:148/210;border-radius:12px;border:2px solid rgba(255,255,255,.18);overflow:hidden;
   position:relative;background:#eee;transition:transform .15s,border-color .2s

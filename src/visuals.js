@@ -14,7 +14,7 @@
  *    凹陷的凹面柔影 frameInsetHTML（三者屏幕与导出共用，改一处四边同源）
  * ⑨ 活页封面内侧 coverInsideStyle（自动主色 / 与封面一致 / 自定义）、书槽开关 coverGrooveOn
  *
- * 对外接口：patternLayers, patternStyle, faceLayers, COVER_TEXTURES, normTexture, texOf, textureStyle, textureLayerHTML, coverLum, isImgData, TEMPLATES, tplImgOf, TPL_IMGS_MAX, tplImgsOf, normTplFit, tplStyle, TEXT_FONTS, EN_FONTS, normFont, textFontVar, textFontStack, normEnFont, textEnVar, textEnStack, PAPER_RAMPS, pageBgOf, pageBgShown, OB_*_SVG, ROT_SVG, BOOK_STYLES, bookStyleOf, pageRatioOf, COVER_R_MIN, COVER_R_MAX, coverRadiusOf, coverRadiusVar, bookRadiusOf, INSIDE_MODES, INSIDE_PALETTE_MAX, normInsideMode, insideOf, insideModeOf, coverInsideStyle, dominantColorsOf, coverInsidePalette, enFontSample, enFontLabel, coverGrooveOn, FRAMES, frameBoxStyle, frameImgStyle, frameInsetHTML
+ * 对外接口：patternLayers, patternStyle, faceLayers, COVER_TEXTURES, normTexture, texOf, textureStyle, texSwatchStyle, textureLayerHTML, coverLum, isImgData, TEMPLATES, tplImgOf, TPL_IMGS_MAX, tplImgsOf, normTplFit, tplStyle, TEXT_FONTS, EN_FONTS, normFont, textFontVar, textFontStack, normEnFont, textEnVar, textEnStack, PAPER_RAMPS, pageBgOf, pageBgShown, OB_*_SVG, ROT_SVG, BOOK_STYLES, bookStyleOf, pageRatioOf, COVER_R_MIN, COVER_R_MAX, coverRadiusOf, coverRadiusVar, bookRadiusOf, INSIDE_MODES, INSIDE_PALETTE_MAX, normInsideMode, insideOf, insideModeOf, coverInsideStyle, dominantColorsOf, coverInsidePalette, enFontSample, enFontLabel, coverGrooveOn, FRAMES, frameBoxStyle, frameImgStyle, frameInsetHTML
  *
  * 依赖模块：core
  *
@@ -395,13 +395,17 @@ function faceLayers(cover, patKey, preview) {
       ② 固定种子伪随机，每次重绘 / 导出都是同一张图，纹理不会"跳一下"；
       ③ 贴片只挂在 DOM 的 background-image 上，不烘进 cover.img 的**对象层** ——
          DIY 画布和成品封面都把纹理垫在底色上，绝不压到照片 / 文字。
-   ⚠️ 贴片尺寸一律按「封面宽的百分比 + auto」给（auto 那维吃 PNG 的固有比例，
+   ⚠️ 尺寸一律按「封面宽的百分比 + auto」给（auto 那维吃 PNG 的固有比例，
       tile 永远不变形）：主页小封面 / 阅读器大封面 / 900px 导出封面疏密完全一致，
-      导出不需要再按 W 缩放。书脊是窄条，走 fixed 档用 px 保证材质密度不变。 */
+      导出不需要再按 W 缩放。书脊是窄条，走 fixed 档用 px 保证材质密度不变。
+   ⚠️ 材质按用户给的两张白底实拍图重做（2026-11-15）：
+      纸 = 几乎看不出方向的多倍频颗粒 + 极少量纸浆杂质，绝不能再画成一条条短线；
+      布 = 天然亚麻平纹，纱线是**圆的**（中间迎光、两侧转暗）、每根粗细略有差别、
+      一上一下交错，还带偶发的粗纬纱横条，不能再用硬矩形拼成棋盘格。 */
 const COVER_TEXTURES = [
   { k: 'none',  n: '无纹理', d: '光滑封面' },
   { k: 'paper', n: '纸纹',   d: '细密纸纤维' },
-  { k: 'cloth', n: '布纹',   d: '经纬编织' }
+  { k: 'cloth', n: '布纹',   d: '亚麻经纬编织' }
 ];
 function normTexture(t) { return COVER_TEXTURES.some(x => x.k === t) ? t : 'none'; }
 function texOf(cover) { return normTexture(cover && cover.texture); }
@@ -418,45 +422,121 @@ function texCanvas(S, draw) {
   draw(x, S);
   try { return c.toDataURL('image/png'); } catch (_) { return ''; }
 }
-/* 纸纹：短而细的近水平纤维（黑白各半，深浅底都看得见）+ 少量颗粒。
-   线跨出贴片边界不补画 —— 浓度很低，平铺接缝看不出来。 */
+/* 可平铺的值噪声：n×n 随机格点，smoothstep 双线性插值，索引取模回绕，
+   所以贴片四边接得上，不会出现一条直缝。 */
+function texLattice(r, n) {
+  const g = new Float32Array(n * n);
+  for (let i = 0; i < g.length; i++) g[i] = r();
+  return g;
+}
+function texNoise(g, n, u, v) {
+  const fx = u * n, fy = v * n, ix = Math.floor(fx), iy = Math.floor(fy);
+  const tx = fx - ix, ty = fy - iy;
+  const sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty);
+  const at = (a, b) => g[((b % n + n) % n) * n + ((a % n + n) % n)];
+  const a = at(ix, iy), b = at(ix + 1, iy), c = at(ix, iy + 1), d = at(ix + 1, iy + 1);
+  const top = a + (b - a) * sx, bot = c + (d - c) * sx;
+  return top + (bot - top) * sy;
+}
+/* alpha 量化到 8 级：逐像素噪声若用连续 alpha，PNG 几乎压不动，
+   base64 dataURL 会肥到几百 KB；量化后体感没有差别，体积降到几十分之一。 */
+function texAlpha(v, step) {
+  const q = step || 8;
+  return Math.max(0, Math.min(255, Math.round(v * 255 / q) * q));
+}
+/* 纸纹（参考白底细纹纸）：低倍云斑 + 中倍纸浆絮 + 高倍纤维 + 逐像素颗粒，
+   四层叠成一张几乎无方向性的连续明暗场；再撒极少量针尖大的深色杂质和短纤维。
+   黑白各半、alpha 很低，深底浅底都读得出，又不会把封面洗成灰。 */
 function paperTexURL() {
-  return texCanvas(96, (x, S) => {
-    const r = texRand(20261114);
-    x.lineCap = 'round';
-    for (let i = 0; i < 300; i++) {
-      const px = r() * S, py = r() * S, len = 1.5 + r() * 7, a = (r() - .5) * .9;
-      x.strokeStyle = r() < .55 ? 'rgba(0,0,0,.075)' : 'rgba(255,255,255,.13)';
-      x.lineWidth = .35 + r() * .55;
-      x.beginPath();
-      x.moveTo(px, py);
-      x.lineTo(px + Math.cos(a) * len, py + Math.sin(a) * len);
-      x.stroke();
+  return texCanvas(192, (x, S) => {
+    const r = texRand(20261115);
+    const g1 = texLattice(r, 6), g2 = texLattice(r, 26), g3 = texLattice(r, 96);
+    const img = x.createImageData(S, S), d = img.data;
+    /* ⚠️ 参考的细纹纸几乎是均匀的一层细颗粒 + 极淡的大尺度明暗：
+       中频给多了会变成一条条「小虫」（实测 26 / 96 格点权重 .67 就是这样），
+       低频给多了会变成灰色云 / 水渍。这里让逐像素颗粒占绝对主导。 */
+    for (let py = 0; py < S; py++) {
+      const v = py / S;
+      for (let px = 0; px < S; px++) {
+        const u = px / S;
+        const cloud = .16 * texNoise(g1, 6, u, v) + .10 * texNoise(g2, 26, u, v)
+                    + .08 * texNoise(g3, 96, u, v);
+        const dev = (cloud - .17) * .34 + (r() - .5) * .80;
+        const i = (py * S + px) * 4;
+        const dark = dev < 0;
+        d[i]     = dark ? 66 : 255;
+        d[i + 1] = dark ? 63 : 255;
+        d[i + 2] = dark ? 58 : 253;
+        /* alpha 量化到 2 级而不是 8 级：8 级会量化成一颗颗硬白点 / 黑洞，
+           纸面看起来像撒了盐；细颗粒需要连续的深浅。 */
+        d[i + 3] = texAlpha(Math.min(.075, Math.abs(dev) * .20), 2);
+      }
     }
-    for (let i = 0; i < 220; i++) {
-      x.fillStyle = r() < .55 ? 'rgba(0,0,0,.055)' : 'rgba(255,255,255,.10)';
-      x.beginPath();
-      x.arc(r() * S, r() * S, .25 + r() * .5, 0, Math.PI * 2);
-      x.fill();
+    x.putImageData(img, 0, 0);
+    for (let i = 0; i < 18; i++) {                 // 纸浆里的针尖杂质
+      const px = r() * S, py = r() * S, rad = .25 + r() * .7;
+      x.fillStyle = `rgba(60,56,48,${(.07 + r() * .10).toFixed(3)})`;
+      x.beginPath(); x.arc(px, py, rad, 0, Math.PI * 2); x.fill();
     }
   });
 }
-/* 布纹：6px 一格，经纱 / 纬纱各画一深一浅两条，按棋盘交错谁压谁 ——
-   平纹编织的明暗就是这么来的。tile 本身 24×24，平铺后是一整块亚麻布。 */
+/* 布纹（参考白底亚麻布）：4px 一根纱、192px 贴片（48×48 格）的平纹组织。
+   每根经纱 / 纬纱都是圆柱截面 —— 中间迎光亮、两侧转暗，格边留一道织缝暗影；
+   每根纱的粗细与亮度有微小差别（亚麻天然不匀），另有两行偶发的粗纬纱横条。
+   (ix+iy) 奇偶决定这一格谁压谁，织点交错才不会看成一张方格纸。
+   ⚠️ 贴片从 96px 提到 192px（2026-11-15 用户「布纹再细一点、太明显太大了」）：
+      铺法仍是封面宽的 39.2%，格子数翻倍 → 屏幕上一根纱约 1.9px（原来约 3.8px），
+      不再像粗方格布。这次**故意不把百分比同比放大**（放大就把纱线还原成原粗细）；
+      tile 内每根纱仍保留 4px 采样，圆柱明暗不会被压成硬线或糊成一片灰。
+      alpha 上限也一并从 .13 压到 .085：细了以后织点交错仍太抢眼会显脏。 */
 function clothTexURL() {
-  return texCanvas(24, (x, S) => {
-    const cell = 6;
-    for (let ry = 0; ry < S; ry += cell) for (let rx = 0; rx < S; rx += cell) {
-      const over = (((rx / cell) + (ry / cell)) & 1) === 0;
-      const weft = () => {
-        x.fillStyle = 'rgba(255,255,255,.13)'; x.fillRect(rx, ry + 1.1, cell, 2.1);
-        x.fillStyle = 'rgba(0,0,0,.055)';      x.fillRect(rx, ry + 3.5, cell, .9);
-      };
-      const warp = () => {
-        x.fillStyle = 'rgba(0,0,0,.06)';       x.fillRect(rx + 1.1, ry, 2.1, cell);
-        x.fillStyle = 'rgba(255,255,255,.10)'; x.fillRect(rx + 3.5, ry, .9, cell);
-      };
-      if (over) { warp(); weft(); } else { weft(); warp(); }
+  return texCanvas(192, (x, S) => {
+    const r = texRand(20261115);
+    const cell = 4, n = S / cell;                 // 4px 一根纱，细密亚麻而不是大方格
+    const warpW = [], weftW = [], warpL = [], weftL = [];
+    for (let i = 0; i < n; i++) {
+      warpW.push(.74 + r() * .22); weftW.push(.74 + r() * .22);
+      warpL.push(.90 + r() * .20); weftL.push(.90 + r() * .20);
+    }
+    /* 横向的疏密带：参考图里纬纱不是每根一样亮，每隔十几根有一道更实 / 更虚的横条。
+       用一条可平铺的低频噪声按行调制，比挑两行做硬高光自然得多。 */
+    /* 贴片边长翻倍后格点也翻倍：横条在「第几根纱」这个尺度上才和原来一样宽 */
+    const band = texLattice(r, 16);
+    const slubA = Math.floor(r() * n), slubB = Math.floor(r() * n);
+    const img = x.createImageData(S, S), d = img.data;
+    for (let py = 0; py < S; py++) {
+      const iy = Math.floor(py / cell), fy = (py % cell) / cell;
+      const bn = (texNoise(band, 16, 0, py / S) - .5) * .16;
+      const slub = (iy === slubA || iy === slubB) ? .06 : 0;
+      for (let px = 0; px < S; px++) {
+        const ix = Math.floor(px / cell), fx = (px % cell) / cell;
+        const warp = Math.max(0, 1 - Math.abs(fx - .5) / (warpW[ix] / 2));
+        const weft = Math.max(0, 1 - Math.abs(fy - .5) / (weftW[iy] / 2));
+        const wp = Math.pow(warp, .8) * warpL[ix];
+        const fp = Math.pow(weft, .8) * weftL[iy] * (1 + slub);
+        const warpOver = ((ix + iy) & 1) === 0;
+        const top = warpOver ? wp : fp, under = (warpOver ? fp : wp) * .72;
+        /* 织缝只压一点点：gap 给大了会变成一个个「＋」字排成的方格纸。
+           真实亚麻是纱线彼此贴着，只有交叉点略暗。 */
+        const gap = (1 - Math.max(warp, weft)) * .16;
+        const L = Math.min(1, top * .52 + under * .34 + .14) - gap + bn;
+        const dev = L - .54 + (r() - .5) * .05;
+        const i = (py * S + px) * 4;
+        const dark = dev < 0;
+        d[i]     = dark ? 82 : 255;
+        d[i + 1] = dark ? 78 : 254;
+        d[i + 2] = dark ? 70 : 249;
+        d[i + 3] = texAlpha(Math.min(.085, Math.abs(dev) * .20), 2);
+      }
+    }
+    x.putImageData(img, 0, 0);
+    x.lineCap = 'round';
+    for (let i = 0; i < 26; i++) {                  // 浮在布面上的绒毛 / 竹节丝
+      const px = r() * S, py = r() * S, len = 2 + r() * 8, a = (r() - .5) * .22;
+      x.strokeStyle = r() < .55 ? 'rgba(255,255,255,.055)' : 'rgba(86,80,68,.045)';
+      x.lineWidth = .3 + r() * .35;
+      x.beginPath(); x.moveTo(px, py);
+      x.lineTo(px + Math.cos(a) * len, py + Math.sin(a) * len); x.stroke();
     }
   });
 }
@@ -478,9 +558,29 @@ function textureStyle(cover, fixed) {
   if (cover && cover.img) return '';
   const url = texURL(k);
   if (!url) return '';
+  /* 铺法与贴片分辨率是**一对**，动 tile 大小时这里必须一起看：
+     · 纸 192px tile：细颗粒本来就该更细，屏幕 42% / 书脊 fixed 192px（1:1）。
+     · 布 192px tile（48 格）：屏幕 39.2% —— 230px 封面 ≈ 91px 显示 / 48 格 ≈ 1.9px 一根纱。
+       ⚠️ 这个百分比**不是**要跟 tile 同比放大：2026-11-15 就是靠「tile 翻倍、百分比不动」
+          把 3.8px 的粗方格收成细亚麻；真按倍数放大回去，纱线会变回原来那么粗。
+       书脊 / 白底小样 fixed 96px 恰好把 192px tile 缩到一半，也是约 2px 一根纱，
+       和屏幕上的密度对得上 —— 别改成 192px。 */
   const size = fixed
-    ? (k === 'paper' ? '96px 96px' : '24px 24px')
-    : (k === 'paper' ? '42% auto' : '9.8% auto');
+    ? (k === 'paper' ? '192px 192px' : '96px 96px')
+    : (k === 'paper' ? '42% auto' : '39.2% auto');
+  return `background-image:url('${url}');background-size:${size};`
+    + `background-position:0 0;background-repeat:repeat;`;
+}
+/* 设置面板里的小样：**白底**（用户给的两张参考图都是白纸 / 白麻布），
+   不再跟着当前封面底色变 —— 以前封面是暖黄渐变时三个小样也全变黄，看不出材质。
+   尺寸按 px 固定，跟小样盒子大小无关；只在设置 UI 用，不进封面 / 导出。 */
+function texSwatchStyle(k) {
+  const kind = normTexture(k);
+  if (kind === 'none') return '';
+  const url = texURL(kind);
+  if (!url) return '';
+  /* 布 tile 是 192px，固定铺成 96px = 缩一半，小样上的纱线约 2px，和真封面同密度 */
+  const size = kind === 'paper' ? '192px 192px' : '96px 96px';
   return `background-image:url('${url}');background-size:${size};`
     + `background-position:0 0;background-repeat:repeat;`;
 }
@@ -953,6 +1053,30 @@ function normTplFit(v) { return TPL_FITS.includes(v) ? v : 'cover'; }
 function isImgData(v) {
   const s = String(v || '');
   return /^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=]+$/i.test(s);
+}
+/* ---- 自定义书脊（单层书架那一根）----
+   cover.spineImg = 一张烘好的位图：另传的书脊片，或从封面图上裁下来的窄条。
+   cover.spineFrom = 'upload' | 'crop'，只供编辑器显示来源，渲染一概不认。
+   ⚠️ 跟 tplImg 同一道白名单：这串要塞进 style="…" 和导出的源文件里，
+      svg 文本 / 外链 / 乱填的一律当「没设」，老数据免迁移。 */
+function spineImgOf(j) {
+  const s = String((j && j.cover && j.cover.spineImg) || '');
+  return isImgData(s) ? s : '';
+}
+function spineFromOf(j) {
+  const v = (j && j.cover && j.cover.spineFrom) || '';
+  return (v === 'upload' || v === 'crop') ? v : '';
+}
+/* 书脊底色唯一源：主页 spineItemHTML 与编辑器效果预览都吃这一份。
+   自定义书脊片按书脊高矮拉伸铺满（上传的本就是一条竖长图，跟着每本书的长短走）；
+   没设过时沿用封面的图 / 底色，跟加这个功能之前一模一样。 */
+function spineBackdrop(j) {
+  const sp = spineImgOf(j);
+  if (sp) return `background-image:url('${sp}');background-size:100% 100%;background-position:center;`;
+  const cv = (j && j.cover) || {};
+  return cv.img
+    ? `background-image:url('${cv.img}');background-size:cover;background-position:center;`
+    : `background:${cv.value || GRADS[1]};`;
 }
 function tplImgOf(j) {
   const s = String((j && j.tplImg) || '');

@@ -17,7 +17,7 @@ const carousel = (() => {
   let items = [], off = 0, minOff = 0, maxOff = 0;
   let dragging = false, moved = false, startX = 0, startOff = 0, lastX = 0, lastT = 0, vel = 0;
   let suppressClick = false, wheelLock = 0;
-  let holdTimer = 0, pendingEl = null, pendingX = 0, sorting = null;
+  let holdTimer = 0, pendingEl = null, pendingX = 0, pendingY = 0, sorting = null;
   const HOLD_MS = 420;                          // 长按多久进入排序
 
   /* 每本书的中心点 / 宽度只在 measure() 里量一次，之后一直复用：
@@ -144,16 +144,19 @@ const carousel = (() => {
     paint();
   }
 
-  /* ===== 长按拖动排序：选中一本，左右拖到目标位置，松手落位 ===== */
+  /* ===== 长按拖动排序：把一本「拎起来」跟手走，左右拖到目标位置，松手落位 =====
+     被拖的那本 X / Y 都跟着手指（像多层书架的悬浮副本）；其余书仍只按**横向**位置让位，
+     所以上下挪动只影响手上这一本的外观，不会把顺序搅乱。 */
   function buzz(ms) { try { navigator.vibrate && navigator.vibrate(ms); } catch (_) {} }
-  function beginSort(el, x) {
+  function beginSort(el, x, y) {
     const els = [...track.children];
     const from = els.indexOf(el);
     if (from < 0 || els.length < 2) return;
     const bases = els.map(e => e.offsetLeft);
     const step = Math.abs(bases[1] - bases[0]) || el.offsetWidth;
-    sorting = { el, els, bases, step, from, to: from, lastTo: from, startX: x,
-                x, dx: 0, scroll: 0, auto: 0, raf: 0, lastT: 0, dragged: false,
+    sorting = { el, els, bases, step, from, to: from, lastTo: from,
+                startX: x, startY: y, x, y, dx: 0, dy: 0,
+                scroll: 0, auto: 0, raf: 0, lastT: 0, dragged: false,
                 wrapRect: wrap.getBoundingClientRect() };  // 拖动期间容器不动，边缘判定只量这一次
     dragging = false; vel = 0;                  // 交出横向滚动的控制权
     stopInertia();
@@ -192,9 +195,10 @@ const carousel = (() => {
   }
   function applySort() {
     const s = sorting; if (!s) return;
+    /* 目标格只认横向位移：纵向位移纯粹是「拎起来」的视觉，不参与换位 */
     s.to = clamp(s.from + Math.round((s.dx + s.scroll) / s.step), 0, s.els.length - 1);
     if (s.to !== s.lastTo) { s.lastTo = s.to; buzz(8); }
-    s.el.style.transform = `translateX(${s.dx.toFixed(1)}px) scale(1.07)`;
+    s.el.style.transform = `translate(${s.dx.toFixed(1)}px,${s.dy.toFixed(1)}px) scale(1.07) rotate(-1.5deg)`;
     const view = wrapW / 2 - off;
     s.els.forEach((e, i) => {
       if (e === s.el) return;
@@ -208,10 +212,11 @@ const carousel = (() => {
       e.style.transform = `translateX(${shift.toFixed(1)}px) scale(${(1 + 0.055 * k).toFixed(4)})`;
     });
   }
-  function moveSort(x) {
+  function moveSort(x, y) {
     const s = sorting;
-    s.x = x; s.dx = x - s.startX;
-    if (Math.abs(s.dx) > 6) s.dragged = true;    // 真的拖动了才吞掉随后的 click
+    s.x = x; s.y = y;
+    s.dx = x - s.startX; s.dy = y - s.startY;
+    if (Math.abs(s.dx) > 6 || Math.abs(s.dy) > 6) s.dragged = true;  // 真的拖动了才吞掉随后的 click
     const r = s.wrapRect, edge = Math.max(56, r.width * 0.18);
     let a = 0, depth = 0;
     if (x > r.right - edge) { a = 1; depth = Math.min(1, (x - (r.right - edge)) / Math.max(edge, 1)); }
@@ -257,11 +262,11 @@ const carousel = (() => {
     ease(false);
     /* 手指按住不动才算长按；一旦开始横向滑就把长按作废，让位给滚动 */
     clearTimeout(holdTimer);
-    pendingEl = e.target.closest('.book-item'); pendingX = e.clientX;
-    holdTimer = setTimeout(() => { if (pendingEl) beginSort(pendingEl, pendingX); }, HOLD_MS);
+    pendingEl = e.target.closest('.book-item'); pendingX = e.clientX; pendingY = e.clientY;
+    holdTimer = setTimeout(() => { if (pendingEl) beginSort(pendingEl, pendingX, pendingY); }, HOLD_MS);
   });
   window.addEventListener('pointermove', e => {
-    if (sorting) { moveSort(e.clientX); return; }
+    if (sorting) { moveSort(e.clientX, e.clientY); return; }
     if (!dragging) return;
     const x = e.clientX, now = performance.now();
     const dx = x - startX;
@@ -297,6 +302,11 @@ const carousel = (() => {
   };
   window.addEventListener('pointerup', endDrag);
   window.addEventListener('pointercancel', endDrag);
+  /* 触摸时纵向拖动会被浏览器当成页面滚动抢走（touch-action 在手势落下那一刻就定死了，
+     长按计时到了再加 .sortmode 来不及）。排序中拦掉 touchmove，Y 才能真跟手。 */
+  document.addEventListener('touchmove', e => {
+    if (sorting && e.cancelable) e.preventDefault();
+  }, { passive: false });
   wrap.addEventListener('wheel', e => {
     if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
     const now = performance.now();

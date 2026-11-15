@@ -7,17 +7,33 @@
  * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
  * ===================================================================== */
 /* ============ 搜索面板 ============ */
+/* 搜索页是**整屏**的一层：inset:0 盖住整个 #app（含顶栏 / 底栏），
+   不再是从顶上垂下来、越往下越透明、只挡住半屏的一条渐隐浮层。
+   结果列表 flex:1 吃掉剩下全部高度，自己滚；align-content:start 免得几行结果被拉散。 */
 .search-panel{
-  position:absolute;left:0;right:0;top:0;z-index:70;padding:14px 16px 12px;
+  position:absolute;inset:0;z-index:70;display:flex;flex-direction:column;
+  padding:14px 16px calc(12px + env(safe-area-inset-bottom));
   padding-top:calc(14px + env(safe-area-inset-top));
-  background:linear-gradient(180deg,rgba(30,34,54,.84),rgba(30,34,54,.7) 70%,rgba(30,34,54,0));
+  background:rgba(24,27,44,.96);
   backdrop-filter:var(--frost-fx);-webkit-backdrop-filter:var(--frost-fx);
   transform:translateY(-102%);transition:transform .34s cubic-bezier(.25,.9,.3,1),opacity .3s;
   opacity:0;pointer-events:none
 }
 .search-panel.show{transform:none;opacity:1;pointer-events:auto}
-.search-row{display:flex;align-items:center;gap:9px}
+.search-row{display:flex;align-items:center;gap:9px;flex:0 0 auto}
 .search-panel .text-input{flex:1;background:rgba(255,255,255,.12)}
+/* `type="search"` 输入文字后，Chromium / Safari 会自己塞一个清除叉（蓝底圆叉），
+   跟这套黑白玻璃 UI 不搭 —— 只藏掉这几个原生装饰，别改 input 的 type：
+   手机键盘右下角的「搜索」键、Enter 提交语义都还靠 type=search。
+   ⚠️ 光写 -webkit-appearance:none 在部分版本仍会占位，display:none + 尺寸归零才干净；
+      iOS Safari 偶尔连伪元素规则都不吃，所以 input 自己也设一份 appearance:none 兜底。
+   清空能力不受影响：关闭搜索页时 toggleSearch(false) 已把 value 清空。 */
+#searchInput{-webkit-appearance:none;appearance:none}
+#searchInput::-webkit-search-cancel-button,
+#searchInput::-webkit-search-decoration,
+#searchInput::-webkit-search-results-button{
+  -webkit-appearance:none;appearance:none;display:none;width:0;height:0
+}
 /* 搜索框聚焦（选中）：**纯黑**边框。
    ⚠️ 别再套白色 / 半透明黑外圈：深底那圈 rgba(255,255,255,.55)、浅底那圈
       rgba(17,19,24,.2) 会把 1px 黑边衬成「浅黑 / 灰」，用户要的是明确的黑。
@@ -32,7 +48,16 @@
   background:var(--glass);border:1px solid var(--glass-bd);font-size:16px
 }
 .search-results{
-  margin-top:12px;max-height:52vh;overflow-y:auto;overflow-x:hidden;display:grid;gap:8px;
+  margin-top:12px;flex:1 1 auto;min-height:0;align-content:start;
+  overflow-y:auto;overflow-x:hidden;display:grid;gap:10px 12px;
+  /* 结果卡按屏宽自适应分列（2026-11-15）：窄屏一列、宽屏两 / 三 / 四列。
+     列宽下限用 clamp(240px,24vw,320px)：窄屏保底 240px（缩略图 42px + 间距 +
+     书名 / 日期的最小可读宽度），屏越宽下限越大，卡片不会越分越碎 ——
+     实测 390 一列 / 600~768 两列 / 1080 三列 / 1440 四列。
+     auto-fill 放不下一列时自己退回少一列，不会把卡片挤扁；
+     min(100%,…) 保证极窄屏（可用宽 < 下限）也不横向溢出。
+     ⚠️ 别写死 repeat(4,…)：手机上一行四张卡会全糊在一起。 */
+  grid-template-columns:repeat(auto-fill,minmax(min(100%,clamp(240px,24vw,320px)),1fr));
   /* 预留滚动条位置，结果条数变化时列表不会左右抖 */
   scrollbar-gutter:stable;padding-right:4px;overscroll-behavior:contain
 }
@@ -58,5 +83,6 @@
 .sr-item .nm{font-size:14px;font-weight:600;letter-spacing:.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sr-item .nm mark{background:rgba(240,180,120,.42);color:#ffd9a8;border-radius:3px;padding:0 1px}
 .sr-item .meta{font-size:11.5px;opacity:.66;margin-top:3px;letter-spacing:.04em}
-.sr-empty{padding:26px 0;text-align:center;font-size:13px;opacity:.6}
+/* 空结果 / 无本子提示要横跨整行，多列下不能缩在左上角的第一格里 */
+.sr-empty{grid-column:1/-1;padding:26px 0;text-align:center;font-size:13px;opacity:.6}
 
