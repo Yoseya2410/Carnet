@@ -118,7 +118,6 @@ function renderShelf(order, sel) {
   const bw = Math.round(clamp(W * 0.205, 86, 158));   // 书宽 ≈ 容器宽的两成，不过窄不过宽
   const gap = Math.round(clamp(W * 0.032, 14, 44));   // 间隙也跟着缩放
   wrap.style.setProperty('--sbw', bw + 'px');
-  wrap.style.setProperty('--sgap', gap + 'px');
   /* 玻璃 / 台面**每排一样长**：变量挂在 wrap 上，所有排共用。
      取可用宽的 95%（两端各再让出约 2.5%）：整条铺满会显得过长，
      参考图里板子左右各留一小截空白，收一点更接近。
@@ -145,6 +144,21 @@ function renderShelf(order, sel) {
   wrap.style.setProperty('--rivet-d', rivetD + 'px');
   wrap.style.setProperty('--rivet-x', rivetX + 'px');
   const usable = Math.max(boardW - 2 * (rivetX + rivetD), 1);
+  /* 移动端竖屏**尽量让一排站 3 本**（用户 2026-11-15）：
+     3 本常规书 + 默认间距放不下时，把间距收到「刚好够 3 本」那一档。
+     ⚠️ 间距有下限 SHELF_MIN_GAP：书不能挨着书，得留一部分呼吸；
+        收到下限仍放不下（如 320px 极窄屏，3 本光书宽就 258 > 净宽 244），
+        就保持默认间距 —— 缩了也塞不进 3 本，别白白把两本书挤在一起。
+     ⚠️ 只对「窄 + 竖屏」生效：宽屏照旧按可用宽度能放几本放几本，
+        否则桌面会因为间距变小多塞一本、把定稿的 4 本/排改成 5 本。 */
+  const SHELF_MIN_GAP = 10;
+  const narrowPortrait = innerHeight > innerWidth && Math.min(innerWidth, innerHeight) <= 520;
+  let shelfGap = gap;
+  if (narrowPortrait && 3 * bw + 2 * gap > usable) {
+    const fit3 = Math.floor((usable - 3 * bw) / 2);
+    if (fit3 >= SHELF_MIN_GAP) shelfGap = Math.min(gap, fit3);
+  }
+  wrap.style.setProperty('--sgap', shelfGap + 'px');
   /* 逐本试放：cur.length 为 0 时无条件放，保证每行至少有一本（不会出现空行死循环）。
      单本最宽的方形画册 bw×SHELF_SQ_K 也小于 usable（W 最小 240 时 122 < 176），
      所以不会出现「一本书本身比铆钉内净宽还宽」的情况。 */
@@ -152,8 +166,8 @@ function renderShelf(order, sel) {
   let cur = [], curW = 0;
   for (const j of js) {
     const w = wOf(j);
-    if (cur.length && curW + gap + w > usable) { rows.push(cur); cur = []; curW = 0; }
-    curW += (cur.length ? gap : 0) + w;
+    if (cur.length && curW + shelfGap + w > usable) { rows.push(cur); cur = []; curW = 0; }
+    curW += (cur.length ? shelfGap : 0) + w;
     cur.push(j);
   }
   if (cur.length) rows.push(cur);
