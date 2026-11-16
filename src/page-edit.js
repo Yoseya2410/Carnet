@@ -400,7 +400,7 @@ function bindPage() {
     /* 过去了返回 true（调用方据此就地重设拖动的基准）；没过去返回 false */
     const tryCrossPage = ev => {
       /* 只有双页摊开才是「左右两页」；停在封面（整页视图）时不算 */
-      if (state.mode !== 'spread' || isCoverView()) { unCross(); return false; }
+      if (state.mode !== 'spread' || isClosedView()) { unCross(); return false; }
       const j = cur(); if (!j) { unCross(); return false; }
       const [a, b] = currentIndices();
       const to = pid === a ? b : (pid === b ? a : -1);
@@ -929,7 +929,7 @@ function updateAddMenuHint() {
       ? '· 在第 ' + (p + 1) + ' 页后' : '· 第 ' + (p + 1) + ' 页') : '';
   });
   const row = $('#amTarget'); if (!row) return;
-  const two = state.mode === 'spread' && !isCoverView();
+  const two = state.mode === 'spread' && !isClosedView();
   const [a, b] = currentIndices();
   row.classList.toggle('hide', !two);
   $$('#amTarget .am-side').forEach(btn => {
@@ -946,7 +946,7 @@ function updateAddMenuHint() {
 function markAddTarget() {
   const book = $('#book'), m = $('#addMenu');
   const open = !!(m && m.classList.contains('show'));
-  const two = state.mode === 'spread' && !isCoverView();
+  const two = state.mode === 'spread' && !isClosedView();
   book.classList.toggle('picking', open && two);
   const t = (open && two) ? currentAddPage() : -1;
   const [a, b] = currentIndices();

@@ -147,6 +147,13 @@
   top:var(--bu-t,0px);bottom:var(--bu-b,0px);
   border-radius:var(--slot-l-r,10px) 0 0 var(--slot-l-r,10px);overflow:hidden
 }
+/* 合到封底那一翻的起手帧：叶正面装在**右半边**，装订侧在左、翻口在右，
+   让边正好是上面那条规则的镜像（否则第一帧那张纸会往左偏一整个露边）。 */
+.book.folding-back.cover-flip .leaf-face.front .leaf-page-inset{
+  position:absolute;left:calc(var(--ggap,0px) / 2);right:var(--bleed,0px);
+  top:var(--bu-t,0px);bottom:var(--bu-b,0px);
+  border-radius:0 var(--slot-r-r,10px) var(--slot-r-r,10px) 0;overflow:hidden
+}
 .leaf.show{display:block}
 /* ---- 翻开摊开：整本四角统一，侧面那条「纸叠厚度」白边顺着书角弯 ----
    ⚠️ 白边是 .book 自己的 box-shadow（9px 0 0 -4px）。宿主没有 border-radius 时它就是
@@ -160,6 +167,9 @@
   border-radius:var(--book-r-open)
 }
 .book.spread{box-shadow:-9px 0 0 -4px rgba(255,252,244,.42),9px 0 0 -4px rgba(255,252,244,.42)}
+/* 最后一跨的右格是环衬 / 后封面内侧，右边已经没有纸叠了 —— 只留左侧那道白边。
+   ⚠️ 不加 :not(.ringed) 会给活页也补出一道白边（活页整本本来就该 box-shadow:none）。 */
+.book.spread:not(.ringed).last-spread{box-shadow:-9px 0 0 -4px rgba(255,252,244,.42)}
 /* 活页摊开时 .book 的外沿已经是封面了，那道「纸叠厚度」的白边改由 .book-under 自己画 */
 .book.ringed.spread{box-shadow:none}
 /* 活页纸不是两张平面色块：纸边有厚度，装订侧留一点柔和的接触阴影。 */
@@ -205,10 +215,10 @@
     rgba(26,22,48,0) 100%)
 }
 /* 只在双页摊开时显示；封面单独成页 / 合上的书都没有中缝。
-   ⚠️ 合书动画（.folding）也要关：书正在合上，中间不该还留着摊开的折痕。
+   ⚠️ 合书动画（.folding / .folding-back）也要关：书正在合上，中间不该还留着摊开的折痕。
    ⚠️ 单页模式**也要**显示：那一页的装订边就压在机构条上（参考图就是这么一张单页），
       没有这一条，纸上就只剩 6 个孤零零的黑孔、看不出是活页本 */
-.book.spread:not(.cover-only):not(.folded):not(.folding) .gutter,
+.book.spread:not(.cover-only):not(.folded):not(.folding):not(.folding-back) .gutter,
 .book.ringed.single.has-under .gutter{display:block}
 /* 活页摊开第一页那一翻：中缝机构（连同环）先按住不露 —— 由 JS 在动画走到 60% 时摘掉
    .gutter-hold 才淡入（见 page-flip.js 的 gutterHold）。

@@ -155,14 +155,20 @@
   box-shadow:0 10px 22px -12px rgba(4,6,16,.8);transition:transform .14s
 }
 .ef-ok:active{transform:scale(.94)}
+/* 左上角「完成」白方块 + 撤销/重做白胶囊（用户 11-17 参考图）：
+   ⚠️ 白的是**胶囊外壳**，里面两颗只是图标按钮，别再给每颗钮单独铺白底
+      （会变成三条白块挤在一起），也别退回深色毛玻璃 —— 跟完成钮不是一套。 */
 .ef-hist{
   display:flex;align-items:center;gap:2px;padding:4px;border-radius:15px;
-  background:rgba(26,28,44,.5);border:1px solid rgba(255,255,255,.2);
-  backdrop-filter:blur(18px) saturate(1.7);-webkit-backdrop-filter:blur(18px) saturate(1.7);
+  background:#fff;border:1px solid rgba(255,255,255,.9);
   box-shadow:0 10px 22px -12px rgba(4,6,16,.8)
 }
-.ef-hist button{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;color:#fff;transition:background .16s,opacity .16s}
-.ef-hist button:hover{background:rgba(255,255,255,.16)}
+.ef-hist button{
+  width:38px;height:38px;border-radius:11px;display:grid;place-items:center;
+  color:#20222c;background:transparent;transition:background .16s,transform .14s,opacity .16s
+}
+.ef-hist button:hover{background:rgba(40,44,66,.08)}
+.ef-hist button:active{transform:scale(.94)}
 .ef-hist button[disabled]{opacity:.28}
 .ef-hist button svg{display:block}
 /* 编辑态：顶栏 / 底栏都让位，屏幕上只剩书和编辑控件 */

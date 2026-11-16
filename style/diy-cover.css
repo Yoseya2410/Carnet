@@ -136,7 +136,10 @@
    浮层会正好盖住 .diy-bar 那排按钮，面板一开就再也点不了「＋文字 / ＋贴纸」。
    作为子项时它会挤压 .diy-stage，纸自动缩小居中，跟阅读器开面板时书上移一个意思。 */
 .diy-sheet{
-  flex:0 0 auto;position:relative;max-height:46%;display:flex;flex-direction:column;
+  /* 45% 是全项目唯一的 BottomSheet 高度档（2026-11-16 定稿）：别在矮屏 / 别的媒体档里
+     再写一遍，竖屏移动端会把它固定成 height:45%（见末尾 portrait 块），
+     横屏侧栏则由 @media (orientation:landscape) 顶成 max-height:none。 */
+  flex:0 0 auto;position:relative;max-height:45%;display:flex;flex-direction:column;
   color:#2b2f3d;background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(255,255,255,.95));
   border-top:1px solid rgba(40,44,66,.14);
   box-shadow:0 -12px 32px -18px rgba(30,32,48,.34)
@@ -144,10 +147,6 @@
 .diy-sheet-head{
   flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
   padding:11px 14px 7px;font-size:13px;font-weight:600;letter-spacing:.04em
-}
-.diy-sheet-head button{
-  width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:12px;
-  color:#2b2f3d;background:rgba(40,44,66,.07);border:1px solid rgba(40,44,66,.12);cursor:pointer
 }
 .diy-sheet-body{flex:1 1 auto;min-height:0;overflow-y:auto;padding:6px 14px 16px}
 .diy-row{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin-bottom:10px}
@@ -201,6 +200,46 @@
 .diy-mini.on{background:var(--accent);color:#fff;border-color:rgba(40,44,66,.3)}
 .diy-mini.big{padding:9px 15px;font-size:12.5px}
 .diy-hint{font-size:11px;color:rgba(43,47,61,.56);line-height:1.55}
+/* ---- 封面设置：书脊卡的「裁切封面」展开区 ----
+   「书脊精调」独立一节已融进三张卡片：这里只画裁切台，不再有第二处标题 / 三档按钮 /
+   上传框 / 效果预览。面板是白玻璃，配色一律走 DIY 那套深字浅底。
+   ⚠️ 裁切舞台的宽高由 JS 写成图片实际显示尺寸（spineCropFitStage），
+      选区百分比才等于原图比例；别给 .sp-crop-stage 加 width:100%。 */
+.sp-row{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:9px 0;justify-content:center}
+/* 这两块显式给了 display，[hidden] 的 UA 样式压不过，得自己补一条 */
+.sp-row[hidden],.sp-crop-box[hidden]{display:none}
+.sp-crop-box{
+  margin:2px 0 10px;padding:9px;border-radius:11px;text-align:center;
+  background:rgba(40,44,66,.04);border:1px solid rgba(40,44,66,.12)
+}
+.sp-crop-cap{
+  text-align:left;font-size:11.5px;font-weight:600;color:#2b2f3d;
+  letter-spacing:.03em;margin-bottom:8px
+}
+.sp-crop-cap span{
+  display:block;margin-top:2px;font-size:10.5px;font-weight:400;
+  letter-spacing:0;color:rgba(43,47,61,.56)
+}
+.sp-crop-stage{
+  position:relative;display:block;width:max-content;max-width:100%;margin:0 auto;
+  overflow:hidden;line-height:0;border:1px solid rgba(40,44,66,.2);border-radius:8px;
+  background:rgba(40,44,66,.06);touch-action:none;cursor:ew-resize
+}
+.sp-crop-stage[hidden]{display:none}
+.sp-crop-stage img{display:block;width:auto;height:auto;max-width:100%;max-height:170px}
+.sp-crop-stage img[hidden]{display:none}
+.sp-crop-sel{
+  position:absolute;top:0;bottom:0;left:43%;width:14%;pointer-events:none;
+  border-left:2px solid #fff;border-right:2px solid #fff;
+  /* 超大投影当遮罩：超出舞台的部分被 overflow:hidden 裁掉，只剩选区里是亮的 */
+  box-shadow:0 0 0 1px rgba(0,0,0,.45),0 0 0 9999px rgba(20,22,32,.5)
+}
+.sp-crop-ctl{
+  display:flex;align-items:center;gap:8px;margin-top:9px;
+  font-size:11px;color:rgba(43,47,61,.7)
+}
+.sp-crop-ctl .diy-range{flex:1 1 auto;min-width:0}
+.sp-crop-box .diy-hint{text-align:left;margin-top:6px}
 .diy-input{
   flex:1 1 150px;min-width:100px;padding:8px 11px;border-radius:9px;font-size:13px;
   color:#2b2f3d;background:rgba(255,255,255,.9);border:1px solid rgba(40,44,66,.18);outline:none
@@ -276,8 +315,9 @@
   color:#2b2f3d;background:#fff;border:1px solid rgba(17,19,24,.55);outline:none
 }
 .diy-hint.ren{margin-bottom:8px}
+/* 矮屏只收顶栏副标题：BottomSheet 高度统一由上面那一条 45% 管，
+   ⚠️ 别在这里再覆写 .diy-sheet 的 height / max-height，否则矮屏会跟别的档不一致。 */
 @media (max-height:720px){
-  .diy-sheet{max-height:46%}
   .diy-tt small{display:none}
 }
 
@@ -288,7 +328,7 @@
    工具侧栏（按钮竖排在上，展开的面板吃掉剩余高度），画布独占左边整块高度。
    ⚠️ 这里不跟阅读器的 SIDE_SHEET_MQ 一样加 min-width:620px：DIY 的纸由
       diySizePaper() 按 #diyStage 实际尺寸等比缩放，窄横屏也不会被压坏。
-   ⚠️ 必须排在 @media (max-height:720px) 之后，才能把 .diy-sheet 的 46% 上限顶掉。 */
+   ⚠️ 必须排在基础规则之后，才能把 .diy-sheet 的 45% 上限顶掉（侧栏自己吃掉剩余高度）。 */
 @media (orientation:landscape){
   .diy-main{
     display:flex;flex-direction:row;flex:1 1 auto;min-height:0;min-width:0
@@ -363,3 +403,132 @@
   .diy-fonts-cn::-webkit-scrollbar,.diy-fonts-en::-webkit-scrollbar{display:none}
   .diy-fonts-cn button,.diy-fonts-en button{flex:0 0 auto}
 }
+
+/* ===== 竖屏（移动端）：底部工具条 = 居中白色胶囊 + 纯图标 =====
+   参考样式：一块圆角白胶囊浮在底部，里面只放线性图标，水平居中、不铺满整宽。
+   ⚠️ 限定 orientation:portrait 且排在横屏 media query 之后：横屏那条右侧栏
+      仍是「分组标题 + 图标文字」的网格，不用在这里逐条复位。 */
+@media (orientation:portrait){
+  /* 底栏这一条不铺任何底色：跟整页白底完全一致，胶囊只靠描边 + 阴影浮起来 */
+  .diy-bar{
+    align-self:center;
+    width:max-content;max-width:calc(100% - 28px);
+    gap:2px;padding:6px 10px;
+    margin:0 auto calc(14px + env(safe-area-inset-bottom));
+    border:1px solid rgba(40,44,66,.14);border-radius:999px;
+    background:#fff;
+    box-shadow:0 12px 30px -12px rgba(30,32,48,.45),0 2px 8px -2px rgba(30,32,48,.12)
+  }
+  .diy-bar button{
+    position:relative;flex:0 0 auto;width:40px;height:40px;max-width:none;padding:0;
+    border:0;border-radius:50%;background:transparent;color:#2b2f3d;gap:0
+  }
+  .diy-bar button svg{display:block;width:21px;height:21px;flex:0 0 21px}
+  /* 文字不留视觉痕迹，但仍留给读屏（按钮本身另有 title 兜底） */
+  .diy-bar button > span{
+    position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+    overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0
+  }
+  .diy-bar button:hover{background:rgba(40,44,66,.07)}
+  .diy-bar button.on{
+    background:rgba(40,44,66,.1);color:#2b2f3d;border-color:transparent
+  }
+  /* ---- 工具面板 = bottom sheet ----
+     ⚠️ 仍是 flex 子项（排在工具条之后），别改成 absolute 浮层：那样正好盖住
+        上面那排胶囊按钮，面板一开就再也点不了工具条。作为子项时它挤压
+        .diy-stage、纸自动缩小居中；这里只换外观：顶部大圆角 + 上浮阴影 +
+        居中拖拽把手 + 轻微滑入，跟整页白底保持同一套颜色。
+     ⚠️ 移动端竖屏统一固定占 .diy-page 高的 45%：不管打开底色 / 文字 / 贴纸 /
+        图层 / 封面哪一块，面板高度都一样，画布不会被不同面板挤出不同大小。
+        .diy-sheet-body 是 flex:1 + overflow-y:auto，内容多寡都在这一档里滚。
+        横屏走 (orientation:landscape) 那一支（侧栏），不会命中这里。 */
+  .diy-sheet{
+    height:45%;max-height:45%;min-height:0;
+    border:1px solid rgba(40,44,66,.09);border-bottom:0;
+    border-radius:22px 22px 0 0;
+    background:#fff;
+    box-shadow:0 -18px 44px -16px rgba(30,32,48,.3)
+  }
+  .diy-sheet:not([hidden]){animation:diySheetIn .22s cubic-bezier(.22,.8,.3,1)}
+  /* 跟手下拉时别让滑入动画抢 transform；头部整条都是拖拽命中区 */
+  .diy-sheet.dragging{animation:none}
+  .diy-sheet-head{
+    position:relative;padding:18px 16px 8px;font-size:13.5px;
+    touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none
+  }
+  .diy-sheet-head.grabbing{cursor:grabbing}
+  .diy-sheet-head::before{
+    content:"";position:absolute;left:50%;top:8px;transform:translateX(-50%);
+    width:36px;height:4px;border-radius:999px;background:rgba(40,44,66,.18)
+  }
+  .diy-sheet-body{padding:2px 16px calc(16px + env(safe-area-inset-bottom))}
+}
+@keyframes diySheetIn{
+  from{transform:translateY(16px);opacity:.55}
+  to{transform:none;opacity:1}
+}
+
+/* ============ 封面 · 书脊 · 封底三段设置 / 整张展开图三分（封面设置面板）============
+   从「编辑手帐本」弹窗搬进 #diySheetBody 后改的浅色版：面板本身是白玻璃深字，
+   控件一律沿用 DIY 那套深字浅底，别套弹窗的半透明白（在白底上会糊成一片）。
+   横屏侧栏只有 190~300px，三列卡片用 auto-fit 自动收成两列，按钮全部走 .diy-mini。
+   ⚠️ 舞台宽高由 syncDiyWrapStage()→wrapFitStage() 写成图片实际显示尺寸，
+      百分比选区才等于原图比例；别给 .wrap-stage 加 width:100%。 */
+.wrap-sec-cap{font-size:12px;font-weight:600;color:#2b2f3d;letter-spacing:.04em;margin:2px 0 4px}
+.wrap-lead{margin-bottom:10px}
+.wrap-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:7px;margin:0 0 6px}
+.wrap-card{
+  min-width:0;display:flex;flex-direction:column;gap:5px;padding:7px;border-radius:11px;
+  background:rgba(40,44,66,.04);border:1px solid rgba(40,44,66,.12)
+}
+.wrap-card b{font-size:11.5px;font-weight:600;letter-spacing:.03em;color:#2b2f3d}
+.wrap-card small{font-size:10px;line-height:1.4;color:rgba(43,47,61,.56);min-height:2.8em}
+.wrap-thumb{
+  height:62px;border-radius:6px;background-color:rgba(40,44,66,.05);
+  background-size:cover;background-position:center;background-repeat:no-repeat;
+  border:1px solid rgba(40,44,66,.14);display:flex;align-items:center;justify-content:center;
+  font-size:9.5px;line-height:1.35;letter-spacing:.04em;color:rgba(43,47,61,.5);
+  overflow:hidden;text-align:center
+}
+.wrap-thumb.sp{width:22px;margin:0 auto}
+.wrap-thumb.empty{background:none;border-style:dashed;color:rgba(43,47,61,.45)}
+.wrap-thumb.canvas{background:rgba(40,44,66,.07)}
+.wrap-btns{display:flex;flex-wrap:wrap;gap:4px}
+/* 卡片里按钮必须比面板通用 .diy-mini 更小，否则两颗就撑破一列 */
+.wrap-mini{padding:4px 6px;font-size:10px;border-radius:7px;flex:0 0 auto}
+.wrap-split{margin-top:12px;border-top:1px solid rgba(40,44,66,.12);padding-top:10px}
+.wrap-split-top{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.wrap-split-tip{font-size:10.5px;color:rgba(43,47,61,.55)}
+/* 「应用 / 取消」跟「导入整张展开图」同一行：面板是滚动区，放最底下要多滚一次 */
+.wrap-top-acts{display:flex;gap:5px;margin-left:auto}
+.wrap-top-acts[hidden]{display:none}
+.wrap-box{margin-top:9px}
+.wrap-box[hidden]{display:none}
+.wrap-stage{
+  position:relative;display:block;width:max-content;max-width:100%;margin:0 auto;
+  overflow:hidden;line-height:0;border:1px solid rgba(40,44,66,.2);border-radius:8px;
+  background:rgba(40,44,66,.05);touch-action:none;cursor:crosshair;
+  user-select:none;-webkit-user-select:none
+}
+.wrap-stage img{display:block;width:auto;height:auto;max-width:100%;max-height:180px}
+.wrap-stage img[hidden]{display:none}
+.wrap-sel{
+  position:absolute;top:0;bottom:0;left:43%;width:14%;pointer-events:none;
+  border-left:2px solid #fff;border-right:2px solid #fff;
+  /* 超大投影当遮罩：超出舞台的部分被 overflow:hidden 裁掉，只剩选区里是亮的 */
+  box-shadow:0 0 0 1px rgba(0,0,0,.4),0 0 0 9999px rgba(12,14,28,.5)
+}
+.wrap-sel>span{
+  position:absolute;top:6px;left:50%;transform:translateX(-50%);line-height:1;
+  font-size:10px;letter-spacing:.08em;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.85);white-space:nowrap
+}
+.wrap-h{position:absolute;top:0;bottom:0;width:10px;pointer-events:auto;cursor:ew-resize}
+.wrap-h.l{left:-6px}.wrap-h.r{right:-6px}
+.wrap-tag{
+  position:absolute;top:6px;z-index:3;line-height:1;font-size:10.5px;letter-spacing:.08em;
+  color:#fff;text-shadow:0 1px 5px rgba(0,0,0,.9);pointer-events:none
+}
+.wrap-tag.l{left:8px}.wrap-tag.r{right:8px}
+.wrap-ctl{display:flex;align-items:center;gap:7px;margin-top:8px;font-size:10.5px;color:rgba(43,47,61,.62)}
+.wrap-ctl .diy-range{flex:1 1 auto;min-width:0}
+.wrap-box .diy-hint{margin-top:7px}

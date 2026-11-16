@@ -13,8 +13,9 @@
  * ⑧ 图片边框 FRAMES：边框盒样式 frameBoxStyle / 图片样式 frameImgStyle /
  *    凹陷的凹面柔影 frameInsetHTML（三者屏幕与导出共用，改一处四边同源）
  * ⑨ 活页封面内侧 coverInsideStyle（自动主色 / 与封面一致 / 自定义）、书槽开关 coverGrooveOn
+ * ⑩ 末页环衬 endpaperStyle / primeEndpaper：有封底取封底主色、没设封底取封面主色
  *
- * 对外接口：patternLayers, patternStyle, faceLayers, COVER_TEXTURES, normTexture, texOf, textureStyle, texSwatchStyle, textureLayerHTML, coverLum, isImgData, TEMPLATES, tplImgOf, TPL_IMGS_MAX, tplImgsOf, normTplFit, tplStyle, TEXT_FONTS, EN_FONTS, normFont, textFontVar, textFontStack, normEnFont, textEnVar, textEnStack, PAPER_RAMPS, pageBgOf, pageBgShown, OB_*_SVG, ROT_SVG, BOOK_STYLES, bookStyleOf, pageRatioOf, COVER_R_MIN, COVER_R_MAX, coverRadiusOf, coverRadiusVar, bookRadiusOf, INSIDE_MODES, INSIDE_PALETTE_MAX, normInsideMode, insideOf, insideModeOf, coverInsideStyle, dominantColorsOf, coverInsidePalette, enFontSample, enFontLabel, coverGrooveOn, FRAMES, frameBoxStyle, frameImgStyle, frameInsetHTML
+ * 对外接口：patternLayers, patternStyle, faceLayers, COVER_TEXTURES, normTexture, texOf, textureStyle, texSwatchStyle, textureLayerHTML, coverLum, isImgData, TEMPLATES, tplImgOf, TPL_IMGS_MAX, tplImgsOf, normTplFit, tplStyle, TEXT_FONTS, EN_FONTS, normFont, textFontVar, textFontStack, normEnFont, textEnVar, textEnStack, PAPER_RAMPS, pageBgOf, pageBgShown, OB_*_SVG, ROT_SVG, BOOK_STYLES, bookStyleOf, pageRatioOf, COVER_R_MIN, COVER_R_MAX, coverRadiusOf, coverRadiusVar, bookRadiusOf, INSIDE_MODES, INSIDE_PALETTE_MAX, normInsideMode, insideOf, insideModeOf, coverInsideStyle, dominantColorsOf, coverInsidePalette, enFontSample, enFontLabel, coverGrooveOn, FRAMES, frameBoxStyle, frameImgStyle, frameInsetHTML, endpaperStyle, primeEndpaper
  *
  * 依赖模块：core
  *
@@ -25,6 +26,11 @@
 /* 默认笔记本采用 A5：148mm × 210mm；不同装帧的封面 / 内页尺寸在 BOOK_STYLES 中单独声明。 */
 const PAGE_RATIO = 210 / 148;        // 默认内页高 ÷ 宽（A5）
 const PAGE_W_DEFAULT = 340;          // 一页的基准宽（px）：模板纹理缩放、字号换算都按这个宽
+/* 页号约定里的「封底」：合着的书、朝外的是封底（阅读器 state.page / state.spread、
+   导出页序 exportPages 共用）。-1 = 封面、-2 = 封面内侧，所以封底取 -3 不撞号。
+   ⚠️ 定义在靠前的 visuals.js：io-doc.js（导出页序）比 reader-view.js 先加载，
+      但它只在运行时调用，仍要放这儿才不会踩到 TDZ。 */
+const PAGE_BACK_COVER = -3;
 const LUM_DARK = 0.55;               // 亮度低于它算「深色」：封面图案转金色、深色纸的页码转浅色
 
 /* ==================== 封面翻口圆角（每本可自定义） ====================
@@ -1077,6 +1083,95 @@ function spineBackdrop(j) {
   return cv.img
     ? `background-image:url('${cv.img}');background-size:cover;background-position:center;`
     : `background:${cv.value || GRADS[1]};`;
+}
+/* ---- 封底（2026-11-16）------------------------------------------------
+   cover.backMode：'' / 缺字段 = **没设封底**（阅读器在最后一页不能再往后翻）；
+                   'follow'   = 设了封底，外观跟封面同一张皮；
+                   'image'    = 设了封底，用 cover.backImg 这张单独的图。
+   cover.backImg：base64 位图（跟 cover.img / spineImg 同一道白名单）。
+   cover.backFrom：'upload' | 'split'，只记来源给设置面板显示，渲染一概不认。
+   ⚠️ 这三个字段都要跟着源文件导出 / 导入；加密本里 backImg 是敏感图片，
+      跟 cover.img 一样只进密文，lkShell 的白名单不带它。
+   ⚠️ hasBackCover() 是「能不能翻到封底」的唯一判据：'image' 但图被洗掉了
+      （导入脏数据 / 锁着的空壳）一律退回「没设封底」，免得合上之后是一片空白。 */
+const BACK_MODES = ['follow', 'image'];
+function backModeOf(j) {
+  const v = j && j.cover && j.cover.backMode;
+  return BACK_MODES.includes(v) ? v : '';
+}
+function backImgOf(j) {
+  const s = String((j && j.cover && j.cover.backImg) || '');
+  return isImgData(s) ? s : '';
+}
+function backFromOf(j) {
+  const v = (j && j.cover && j.cover.backFrom) || '';
+  return (v === 'upload' || v === 'split') ? v : '';
+}
+function hasBackCover(j) {
+  const m = backModeOf(j);
+  return m === 'follow' || (m === 'image' && !!backImgOf(j));
+}
+/* 封底那张皮：屏幕封面 / 阅读器封底页 / 导出封底页共用这一份。
+   'image' 用封底图（跟上传的封面图一样不叠图案、不叠纹理）；
+   'follow' 直接沿用封面的底色 / 图案 / 纹理 / 图片，只是装订那一列镜像到右侧。 */
+function backFaceOf(j) {
+  const cv = (j && j.cover) || {};
+  const img = backModeOf(j) === 'image' ? backImgOf(j) : '';
+  if (img) return { ...cv, img, pattern: 'none' };
+  return { ...cv };
+}
+/* ---- 末页那张空白环衬（2026-11-16）------------------------------------
+   最后一跨右页越界时 pageHTML() 会画出一张 .endpaper 空白页。以前它是写死的
+   深蓝渐变，跟这一本的皮面毫无关系；现在改成「有封底取封底主色、没封底取封面
+   主色」（用户定稿），屏幕 / 叶片动画 / 缩略图都由 pageHTML 这一处同源渲染。
+   ⚠️ 主色提取要读图片像素，只能异步。以前异步回来之前先给一个深蓝兜底，
+      翻到最后一页会「先黑一下再变色」—— 现在改成：同步就用封面自己的底色
+      （图片封面仍保留 cover.value 这个底色，纯色 / 渐变直接抽第一个色标），
+      算完只把现存那几张环衬的 background-color 平滑改过去（不整页重绘，
+      也不会打断正在转的翻页叶片）。再配合 renderHome / openReader 预热，
+      绝大多数情况下用户翻到末页时缓存已经命中，压根看不到过渡。
+   ⚠️ 缓存只活在内存里，不写进手帐数据，也不影响导出（导出的页序里本来就没有环衬）。 */
+const ENDPAPER_FALLBACK = '#ece5d8';   // 连封面底色都没有时的纸色兜底，绝不再用深色
+const ENDPAPER_SHADE = 'linear-gradient(160deg,rgba(255,255,255,.07),rgba(0,0,0,0) 46%,rgba(0,0,0,.14))';
+const __endpaperCache = new Map();     // 皮面源串 → 主色 hex
+const __endpaperPending = new Set();   // 同一张图别重复解码
+/* 图片封面在主色算出来之前用它同步可得的底色，不再闪一块黑 */
+function endpaperSyncColor(cv) {
+  return firstHexOf(cv && cv.value) || ENDPAPER_FALLBACK;
+}
+/* 算完后只改「当前画面上」的环衬，CSS 的 background-color 过渡会把颜色接过去 */
+function applyEndpaperColor() {
+  const j = typeof cur === 'function' ? cur() : null;
+  if (!j) return;
+  const c = endpaperColorOf(j);
+  document.querySelectorAll('.paper.endpaper:not(.see-through)').forEach(el => {
+    el.style.backgroundColor = c;
+  });
+}
+function endpaperColorOf(j) {
+  const cv = hasBackCover(j) ? backFaceOf(j) : ((j && j.cover) || {});
+  const img = isImgData(cv.img) ? cv.img : '';
+  if (!img) return hexListOf(cv.value)[0] || ENDPAPER_FALLBACK;
+  const hit = __endpaperCache.get(img);
+  if (hit) return hit;
+  if (!__endpaperPending.has(img)) {
+    __endpaperPending.add(img);
+    /* 只取占比最多的那一个；纯白留白 / 纯黑描边的统计在 dominantColorsOf 里跳过 */
+    dominantColorsOf(img, 1).then(list => {
+      __endpaperPending.delete(img);
+      if (!list || !list.length) return;
+      __endpaperCache.set(img, list[0]);
+      try { applyEndpaperColor(); } catch (_) {}
+    });
+  }
+  return endpaperSyncColor(cv);
+}
+/* 提前把主色算好：书架渲染 / 打开阅读器时就触发，翻到末页时通常已经命中 */
+function primeEndpaper(j) { if (j) endpaperColorOf(j); }
+/* 底色单独写 background-color，异步回来才能有过渡；受光层写在 background-image */
+function endpaperStyle(j) {
+  const c = endpaperColorOf(j);
+  return `background-image:${ENDPAPER_SHADE};background-color:${c};`;
 }
 function tplImgOf(j) {
   const s = String((j && j.tplImg) || '');

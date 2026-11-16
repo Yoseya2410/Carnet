@@ -28,7 +28,8 @@ function layoutBook() {
   /* 文字编辑面板占住下半截时，书只在上面那一段里排版（__sheetCov 由 sheetLayout() 量出来） */
   const availH = Math.max(140, stage.clientHeight - (window.__sheetCov || 0));
   const spread = state.mode === 'spread';
-  const cover = isCoverView();
+  /* 封底跟封面一样是「合着的书」，用封面那一档开本尺寸排版 */
+  const cover = isClosedView();
   const st = bookStyleOf(cur());
   const ringed = !!st.rings;
   const bx = ringed ? (st.padX || 0) : 0;
@@ -77,14 +78,22 @@ function layoutBook() {
   book.style.setProperty('--cbrd-y', (inner ? -by * pageH : 0).toFixed(1) + 'px');
   state.pw = pageW;          // page-flip.js 翻页时按半页宽做位移，字号换算也用它（见 state 的注释）
 }
-/* 页号约定：-1 = 封面正面（合着的书），-2 = 封面内侧（翻开后左半边那张皮），0 起是正文。
+/* 页号约定：-1 = 封面正面（合着的书），-2 = 封面内侧（翻开后左半边那张皮），
+   -3（PAGE_BACK_COVER，见 visuals.js）= 封底（合着的书翻过来朝外那一面），0 起是正文。
    ⚠️ 活页的第一跨页是「封面内侧 + 第 1 页」，不是「第 1 页 + 第 2 页」 ——
-      真本子翻开就是这样，环的左边挂着的是封面内侧，不是另一张纸。 */
+      真本子翻开就是这样，环的左边挂着的是封面内侧，不是另一张纸。
+   ⚠️ 封底态只活在 state.page / state.spread 里，不是正文页：页数、页数轴、导出页序
+      都用同一个 -3 记号，别另造一套。没设封底（hasBackCover() 为假）时永远不会进入这个态。 */
 const PAGE_INSIDE_COVER = -2;
 /* 封面页：不属于正文页，-1 表示“封面” */
 function coverPageHTML() {
   const j = cur();
   return `<div class="paper coverpage">${coverHTML(j)}</div>`;
+}
+/* 封底页：跟封面页同一套 .paper.coverpage 骨架（coverPageRect 量得到、飞回主页的
+   ghost 也认这一格），皮面换成 backCoverHTML —— 底色 / 图案 / 纹理同源，装订列镜像。 */
+function backCoverPageHTML() {
+  return `<div class="paper coverpage back-cover-page">${backCoverHTML(cur())}</div>`;
 }
 /* 封面硬壳那**一张板**（封面内侧，翻开后躺在左边 / 垫在活页内页底下）。
    ⚠️ 板要按**封面的真实尺寸**铺（--cbrd-w × --cbrd-h，见 layoutBook），再按板的偏移摆好 ——
@@ -271,13 +280,16 @@ function pageHTML(i, side) {
   const j = cur();
   const n = j.pages.length;
   if (i === -1) return coverPageHTML();
+  if (i === PAGE_BACK_COVER) return backCoverPageHTML();
   if (i === PAGE_INSIDE_COVER) return insideCoverPageHTML();
   if (i < 0 || i >= n) {
     /* 活页双页摊开翻到最后一跨时，右半边其实是**后封面内侧**，不是一张纸：
        这一格要透明，露出底下 .book-under 铺的那张皮（含用户自定义的内衬），
-       不能再盖一张深蓝环衬。单页态 / 胶装本没有这层皮，仍按环衬画。 */
+       不能再盖一张环衬（⚠️ 透明那张绝不能带底色，内联样式会盖掉 CSS 的 background:none）。
+       单页态 / 胶装本没有这层皮，仍按环衬画；颜色走 visuals.js 的 endpaperStyle()：
+       有封底取封底主色、没设封底取封面主色，不再写死深蓝。 */
     const see = bookStyleOf(j).rings && side === 'right';
-    return `<div class="paper endpaper${see ? ' see-through' : ''}"></div>`;
+    return `<div class="paper endpaper${see ? ' see-through' : ''}"${see ? '' : ` style="${endpaperStyle(j)}"`}></div>`;
   }
   const pg = j.pages[i];
   const inner = pageObjs(pg).map(o => o.k === 'img' ? imgWrapHTML(o.o, i) : textWrapHTML(o.o, i)).join('');
@@ -310,11 +322,13 @@ function pageHTML(i, side) {
 /* 这一本摊开后左半边是不是「封面内侧」：只有活页是（环上挂的那张皮），笔记本 / 画册不是 */
 function spreadHasInsideCover() { return !!bookStyleOf(cur()).rings; }
 function spreadIndices(s) {
+  if (s === PAGE_BACK_COVER) return [PAGE_BACK_COVER, PAGE_BACK_COVER];
   if (s < 0) return [-1, -1];
   if (spreadHasInsideCover()) return [s === 0 ? PAGE_INSIDE_COVER : s * 2 - 1, s * 2];
   return [s * 2, s * 2 + 1];
 }
 function spreadIndexOfPage(p) {
+  if (p === PAGE_BACK_COVER) return PAGE_BACK_COVER;
   if (p < 0) return -1;
   return Math.floor((p + (spreadHasInsideCover() ? 1 : 0)) / 2);
 }
@@ -326,8 +340,20 @@ function currentIndices() {
   if (state.mode === 'spread') return spreadIndices(state.spread);
   return [state.page];
 }
-function isCoverView() {
-  return state.mode === 'spread' ? state.spread < 0 : state.page < 0;
+/* 当前视图的页号（双页用 spread、单页用 page） */
+function viewIndex() { return state.mode === 'spread' ? state.spread : state.page; }
+/* 停在「合着的书」：封面（-1）或封底（-3）都算 */
+function isClosedView() { return viewIndex() < 0; }
+/* 只指封面那一面 */
+function isCoverView() { return isClosedView() && viewIndex() !== PAGE_BACK_COVER; }
+/* 停在封底 */
+function isBackView() { return viewIndex() === PAGE_BACK_COVER; }
+/* 越界夹回时留住封底态：普通 clamp 会把 -3 直接弹成 -1（封面）。
+   ⚠️ 书被上锁 / 封底图被导入洗掉时 hasBackCover() 为假，就老实退回封面。
+   三个地方（renderReader / endFlip / 转屏）都走这一份，别各写一套。 */
+function clampViewIndex(v, max) {
+  if (v === PAGE_BACK_COVER && hasBackCover(cur())) return PAGE_BACK_COVER;
+  return clamp(v, -1, Math.max(max, -1));
 }
 function renderReader() {
   commitTextEdit();                    // 重绘前先把正在编辑的文字存下来
@@ -338,16 +364,23 @@ function renderReader() {
      少了这一步，越界时 pageHTML 会把两页都画成深蓝环衬、页码显示成「3 / 2」。 */
   const n0 = pageCount();
   if (state.mode === 'spread') {
-    state.spread = clamp(state.spread, -1, Math.max(spreadCount(n0) - 1, -1));
+    state.spread = clampViewIndex(state.spread, spreadCount(n0) - 1);
   } else {
-    state.page = clamp(state.page, -1, Math.max(n0 - 1, -1));
+    state.page = clampViewIndex(state.page, n0 - 1);
   }
-  /* 封面就是「合着的书」：单独一整页，左边不再配一张空页 */
-  const cov = isCoverView();
-  /* 封面单独成页：不再加 single / spread，改用 cover-only 的骨架（跨页尺寸 + 左页收起 + 整本左移半页） */
+  /* 「合着的书」：封面 / 封底都是单独一整页，左边不再配一张空页 */
+  const cov = isClosedView();
+  const back = isBackView();
+  /* 合着的书在双页骨架里单独成页：封面在右槽（cover-only，整本左移半页），
+     封底在左槽（back-only，整本右移半页）—— 两者正好镜像。
+     ⚠️ 封底必须停在自己「从右往左合上」的落点（左槽），下一次往前翻才是
+        「从左往右」把封底翻开，不会跟合书反着来。 */
   book.classList.toggle('single', state.mode === 'single');
   book.classList.toggle('spread', state.mode === 'spread' && !cov);
-  book.classList.toggle('cover-only', cov && state.mode === 'spread');
+  book.classList.toggle('cover-only', cov && !back && state.mode === 'spread');
+  book.classList.toggle('back-only', back && state.mode === 'spread');
+  /* 封底态：整本外框的圆角左右对调（书脊在右），见 book-anim.css 末尾 */
+  book.classList.toggle('back-view', back);
   /* 活页手帐：双页摊开时中缝那一列要画出金属环（环数跟封面一致，见 BOOK_STYLES.rings）——
      没环的两档（笔记本 / 方形画册）清空，中缝只剩原来的折痕 */
   const ringed = !!bookStyleOf(cur()).rings;
@@ -365,10 +398,13 @@ function renderReader() {
   if (bu) bu.innerHTML = under ? coverUnderBoardsHTML() : '';
   const n = pageCount();
   const [a, b] = currentIndices();
-  /* 活页最后一跨的右页越界 = 后封面内侧：整格透明，露出 .book-under 那张皮。
-     类名由这里统一管，page-flip.js 只负责动画期间同步一次。 */
+  /* 最后一跨的右页越界 = 后封面内侧（活页）/ 环衬（胶装）：
+     · 活页那一格整格透明，露出 .book-under 那张皮（.ringed.spread.last-spread 那几条规则）；
+     · 胶装那一格是取了封面主色的环衬，右边已经没有纸叠了，
+       ⚠️ 必须把 .book.spread 右侧那道「纸叠厚度」白边去掉，否则蓝色环衬旁会挂一条白条。
+     类名不再限定活页：由这里统一管，page-flip.js 只负责动画期间同步一次。 */
   book.classList.toggle('last-spread',
-    state.mode === 'spread' && !cov && ringed && b >= n);
+    state.mode === 'spread' && !cov && b >= n);
   // 重建前先摘掉文字贴挂在 document 上的监听，避免节点被换掉后残留
   $$('#slotL .ptext-wrap, #slotR .ptext-wrap').forEach(x => {
     if (x.__outDown) { document.removeEventListener('pointerdown', x.__outDown, true); x.__outDown = null; }
@@ -376,6 +412,10 @@ function renderReader() {
   if (state.mode === 'spread' && !cov) {
     $('#slotL').innerHTML = pageHTML(a, 'left');
     $('#slotR').innerHTML = pageHTML(b, 'right');
+  } else if (state.mode === 'spread' && back) {
+    /* 封底态：封底躺在左槽（合书叶片的落点），右槽收起 */
+    $('#slotL').innerHTML = backCoverPageHTML();
+    $('#slotR').innerHTML = '';
   } else {
     $('#slotL').innerHTML = '';
     $('#slotR').innerHTML = pageHTML(state.mode === 'spread' ? b : state.page, 'single');
@@ -387,7 +427,15 @@ function renderReader() {
   $('#rName').textContent = j.name;
   $('#rPages').textContent = `${n} 页 · ${state.mode === 'spread' ? '双页' : '单页'}`;
   const pager = $('#pager');
-  if (isCoverView()) {
+  /* 最后一页还能不能再往后翻：设了封底就留着「下一页」，点下去合上书显示封底 */
+  const canBack = hasBackCover(cur());
+  if (back) {
+    pager.textContent = '封底';
+    pager.classList.remove('jumpable');
+    pager.title = '';
+    $('#prevBtn').disabled = false;         // 往前翻回到最后一页
+    $('#nextBtn').disabled = true;
+  } else if (isCoverView()) {
     // 封面不算页数：底栏不显示页码
     pager.textContent = '封面';
     pager.classList.remove('jumpable');
@@ -404,13 +452,13 @@ function renderReader() {
     pager.classList.add('jumpable');
     pager.title = '长按拖动选页';
     $('#prevBtn').disabled = false;
-    $('#nextBtn').disabled = state.spread >= spreadCount(n) - 1;
+    $('#nextBtn').disabled = state.spread >= spreadCount(n) - 1 && !canBack;
   } else {
     pager.textContent = `${state.page + 1} / ${n}`;
     pager.classList.add('jumpable');
     pager.title = '长按拖动选页';
     $('#prevBtn').disabled = false;
-    $('#nextBtn').disabled = state.page >= n - 1;
+    $('#nextBtn').disabled = state.page >= n - 1 && !canBack;
   }
   layoutBook();
   bindPage();

@@ -31,7 +31,9 @@ window.addEventListener('resize', () => {
       const wasSpread = state.mode === 'spread';
       const nowSpread = isSpread();
       /* 双页 → 单页：落回当前跨页的右页（第一跨页就是第 1 页）；停在封面仍然是封面 */
-      if (wasSpread && !nowSpread) state.page = Math.max(spreadIndices(state.spread)[1], -1);
+      /* 封底态转屏要整个保住（-3 不是正文页，Math.max 会把它抬成 -1 = 封面） */
+      if (wasSpread && !nowSpread) state.page = state.spread === PAGE_BACK_COVER
+        ? PAGE_BACK_COVER : Math.max(spreadIndices(state.spread)[1], -1);
       /* 单页 → 双页：第 1 页属于第一跨页（封面内侧 + 第 1 页），所以是 (page+1)/2 */
       else if (!wasSpread && nowSpread) state.spread = spreadIndexOfPage(state.page);
       renderReader();

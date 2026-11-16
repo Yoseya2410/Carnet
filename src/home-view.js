@@ -27,7 +27,10 @@
    ⚠️ 活页那档**封面上不画金属环**：真活页本的环在里侧，封面就是干净的一张硬壳。
       环的舞台在翻开的内页中缝（reader-view.js 的 gutterRingsHTML + reader.css 的 .grings），
       那里才画得像「一根钢丝穿过左右两页的孔」。 */
-function coverHTML(j) {
+/* backside = true 画的是**封底**（合着的书翻过来朝外的那一面）：
+   皮面由 backFaceOf() 换好，装订列与圆角由 .cover.backside 在 CSS 里左右镜像。
+   ⚠️ 主页 / 书架 / 编辑器预览 / 飞入动画走的都是不带第二参数的那一支，一个字节都不变。 */
+function coverHTML(j, backside) {
   const st = bookStyleOf(j);
   const bg = j.cover.img ? `background-image:url('${j.cover.img}');background-size:cover;background-position:center;` : `background:${j.cover.value};`;
   /* 上传了封面图片就不叠图案（图案是按底色深浅配色的，压在照片上只会糊成一片） */
@@ -50,13 +53,22 @@ function coverHTML(j) {
   /* 右侧两角的圆角写进 --cr（每本可自定义，见 visuals.js 的 coverRadiusOf）；
      左侧书脊两角由 CSS 的 --cr-left 定死，不跟着变。主页 / 书架 / 搜索缩略图 /
      编辑器预览 / 飞入动画都走这同一个 coverHTML，所以只需在这里写一次。 */
-  return `<div class="cover s-${st.k}" style="${bg}${coverRadiusVar(j)}">
+  return `<div class="cover s-${st.k}${backside ? ' backside' : ''}" style="${bg}${coverRadiusVar(j)}">
     ${textureLayerHTML(j.cover)}
     <div class="pattern" data-pat="${j.cover.img ? 'none' : (j.cover.pattern || 'none')}" style="${pat}"></div>
     <div class="gloss"></div>
     ${bind}
   </div>`;
 }
+/* 封底那一整张皮：把本子的 cover 换成 backFaceOf() 的副本再走同一个 coverHTML，
+   底色 / 图案 / 纹理 / 装订 / 圆角全部跟封面同源，不会两边各画一套。 */
+function backCoverHTML(j) {
+  const face = backFaceOf(j);
+  return coverHTML({ ...j, cover: { ...j.cover, ...face } }, true);
+}
+/* 合着的书朝外那一面：封面态是封面，封底态是封底。
+   飞回主页的 ghost 用这一份，才不会「封底缩回去却变成封面」。 */
+function closedCoverHTML(j) { return isBackView() ? backCoverHTML(j) : coverHTML(j); }
 
 /* ==================== 主页渲染 ==================== */
 /* 单本书的 HTML，轮播和书架共用（书架里不带 gear，用长按/点击区分） */
@@ -74,11 +86,26 @@ function bookItemHTML(j, i, sel) {
       <div class="cover-badge">${j.pages.length} 页</div>
     </div>`;
 }
+/* 左右滑动模式顶部的书名：纯英文才用 Martian 窄体等宽（跟文字贴 EN_FONTS.martian
+   同一支 woff2，见 base.css）。判据 = 至少含一个拉丁字母、且没有汉字 / 假名 / 谚文：
+   中文名 / 中英混排仍走系统默认字族，免得汉字落到等宽字体上逐字回退。
+   ⚠️ 两个写入点（这里的 syncHomeHead 与 carousel.js 的 snap）都走这一个函数，
+      否则滑到下一本时字体会停在上一本那一档。 */
+function homeNameIsEn(name) {
+  const s = String(name || '');
+  return /[A-Za-z]/.test(s) && !/[\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af]/.test(s);
+}
+function setHomeName(name) {
+  const el = $('#homeName');
+  if (!el) return;
+  el.textContent = name || '';
+  el.classList.toggle('en', homeNameIsEn(name));
+}
 /* 顶部标题、页数、计数胶囊这些跟选中项绑定的东西，两种模式共用 */
 function syncHomeHead() {
   const j = cur();
   const has = !!j;
-  $('#homeName').textContent = has ? j.name : '还没有手帐本';
+  setHomeName(has ? j.name : '还没有手帐本');
   $('#homePages').innerHTML = has ? `<span>▤</span><span>${j.pages.length} 页</span>` : `<span>▤</span><span>点右下角 ＋ 新建</span>`;
   $('#countPill').textContent = has ? `${state.sel + 1} / ${state.journals.length}` : '0 / 0';
   /* 「更多」那颗已撤掉（它的三项并进右上角菜单），底栏只剩分享 / 删除 / 新建 */
@@ -447,6 +474,9 @@ function togglePick(i) {
 }
 
 function renderHome() {
+  /* 末页环衬的主色要读封面像素：在书架这一步就先把当前这本算好，
+     等用户翻到最后一页时缓存多半已命中，不会看到补色那一帧 */
+  primeEndpaper(cur());
   const view = state.prefs.view;
   const shelfMode = view === 'shelf';
   const spineMode = view === 'spine';

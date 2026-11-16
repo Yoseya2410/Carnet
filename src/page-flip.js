@@ -44,15 +44,19 @@ let gutterHold = false;
 function endFlip() {
   if (!flipA) return;
   cancelAnimationFrame(flipA.raf);
-  const dir = flipA.dir;
+  const a = flipA;
   flipA = null;
-  /* 第二道防线：落定时把页码夹回合法范围（-1 = 封面）。
+  /* 合书 / 合到封底 / 从封底翻开这几翻用的是自定义落点（onEnd）。被下一次快翻打断时
+     直接替它落定，别把叶片丢在半路上，也不能走下面的 +dir（那会把页码算错一页）。 */
+  if (a.onEnd) { clearBookShift(); a.onEnd(); return; }
+  const dir = a.dir;
+  /* 第二道防线：落定时把页码夹回合法范围（-1 = 封面、-3 = 封底）。
      快翻 / 删页 / 外部跳页叠在一起时，光靠 flip 入口的判断挡不住累加越界。 */
   const n = pageCount();
   if (state.mode === 'spread') {
-    state.spread = clamp(state.spread + dir, -1, Math.max(spreadCount(n) - 1, -1));
+    state.spread = clampViewIndex(state.spread + dir, spreadCount(n) - 1);
   } else {
-    state.page = clamp(state.page + dir, -1, Math.max(n - 1, -1));
+    state.page = clampViewIndex(state.page + dir, n - 1);
   }
   const leaf = $('#leaf');
   leaf.classList.remove('show', 'turning');
@@ -67,7 +71,7 @@ function clearBookShift() {
   const bk = $('#book');
   if (!bk) return;
   bk.style.transform = '';
-  bk.classList.remove('cover-flip', 'cover-closing', 'cover-opening', 'gutter-hold');
+  bk.classList.remove('cover-flip', 'cover-closing', 'cover-opening', 'gutter-hold', 'folding-back', 'back-hinge', 'back-close', 'back-opening');
   gutterHold = false;                          // 翻页已收束：中缝一律放开，别压在下一翻上
   /* ⚠️ has-under **只摘自己加的那一回**（单页模式翻开封面的那一翻，见 flip）：
      双页合书时那层封面内侧是 renderReader 按状态开着的、还得靠
@@ -114,6 +118,20 @@ function flip(dir) {
      连按两下就能越过最后一跨 —— 截图里「3 / 2」且两页全是环衬就是这么来的。 */
   // 上一次翻页还没结束：立即落定，接着翻下一页，实现连续快翻
   if (flipA) endFlip();
+  /* ---- 封底：最后一页往后翻 = 合上书显示封底；封底只能往前翻回最后一页 ----
+     ⚠️ 没设封底（hasBackCover 为假）时 below 的边界守卫照旧把这一下挡掉，
+        阅读器完全保持原来的行为：到最后一页就翻不动了，只能往前翻。 */
+  if (isBackView()) {
+    if (dir < 0) openFromBack();
+    return;
+  }
+  const atLast = state.mode === 'spread'
+    ? state.spread >= spreadCount(n) - 1
+    : state.page >= n - 1;
+  if (dir > 0 && atLast) {
+    if (hasBackCover(cur())) closeToBack();
+    return;
+  }
   if (state.mode === 'spread') {
     const pairs = spreadCount(n), s = state.spread;
     if (dir > 0 && s >= pairs - 1) return;
@@ -144,8 +162,9 @@ function flip(dir) {
     /* 最后一跨的右半是后封面内侧：动画期间右槽填的就是那一格（dir>0 填 sR、dir<0 填 cR），
        越界就得同步透明样式，否则翻到最后一页的中途会闪一块白底 / 深蓝环衬。
        endFlip → renderReader 会按最终页码重新 toggle 一次。 */
+    /* ⚠️ 不再限定活页：胶装本最后一跨的右格是环衬，同样要按 last-spread 去掉右白边 */
     $('#book').classList.toggle('last-spread',
-      bookStyleOf(cur()).rings && (dir > 0 ? sR : cR) >= n);
+      (dir > 0 ? sR : cR) >= n);
     $('#slotL').innerHTML = pageHTML(dir > 0 ? cL : sL, 'left');
     $('#slotR').innerHTML = pageHTML(dir > 0 ? sR : cR, 'right');
     lf.innerHTML = pageHTML(front, 'right');
@@ -246,3 +265,135 @@ function flip(dir) {
   flipA = { dir, from: start, to: end, slide, t0: now, dur, raf: requestAnimationFrame(stepFlip) };
 }
 
+
+/* =====================================================================
+ * 封底：最后一页往后翻 = 合上书显示封底（2026-11-16）
+ * ---------------------------------------------------------------------
+ * 封底不是一张正文页，而是「合着的书翻了个面」：几何跟封面态完全一样，
+ * 只是朝外那张皮换成 backCoverPageHTML()。所以两处过渡都借现成的叶片引擎：
+ *   ① 合上（closeToBack）：双页走 reader-flow.js 的 foldBook('back') → foldBookBack()
+ *      （**右半边从右往左翻到左槽**，落地那一面是封底，跟合回封面正好镜像）；
+ *      单页以**左侧书脊**为轴（末页朝上时书脊在左）**0° → -180°** 从右往左合上书（用户 11-17）。
+ *   ② 翻开（openFromBack）：方向一律**从左往右**，落回最后一跨。
+ *      双页仍是合书的镜像（左槽封底 -180° → 0° + 半页横移）；
+ *      单页不再整本翻面 —— 真实的书停在封底时书脊在右，是以**右侧边为轴**
+ *      把封底掀开（0° → 180°，用户 11-17），转出去的皮被单页外框裁掉、露出末页。
+ *      ⚠️ 与 ① 的合书左轴**不是同一根轴**：两翻各用当前朝上那一面的书脊。
+ * ⚠️ 这两翻都写 flipA.onEnd 自定义落点：endFlip() 被快翻打断时会先替它们落定。
+ * ===================================================================== */
+const BACK_FOLD_MS = 400;   // 与 reader-flow.js 的 FOLD_MS 同源：合书 / 摊开一个速度
+/* 换槽内容前把文字贴挂在 document 上的监听摘掉（跟 renderReader / foldBook 同一套） */
+function dropSlotTextListeners(sel) {
+  $$(sel + ' .ptext-wrap').forEach(x => {
+    if (x.__outDown) { document.removeEventListener('pointerdown', x.__outDown, true); x.__outDown = null; }
+  });
+}
+function closeToBack() {
+  /* 双页：右半边整格从右往左翻到左槽盖上，落定后朝外的是封底（见 foldBookBack） */
+  if (state.mode === 'spread') { foldBook('back'); return; }
+  /* 单页（手机竖屏）：末页朝上时**书脊在左**，合书绕左侧边把最后一页从右往左翻走、
+     露出封底（用户 11-17 二次反馈「改为以左侧为轴合上书」）。
+     叶片 0° → -180°：起手正面 = 最后一页（跟静止帧严丝合缝），槽里先摆封底，
+     叶片收窄时从右边逐渐露出封底，转过 90° 后叶片被 .book.single 裁掉、画面只剩封底。
+     ⚠️ 与「从封底往前翻」的**右轴**（.back-hinge）不共用一根轴：两翻各用当前朝上
+        那一面的书脊；也别退回整本绕中轴翻面（.back-turn 已整块撤掉）。 */
+  const book = $('#book'), leaf = $('#leaf'), lf = $('#leafF'), lb = $('#leafB');
+  const p = state.page, backHTML = backCoverPageHTML();
+  dropSlotTextListeners('#slotR');
+  $('#slotR').innerHTML = backHTML;       // 叶片翻走后露出的封底
+  lf.innerHTML = pageHTML(p, 'single');   // 0°：起手盖住整本 = 最后一页
+  lb.innerHTML = backHTML;                // -180°：叶背，转出书外被裁掉
+  /* ⚠️ 起手不挂 .back-view：外框圆角要跟「最后一页」同档，否则叶片的正面圆角
+     与外框对不上，封底会从四角露出粉色月牙（实测）；封底态的圆角由落定那次
+     renderReader() 统一挂上。 */
+  book.classList.add('back-close');
+  leaf.classList.add('show', 'turning');
+  leaf.style.transition = 'none';
+  leaf.style.transform = 'rotateY(0deg)';
+  flipA = {
+    dir: 1, from: 0, to: -180, dur: BACK_FOLD_MS, t0: performance.now(), raf: 0,
+    onEnd: () => {
+      leaf.classList.remove('show', 'turning');
+      leaf.style.transition = 'none'; leaf.style.transform = 'none';
+      book.classList.remove('back-close', 'back-view');
+      state.page = PAGE_BACK_COVER; state.spread = PAGE_BACK_COVER;
+      renderReader();
+    }
+  };
+  requestAnimationFrame(stepFlip);
+}
+function openFromBack() {
+  const n = pageCount();
+  if (!n) return;
+  const book = $('#book'), leaf = $('#leaf'), lf = $('#leafF'), lb = $('#leafB');
+  const backHTML = backCoverPageHTML();
+  const st = bookStyleOf(cur()), ringed = !!st.rings;
+  /* 封底态的 state.pw 就是「合着的封面宽」，摊开时整本要横移这半张宽 */
+  const half = (state.pw || 0) / 2;
+  const land = () => {
+    leaf.classList.remove('show', 'turning');
+    leaf.style.transition = 'none'; leaf.style.transform = 'none';
+    clearBookShift();                  // 撤掉 cover-flip / cover-opening / 临时横移 / has-under
+    book.classList.remove('folding', 'folding-back', 'folded', 'back-hinge', 'back-close', 'back-opening');
+    renderReader();
+  };
+  if (state.mode === 'spread') {
+    /* 从封底往前翻 = 合书的逆过程：封底停在左槽（back-only），把它从 -180° 沿书脊
+       往右翻到 0°，整本同时从 +半页横移回摊开的 0 —— **从左往右**，跟合上时
+       的「从右往左」正好相反（用户 11-16 反馈原来这一翻方向反了）。
+       ⚠️ 起手那一帧叶片盖在左槽显示封底，跟静止态一模一样，不会跳。 */
+    const last = Math.max(spreadCount(n) - 1, 0);
+    const [l, r] = spreadIndices(last);
+    /* 按落点那一跨重排（--pw / --cbrd-* 换成内页坐标系），页码先留在封底态 */
+    state.spread = last; layoutBook(); state.spread = PAGE_BACK_COVER;
+    $('#slotL').innerHTML = pageHTML(l, 'left');    // 叶片转开后露出的左页
+    /* ⚠️ 右槽在起手那帧**必须还是空的**：书此刻仍合着，叶片正盖在左槽上，
+       右侧凭空先摆一张末页（环衬）会让人以为「还没翻就已经翻开了」（用户 11-16 反馈）。
+       最后一跨的右页只放在叶片正面，等叶片 0° 盖过来才出现；落地由 renderReader() 重建槽。
+       镜像「封面 → 第一跨」那翻的 `.cover-opening`（那边收的是左槽）。 */
+    $('#slotR').innerHTML = '';
+    lf.innerHTML = pageHTML(r, 'right');            // 0°：落到右槽 = 最后一跨的右页
+    lb.innerHTML = backHTML;                        // -180°：起手盖住左槽 = 封底
+    book.classList.remove('back-only');
+    book.classList.add('cover-flip', 'spread', 'back-opening');
+    book.classList.toggle('first-spread', ringed && last === 0 && spreadHasInsideCover());
+    book.classList.toggle('last-spread', r >= n);
+    if (ringed) {
+      book.classList.add('gutter-hold'); gutterHold = true;
+      const bu = $('#bookUnder'); if (bu) bu.innerHTML = coverUnderBoardsHTML();
+      book.classList.add('has-under'); flipUnder = true;
+    }
+    leaf.classList.add('show', 'turning');
+    leaf.style.transition = 'none'; leaf.style.transform = 'rotateY(-180deg)';
+    flipA = {
+      dir: 1, from: -180, to: 0, slide: [half, 0], dur: BACK_FOLD_MS,
+      t0: performance.now(), raf: 0,
+      onEnd: () => {
+        state.spread = last;
+        state.page = clamp(spreadIndices(last)[1], 0, Math.max(n - 1, 0));
+        land();
+      }
+    };
+  } else {
+    /* 单页：真实的书停在封底时**书脊在右**，往前翻是抓着封底的左沿、
+       以右侧边为轴从左往右把封底掀开（用户 11-17），不是整本绕中轴翻面。
+       叶片绕自身右沿 0° → 180°（正角度让封底左沿朝读者抬起）：起手正面 = 封底、正好盖住整本；
+       转过 90° 后叶片落到书的右侧外面、被 .book.single 的 overflow 裁掉，
+       槽里早已摆好的最后一页露出来 —— 就是「封底被翻走、露出末页」。
+       ⚠️ 合到封底（closeToBack）改用 .back-close 左轴（0° → -180°），
+          两翻各用当前朝上那一面的书脊，别合并成一根轴心。 */
+    const last = n - 1;
+    state.page = last; layoutBook(); state.page = PAGE_BACK_COVER;
+    $('#slotR').innerHTML = pageHTML(last, 'single');   // 封底翻走后露出的末页
+    lf.innerHTML = backHTML;                            // 0°：起手盖住整本 = 封底
+    lb.innerHTML = pageHTML(last, 'single');            // 180°：叶背，转出书外被裁掉
+    book.classList.add('back-hinge');
+    leaf.classList.add('show', 'turning');
+    leaf.style.transition = 'none'; leaf.style.transform = 'rotateY(0deg)';
+    flipA = {
+      dir: 1, from: 0, to: 180, dur: BACK_FOLD_MS, t0: performance.now(), raf: 0,
+      onEnd: () => { state.page = last; state.spread = last; land(); }
+    };
+  }
+  requestAnimationFrame(stepFlip);
+}

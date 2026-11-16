@@ -118,13 +118,22 @@ function exportFontStack(k) {
 }
 function exportFontIsHand(k) { return normFont(k) === 'hand' && __expHand !== false; }
 const EX_W = 900;                       // 导出页面的像素宽（PDF 与长图共用）
-function exportPages(j) { return [-1].concat(j.pages.map((_, i) => i)); }      // -1 = 封面
+/* -1 = 封面、0..n-1 = 正文、-3 = 封底。没设封底的本子导出里也不多这一页，
+   跟阅读器「不能再往后翻合上书」保持一致。 */
+function exportPages(j) {
+  return [-1].concat(j.pages.map((_, i) => i))
+    .concat(hasBackCover(j) ? [PAGE_BACK_COVER] : []);
+}
 /* 把一页画成 canvas：页面结构按应用的真实渲染规则重排成 XHTML，
    塞进 SVG foreignObject 交给浏览器栅格化 —— 图片 / 文字位置、模板纹理都和屏幕上一样 */
 function pageExportHTML(j, idx, W, H) {
   const k = W / PAGE_W_DEFAULT;         // 模板纹理的 px 尺寸按页宽等比缩放（PAGE_W_DEFAULT = 屏幕上一页的宽）
-  if (idx === -1) {
-    const cv = j.cover || {};
+  if (idx === -1 || idx === PAGE_BACK_COVER) {
+    /* 封底页跟封面页共用这一整套规则：'follow' 档沿用封面那张皮、'image' 档用封底图。
+       唯一区别是**装订列镜像到右侧、圆角左右对调** —— 书翻过来朝外是封底时，
+       书脊本来就在右边（整张展开图也是「封底 | 书脊 | 封面」这个顺序）。 */
+    const back = idx === PAGE_BACK_COVER;
+    const cv = back ? backFaceOf(j) : (j.cover || {});
     const bg = cv.img ? `background-image:url('${cv.img}');background-size:cover;background-position:center;` : `background:${cv.value || '#ddd'};`;
     const pat = (cv.pattern && cv.pattern !== 'none' && !cv.img) ? patternStyle(cv.pattern, cv) : '';
     /* 封面材质：跟屏幕 coverHTML 同一份 textureStyle()（贴片尺寸按封面宽百分比，
@@ -162,16 +171,18 @@ function pageExportHTML(j, idx, W, H) {
       + `${(1 * cs).toFixed(1)}px 0 ${(2 * cs).toFixed(1)}px rgba(7,9,16,.06)`;
     /* 跟屏幕封面同源：书槽关 / 笔记本透明档时这一列整个不画（彩带 / 压槽都不画） */
     const bind = (st.rings || coverNoSpine(j)) ? ''
-      : `<div style="position:absolute;left:0;top:0;bottom:0;width:${w}%;`
+      : `<div style="position:absolute;${back ? 'right:0' : 'left:0'};top:0;bottom:0;width:${w}%;`
+        + (back ? 'transform:scaleX(-1);' : '')
         + (spine ? `background:${spine};${ribbonShadow}` : groove) + `"></div>`;
     /* 封面右侧两角跟屏幕上同一本（cover.radius，基准 246px 宽等比放大到导出宽 W）；
-       左侧书脊两角固定 3px 基准，不参与自定义。四角露出的就是画布那层纸色。 */
+       左侧书脊两角固定 3px 基准，不参与自定义。封底整张对调。 */
     const rL = (3 * cs).toFixed(1), rR = (coverRadiusOf(j) * cs).toFixed(1);
-    const radius = `border-radius:${rL}px ${rR}px ${rR}px ${rL}px;`;
+    const radius = back ? `border-radius:${rR}px ${rL}px ${rL}px ${rR}px;`
+      : `border-radius:${rL}px ${rR}px ${rR}px ${rL}px;`;
     return `<div style="position:relative;width:${W}px;height:${H}px;overflow:hidden;${radius}${bg}">`
       + (tex ? `<div style="position:absolute;inset:0;${tex}"></div>` : '')
       + `<div style="position:absolute;inset:0;${pat}"></div>`
-      + `<div style="position:absolute;inset:0;background:linear-gradient(112deg,rgba(255,255,255,.28) 0%,rgba(255,255,255,0) 34%,rgba(255,255,255,0) 68%,rgba(255,255,255,.12) 100%)"></div>`
+      + `<div style="position:absolute;inset:0;${back ? 'transform:scaleX(-1);' : ''}background:linear-gradient(112deg,rgba(255,255,255,.28) 0%,rgba(255,255,255,0) 34%,rgba(255,255,255,0) 68%,rgba(255,255,255,.12) 100%)"></div>`
       + bind
       + `</div>`;
   }

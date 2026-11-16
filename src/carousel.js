@@ -135,7 +135,7 @@ const carousel = (() => {
     items.forEach((el, k) => el.classList.toggle('active', k === idx));
     const j = cur();
     if (j) {
-      $('#homeName').textContent = j.name;
+      setHomeName(j.name);
       $('#homePages').innerHTML = `<span>▤</span><span>${j.pages.length} 页</span>`;
     }
     $('#countPill').textContent = `${idx + 1} / ${items.length}`;

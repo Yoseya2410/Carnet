@@ -1,8 +1,9 @@
 /* =====================================================================
  * Carnet · 手帐本编辑器 · 新建 / 编辑弹窗   （脚本 23 / 28）
  * ---------------------------------------------------------------------
- * ① 名称、封面底色、封面图案与图案色、封面图片、自定义书脊、彩带色、内页模板、页数
- *    （封面纹理不在这里：它在「自定义封面」页面的封面设置里，跟彩带色 / 圆角放一起）
+ * ① 名称、封面底色、封面图案与图案色、封面图片、彩带色、内页模板、页数
+ *    （封面纹理 / 自定义书脊 / 封面·书脊·封底三段设置都在「自定义封面 → 封面设置」，
+ *     不在这个弹窗；那边改的都是 DIY 草稿，点页面右上角「完成」才写回本子）
  * ② 每一项都是一块折叠小节 .fold-sec，收起时标题后跟当前取值 ED_SEC_HINT
  * ③ 图案颜色未选图案时整栏收起；页数只在新建时给填（编辑时整块隐藏）
  * ④ 内页模板：六档内置纸面 + 每张自定义图片各占一格 + 末尾「＋添加」（可一次选多张）。
@@ -21,46 +22,45 @@
 /* ==================== 编辑器 ==================== */
 const ed = { temp: null, isNew: true, fold: {} };
 
-/* ==================== 自定义书脊（单层书架那一根）====================
-   ed.temp.cover.spineImg 存一张烘好的位图：另传的书脊片，或从封面图上裁的窄条。
-   spineFrom 只用来在面板里显示来源；渲染一律只认 spineImg（见 visuals.js）。
-   裁切选区按「占封面宽的比例」记（x 左边界 / w 宽度），高度取整张封面，
-   所以裁出来天然是一条竖长图，正好贴书脊。
-   ⚠️ spCrop.open 只是面板的展开状态，不进数据：点「完成」前一切都活在 ed.temp
-      草稿里，点「取消」整本作废，跟其它设置一样。 */
-const spCrop = { x: .43, w: .14, dragging: false, open: false };
-/* 裁切源只认上传 / DIY 合成出来的位图封面；纯色 / 渐变封面请走「上传书脊片」 */
-function spineCropSrc() {
-  const img = ed.temp && ed.temp.cover && ed.temp.cover.img;
-  return isImgData(img) ? img : '';
-}
+/* ==================== 自定义书脊（自定义封面 → 封面设置）====================
+   入口在 #diyPage 的「封面设置」面板（diySheet('cover')），不在编辑手帐本弹窗里。
+   落盘字段仍是 cover.spineImg / cover.spineFrom（渲染只认前者，见 visuals.js 的
+   spineBackdrop）；但编辑期跟纹理一样走**草稿**：diy.spineImg / diy.spineFrom /
+   diy.spineSrc 只活在 DIY 页面里，点「完成」由 diyDone() 写回 ed.temp.cover，
+   点「返回」整本作废。
+   裁切源 = 当前画布合成出来的封面（diyRenderCanvas），不是进页面前的旧 cover.img：
+   用户在这个页面里做的正是新封面，裁这一张才有意义。
+   spCrop 的 x/w 是「占封面宽的比例」，裁出来天然是一条竖长图。 */
+const spCrop = { x: .43, w: .14, dragging: false, open: false, busy: false };
+function diySpineImg() { return isImgData(diy.spineImg) ? diy.spineImg : ''; }
+function diySpineCropSrc() { return isImgData(diy.spineSrc) ? diy.spineSrc : ''; }
 function spineCropClamp() {
   spCrop.w = clamp(spCrop.w, .04, .4);
   spCrop.x = clamp(spCrop.x, 0, 1 - spCrop.w);
 }
 function syncSpineCropSel() {
   spineCropClamp();
-  const sel = $('#edSpineSel');
+  const sel = $('#diySpineSel');
   if (sel) {
     sel.style.left = (spCrop.x * 100).toFixed(2) + '%';
     sel.style.width = (spCrop.w * 100).toFixed(2) + '%';
   }
-  const num = $('#edSpineCropNum');
+  const num = $('#diySpineCropNum');
   if (num) num.textContent = Math.round(spCrop.w * 100) + '%';
-  const ran = $('#edSpineWidth');
+  const ran = $('#diySpineWidth');
   if (ran) ran.value = String(Math.round(spCrop.w * 100));
 }
 /* 舞台写死成图片实际显示尺寸：百分比选区才等于原图比例，裁切时不用换算留白。
    CSS 的 shrink-to-fit 会按原图自然宽算舞台，图片被 max-height 压窄后就会多出空边。 */
 function spineCropFitStage() {
-  const stage = $('#edSpineCropWrap'), img = $('#edSpineSrc');
+  const stage = $('#diySpineCropWrap'), img = $('#diySpineSrc');
   if (!stage || !img) return;
   const w = img.offsetWidth, h = img.offsetHeight;
   if (w && h) { stage.style.width = w + 'px'; stage.style.height = h + 'px'; }
   else { stage.style.width = ''; stage.style.height = ''; }
 }
 function syncSpineCropStage() {
-  const src = spineCropSrc(), img = $('#edSpineSrc'), stage = $('#edSpineCropWrap');
+  const src = diySpineCropSrc(), img = $('#diySpineSrc'), stage = $('#diySpineCropWrap');
   if (img) {
     if (img.dataset.src !== src) {
       img.dataset.src = src;
@@ -70,11 +70,11 @@ function syncSpineCropStage() {
     img.hidden = !src;
   }
   if (stage) stage.hidden = !src;
-  const note = $('#edSpineCropNote');
+  const note = $('#diySpineCropNote');
   if (note) note.textContent = src
-    ? '在封面上拖动选区或拉宽度滑块，选竖着的一条；点「用选区作书脊」裁下来。'
-    : '先到「上传封面图片」里选一张图，才能从封面上裁书脊；纯色 / 渐变封面请改用上传书脊片。';
-  const ok = $('#edSpineCropOk');
+    ? '这是当前画布的封面。拖动选区或拉宽度滑块，选竖着的一条；点「用选区作书脊」裁下来。'
+    : '再点一次「裁切当前封面」可以重新取一次画布。';
+  const ok = $('#diySpineCropOk');
   if (ok) ok.disabled = !src;
   syncSpineCropSel();
   /* 图已经在缓存里（切回 / 重开）时 onload 不会再触发，这里补量一次 */
@@ -82,8 +82,8 @@ function syncSpineCropStage() {
 }
 /* 选区坐标是相对舞台（也就是图片显示框）的比例，裁的时候换算回原图像素 */
 function spineCropPointer(e) {
-  const stage = $('#edSpineCropWrap');
-  if (!stage || !spineCropSrc()) return;
+  const stage = $('#diySpineCropWrap');
+  if (!stage || !diySpineCropSrc()) return;
   const r = stage.getBoundingClientRect();
   if (!r.width) return;
   const px = clamp((e.clientX - r.left) / r.width, 0, 1);
@@ -91,7 +91,7 @@ function spineCropPointer(e) {
   syncSpineCropSel();
 }
 function spineCropCommit() {
-  const img = $('#edSpineSrc');
+  const img = $('#diySpineSrc');
   if (!img || !img.naturalWidth || !img.naturalHeight) { toast('封面图片还没读好'); return; }
   spineCropClamp();
   const sx = Math.round(img.naturalWidth * spCrop.x);
@@ -109,29 +109,369 @@ function spineCropCommit() {
   let data = '';
   try { data = c.toDataURL('image/jpeg', .9); } catch (_) {}
   if (!isImgData(data)) { toast('裁切失败，换一张封面图试试'); return; }
-  ed.temp.cover.spineImg = data;
-  ed.temp.cover.spineFrom = 'crop';
+  diy.spineImg = data;
+  diy.spineFrom = 'crop';
   spCrop.open = false;
-  syncEditor();
-  toast('已用封面裁出书脊');
+  renderDiySheet();
+  toast('已用当前封面裁出书脊，点「完成」后生效');
 }
-/* 整个小节跟着 ed.temp 刷：模式 / 缩略图 / 裁切舞台 / 效果预览 / 状态字 */
-function syncSpineUI() {
-  const cur = spineImgOf(ed.temp), from = spineFromOf(ed.temp);
-  const mode = !cur ? 'auto' : (from === 'crop' ? 'crop' : 'upload');
-  $$('#edSpineModes button').forEach(b =>
-    b.classList.toggle('on', b.dataset.spinemode === (spCrop.open ? 'crop' : mode)));
-  const up = $('#edSpineUploadBox'); if (up) up.hidden = !cur || from !== 'upload';
-  const box = $('#edSpineCropBox'); if (box) box.hidden = !spCrop.open;
-  const clr = $('#edSpineClear'); if (clr) clr.disabled = !cur;
-  const th = $('#edSpineThumb'); if (th) th.style.backgroundImage = cur ? `url("${cur}")` : '';
-  const pv = $('#edSpinePreview');
-  if (pv) pv.style.cssText = spineBackdrop(ed.temp);
-  const tag = $('#edSpineState');
-  if (tag) tag.textContent = cur ? (from === 'crop' ? '封面裁切' : '已上传书脊片') : '跟随封面';
-  const pick = $('#edSpinePick');
-  if (pick) pick.textContent = cur && from === 'upload' ? '换一张' : '选择图片';
-  if (spCrop.open) syncSpineCropStage();
+/* 点「裁切当前封面」：把此刻画布合成成一张位图当裁切源（跟「完成」同一条合成链） */
+async function diySpinePrepareCrop() {
+  if (spCrop.busy) return false;
+  spCrop.busy = true;
+  try {
+    const c = await diyRenderCanvas(744);
+    let src = '';
+    try { src = c.toDataURL('image/jpeg', .92); } catch (_) { src = c.toDataURL('image/png'); }
+    if (!isImgData(src)) { toast('封面合成失败，换张图试试'); return false; }
+    diy.spineSrc = src;
+    spCrop.open = true;
+    return true;
+  } catch (e) {
+    toast('封面合成失败：' + ((e && e.message) || e));
+    return false;
+  } finally { spCrop.busy = false; }
+}
+/* 「书脊精调」融进书脊卡之后，这里只剩**裁切台**要同步：
+   显隐 + 图片 src / 选区 + 舞台手势（面板每次 renderDiySheet() 都换掉整块 innerHTML）。
+   ⚠️ 三档模式 / 上传框 / 效果预览 / 清除按钮都已撤掉，书脊卡是唯一入口，
+      别再往 syncDiySpine() 里加第二份书脊状态，全走 diy.spineImg / diy.spineFrom。 */
+function syncDiySpine() {
+  const box = $('#diySpineCropBox'); if (box) box.hidden = !spCrop.open;
+  if (spCrop.open) syncSpineCropStage(); else syncSpineCropSel();
+  const stage = $('#diySpineCropWrap');
+  if (stage) {
+    stage.onpointerdown = e => {
+      if (!diySpineCropSrc()) return;
+      spCrop.dragging = true;
+      try { stage.setPointerCapture(e.pointerId); } catch (_) {}
+      spineCropPointer(e);
+      e.preventDefault();
+    };
+    stage.onpointermove = e => { if (spCrop.dragging) spineCropPointer(e); };
+    stage.onpointerup = () => { spCrop.dragging = false; };
+    stage.onpointercancel = () => { spCrop.dragging = false; };
+  }
+}
+/* 书脊片只走 #wrapSpineFile（书脊卡的「选择图片 / 换图」），见下面四路选图那一段；
+   原来「书脊精调」专用的 #spineFile 已随那一节一起撤掉，别留两份 change 回调。 */
+/* ==================== 封面 / 书脊 / 封底：三段设置 + 整张展开图三分（自定义封面）============
+   入口在 #diyPage 的「封面设置」面板（diySheet('cover')），不在编辑手帐本弹窗里。
+   用户导入一张「封底 | 书脊 | 封面」的横向展开图，只要拖出中间那条书脊：
+     · 左段 → diy.backImg（backMode='image'）
+     · 中段 → diy.spineImg（spineFrom='crop'）
+     · 右段 → 画布底层那张全幅图片（点「完成」由 diyRenderCanvas 合成 cover.img）
+   ⚠️ 三段都用 canvas 从**原图像素**裁，铺白底再转 JPEG：透明 PNG 不会发黑，
+      单段长边压到 1200，三张 base64 加起来也不至于把导出文件撑爆。
+   ⚠️ 这里所有改动都是 **DIY 草稿**：wrapCrop 只存待裁的那张展开图，其余写进 diy，
+      一律等页面右上角「完成」由 diyDone() 写回 ed.temp.cover；点「返回」整份作废。
+      ⚠️ 绝不能直写 ed.temp.cover.img —— diyDone() 会用合成图把它覆盖掉。 */
+const wrapCrop = {
+  src: '', x: .43, w: .14, open: false, dragging: false,
+  mode: '', start: 0, off: 0, edge: '', prev: null
+};
+/* ---- 封面 = DIY 画布本身 ----
+   卡片「铺满图片」/ 三分右段都走这里：把图铺成最底层的一张全幅图片对象，
+   跟 openDiyCover() 把已有普通封面带进画布是同一种对象。 */
+function diyWrapFrontObj() {
+  if (!diy.d || !Array.isArray(diy.d.images)) return null;
+  const imgs = diy.d.images;
+  return (diy.wrapFrontId ? imgs.find(x => x.id === diy.wrapFrontId) : null)
+    || imgs.find(x => x.x === 0 && x.y === 0 && x.w === 1 && x.h === 1 && x.fill && !x.rot)
+    || null;
+}
+function diyWrapFrontSrc() {
+  const o = diyWrapFrontObj();
+  return o && isImgData(o.src) ? o.src : '';
+}
+function diyWrapFrontSet(src) {
+  if (!diy.d) return;
+  let o = diyWrapFrontObj();
+  if (o) o.src = src;
+  else {
+    const z = Math.min(0, ...diy.d.images.map(x => Number(x.z) || 0)) - 1;
+    o = { id: uid(), src, x: 0, y: 0, w: 1, h: 1, rot: 0, z,
+          locked: false, fr: 'none', frc: '', frw: 50,
+          fill: true, fit: FILL_GEOM_V, pv: null };
+    diy.d.images.unshift(o);
+  }
+  diy.wrapFrontId = o.id;
+  diy.sel = null;
+}
+function diyWrapFrontClear() {
+  const o = diyWrapFrontObj();
+  if (!o) return;
+  diy.d.images.splice(diy.d.images.indexOf(o), 1);
+  diy.wrapFrontId = null;
+  diy.sel = null;
+}
+/* 面板被切走时选图回来：先切回「封面设置」再重绘，别让新图静静写进草稿却看不见 */
+function diyWrapRefresh() {
+  if (diy.sheet === 'cover') renderDiySheet(); else diySheet('cover');
+}
+function wrapFace() {
+  return /^data:image\/[^;]+;base64,/i.test(String(wrapCrop.src || '')) ? wrapCrop.src : '';
+}
+function wrapClamp() {
+  wrapCrop.w = clamp(wrapCrop.w, .04, .4);
+  /* 左右各留 4% 兜底：拖到最边上也不会裁出 0 像素的封底 / 封面 */
+  wrapCrop.x = clamp(wrapCrop.x, .04, 1 - .04 - wrapCrop.w);
+}
+function syncWrapSel() {
+  wrapClamp();
+  const sel = $('#diyWrapSel');
+  if (sel) {
+    sel.style.left = (wrapCrop.x * 100).toFixed(2) + '%';
+    sel.style.width = (wrapCrop.w * 100).toFixed(2) + '%';
+  }
+  const ran = $('#diyWrapWidth'); if (ran) ran.value = String(Math.round(wrapCrop.w * 100));
+  const num = $('#diyWrapWidthVal'); if (num) num.textContent = Math.round(wrapCrop.w * 100) + '%';
+}
+/* 舞台写死成图片实际显示尺寸：百分比选区才等于原图比例（跟书脊裁切同一套） */
+function wrapFitStage() {
+  const stage = $('#diyWrapStage'), img = $('#diyWrapSrc');
+  if (!stage || !img) return;
+  const w = img.offsetWidth, h = img.offsetHeight;
+  if (w && h) { stage.style.width = w + 'px'; stage.style.height = h + 'px'; }
+  else { stage.style.width = ''; stage.style.height = ''; }
+}
+/* 面板每次 renderDiySheet() 都会把 #diySheetBody.innerHTML 换掉，舞台是**新节点**：
+   图片 src / 选区 / 手势全要在这里重绑（跟 syncDiySpine() 同一套做法）。
+   ⚠️ 只刷舞台，不重画卡片 —— 卡片内容来自 diy 草稿，状态变化由调用方 renderDiySheet() 重画，
+      两边互相调就会死循环。 */
+function syncDiyWrapStage() {
+  const src = wrapFace(), img = $('#diyWrapSrc'), box = $('#diyWrapBox');
+  if (box) box.hidden = !wrapCrop.open;
+  const topActs = $('#diyWrapTopActs'); if (topActs) topActs.hidden = !wrapCrop.open;
+  if (img) {
+    if (img.dataset.src !== src) {
+      img.dataset.src = src;
+      img.onload = wrapFitStage;
+      if (src) img.src = src; else img.removeAttribute('src');
+    }
+    img.hidden = !src;
+  }
+  const tag = $('#diyWrapState');
+  if (tag) tag.textContent = src ? '在图上拖出中间那条书脊' : '左边封底 · 中间书脊 · 右边封面';
+  /* 图已在缓存里时 onload 不会再触发，这里补量一次 */
+  if (src && img && img.complete && img.naturalWidth) wrapFitStage();
+  syncWrapSel();
+  const stage = $('#diyWrapStage');
+  if (stage) {
+    stage.onpointerdown = wrapStageDown;
+    stage.onpointermove = e => { if (wrapCrop.dragging) wrapPointer(e); };
+    stage.onpointerup = wrapStageUp;
+    stage.onpointercancel = wrapStageUp;
+  }
+}
+function wrapStageX(e) {
+  const stage = $('#diyWrapStage');
+  if (!stage) return -1;
+  const r = stage.getBoundingClientRect();
+  return r.width ? clamp((e.clientX - r.left) / r.width, 0, 1) : -1;
+}
+function wrapPointer(e) {
+  const px = wrapStageX(e);
+  if (px < 0 || !wrapFace()) return;
+  if (wrapCrop.mode === 'edge') {
+    const right = wrapCrop.x + wrapCrop.w;
+    if (wrapCrop.edge === 'l') {
+      wrapCrop.x = clamp(px, .04, right - .04);
+      wrapCrop.w = right - wrapCrop.x;
+    } else wrapCrop.w = clamp(px - wrapCrop.x, .04, 1 - .04 - wrapCrop.x);
+  } else if (wrapCrop.mode === 'move') {
+    wrapCrop.x = px - wrapCrop.off;
+  } else {
+    const a = Math.min(wrapCrop.start, px), b = Math.max(wrapCrop.start, px);
+    wrapCrop.x = a; wrapCrop.w = Math.max(.04, b - a);
+  }
+  syncWrapSel();
+}
+function wrapStageDown(e) {
+  if (!wrapFace()) return;
+  const px = wrapStageX(e);
+  if (px < 0) return;
+  wrapCrop.prev = { x: wrapCrop.x, w: wrapCrop.w };
+  wrapCrop.dragging = true;
+  const edge = (e.target && e.target.dataset) ? e.target.dataset.edge : '';
+  const nearL = Math.abs(px - wrapCrop.x) < .012;
+  const nearR = Math.abs(px - (wrapCrop.x + wrapCrop.w)) < .012;
+  if (edge === 'l' || (!edge && nearL)) { wrapCrop.mode = 'edge'; wrapCrop.edge = 'l'; }
+  else if (edge === 'r' || (!edge && nearR)) { wrapCrop.mode = 'edge'; wrapCrop.edge = 'r'; }
+  else if (px > wrapCrop.x && px < wrapCrop.x + wrapCrop.w) {
+    wrapCrop.mode = 'move'; wrapCrop.off = px - wrapCrop.x;
+  } else {
+    wrapCrop.mode = 'new'; wrapCrop.start = px; wrapCrop.x = px; wrapCrop.w = .04;
+  }
+  const stage = $('#diyWrapStage');
+  try { stage.setPointerCapture(e.pointerId); } catch (_) {}
+  wrapPointer(e);
+  e.preventDefault();
+}
+function wrapStageUp() {
+  if (!wrapCrop.dragging) return;
+  wrapCrop.dragging = false;
+  /* 只点了一下没拖出宽度：恢复上一档，别把选区缩成一条线 */
+  if (wrapCrop.mode === 'new' && wrapCrop.w <= .045 && wrapCrop.prev) {
+    wrapCrop.x = wrapCrop.prev.x; wrapCrop.w = wrapCrop.prev.w; syncWrapSel();
+  }
+  wrapCrop.mode = ''; wrapCrop.edge = ''; wrapCrop.prev = null;
+}
+function wrapCropData(img, sx, sw, sh) {
+  if (sw < 1 || sh < 1) return '';
+  const k = Math.min(1, 1200 / Math.max(sw, sh));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(sw * k));
+  c.height = Math.max(1, Math.round(sh * k));
+  try {
+    const cx = c.getContext('2d');
+    cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height);   // 透明 PNG 转 JPEG 别发黑
+    cx.drawImage(img, sx, 0, sw, sh, 0, 0, c.width, c.height);
+  } catch (_) { return ''; }
+  let d = '';
+  try { d = c.toDataURL('image/jpeg', .9); } catch (_) {}
+  return isImgData(d) ? d : '';
+}
+function wrapApply() {
+  const img = $('#diyWrapSrc');
+  if (!img || !img.naturalWidth || !img.naturalHeight) { toast('展开图还没读好'); return; }
+  if (!diy.open || !ed.temp) return;
+  wrapClamp();
+  const W = img.naturalWidth, H = img.naturalHeight;
+  const sx = Math.round(W * wrapCrop.x);
+  const sw = Math.max(1, Math.round(W * wrapCrop.w));
+  const left = wrapCropData(img, 0, sx, H);
+  const mid = wrapCropData(img, sx, sw, H);
+  const right = wrapCropData(img, sx + sw, W - sx - sw, H);
+  if (!left || !mid || !right) { toast('分段失败，换一张图试试'); return; }
+  /* 右段是封面：DIY 页里封面就是这张画布，铺成底层全幅对象，
+     点「完成」由 diyRenderCanvas() 合成 cover.img —— 别直写 cover.img。 */
+  diyWrapFrontSet(right);
+  diy.spineImg = mid; diy.spineFrom = 'crop'; spCrop.open = false;
+  diy.backImg = left; diy.backFrom = 'split'; diy.backMode = 'image';
+  wrapCrop.open = false; wrapCrop.src = '';
+  renderDiyPaper(); renderDiySheet();
+  toast('已分成封底 / 书脊 / 封面三部分，点右上角「完成」应用');
+}
+/* 四路选图：整张展开图 / 单独封面 / 单独书脊片 / 单独封底图。
+   change 一律走 readPickedFiles；只在 DIY 页开着时写草稿。 */
+$('#wrapFile').onchange = async e => {
+  const [src] = await readPickedFiles(e);
+  if (!src || !diy.open) return;
+  spCrop.open = false;                  // 两块裁切台互斥：展开图打开时收掉书脊裁切台
+  wrapCrop.src = src; wrapCrop.open = true;
+  wrapCrop.x = .43; wrapCrop.w = .14;
+  diyWrapRefresh();
+  toast('在图上拖出中间那条书脊，再点「应用三分」');
+};
+$('#wrapFrontFile').onchange = async e => {
+  const [f] = await readPickedFiles(e);
+  if (!f || !diy.open) return;
+  const src = await shrinkImageFile(f, 1200, { q: .9, bg: '#fff' });
+  if (!isImgData(src)) { toast('这张图读不出来，换一张试试'); return; }
+  diyWrapFrontSet(src);
+  renderDiyPaper(); diyWrapRefresh();
+  toast('已铺满画布作封面，点右上角「完成」应用');
+};
+$('#wrapSpineFile').onchange = async e => {
+  const [f] = await readPickedFiles(e);
+  if (!f || !diy.open) return;
+  const src = await shrinkImageFile(f, 800, { q: .9, bg: '#fff' });
+  if (!isImgData(src)) { toast('这张图读不出来，换一张试试'); return; }
+  diy.spineImg = src; diy.spineFrom = 'upload'; spCrop.open = false;
+  diyWrapRefresh();
+  toast('已单独设置书脊，点右上角「完成」应用');
+};
+$('#wrapBackFile').onchange = async e => {
+  const [f] = await readPickedFiles(e);
+  if (!f || !diy.open) return;
+  const src = await shrinkImageFile(f, 1200, { q: .9, bg: '#fff' });
+  if (!isImgData(src)) { toast('这张图读不出来，换一张试试'); return; }
+  diy.backImg = src; diy.backFrom = 'upload'; diy.backMode = 'image';
+  diyWrapRefresh();
+  toast('已单独设置封底，点右上角「完成」应用');
+};
+/* ---- 三段面板 HTML：卡片 + 整张展开图舞台 ----
+   renderDiySheet('cover') 把这两段拼进 #diySheetBody，末尾再调 syncDiyWrapStage()
+   刷图片 / 选区 / 手势。卡片读的全是 diy 草稿，不碰 ed.temp。 */
+function diyWrapThumbStyle(src) {
+  return src ? `background-image:url("${src}");`
+    : `background:${(diy.d && diy.d.bg) || GRADS[1]};`;
+}
+function diyWrapCardsHTML() {
+  const front = diyWrapFrontSrc();
+  const sp = diySpineImg();
+  const mode = diy.backMode === 'image' && isImgData(diy.backImg) ? 'image'
+    : (diy.backMode === 'follow' ? 'follow' : '');
+  const bk = mode === 'image' ? diy.backImg : '';
+  const thumb = (src, kind) => `<div class="wrap-thumb${kind ? ' ' + kind : ''}" style="${diyWrapThumbStyle(src)}"></div>`;
+  const btn = (act, label, cls) => `<button class="diy-mini wrap-mini${cls ? ' ' + cls : ''}" data-wrapact="${act}">${label}</button>`;
+  const modeBtn = (m, label) => `<button class="diy-mini wrap-mini${mode === m ? ' on' : ''}" data-backmode="${m}">${label}</button>`;
+  return `<div class="wrap-grid" id="diyWrapGrid">`
+    + `<div class="wrap-card">${front ? thumb(front) : '<div class="wrap-thumb canvas">画布<br>封面</div>'}
+       <b>封面</b><small>${front ? '铺满画布的图片' : '当前画布（底色 / 图案 / 贴纸）'}</small>
+       <div class="wrap-btns">${btn('front-pick', '铺满图片')}${front ? btn('front-clear', '移除') : ''}</div></div>`
+    /* 书脊卡是书脊的**唯一**入口：上传 / 从当前画布裁一条 / 恢复跟随都在这里，
+       下面那块裁切台只是「裁切封面」按下去之后展开的附属区，不再另起一节三档按钮。 */
+    + `<div class="wrap-card">${sp ? thumb(sp, 'sp') : '<div class="wrap-thumb sp empty"></div>'}
+       <b>书脊</b><small>${sp ? (diy.spineFrom === 'crop' ? '从封面裁切' : '独立书脊片') : '跟随封面'}</small>
+       <div class="wrap-btns">${btn('spine-pick', sp ? '换图' : '选择图片')}
+       ${btn('spine-crop', '裁切封面', spCrop.open ? 'on' : '')}
+       ${sp ? btn('spine-clear', '跟随封面') : ''}</div></div>`
+    /* 没设封底时缩略图不铺底色：铺了会让人误以为已经有封底了 */
+    + `<div class="wrap-card">${mode
+        ? thumb(mode === 'image' ? bk : front)
+        : '<div class="wrap-thumb empty">未设置</div>'}
+       <b>封底</b><small>${mode === 'image' ? '独立封底图' : mode === 'follow' ? '与封面一致' : '未设封底 · 不能往后合书'}</small>
+       <div class="wrap-btns">${modeBtn('', '不设')}${modeBtn('follow', '同封面')}${modeBtn('image', '图片')}
+       ${btn('back-pick', mode === 'image' && bk ? '换图' : '选择图片')}</div></div>`
+    + `</div>`;
+}
+function diyWrapPanelHTML() {
+  /* ⚠️ 「应用 / 取消」跟着「导入整张展开图」同一行：面板本身是滚动区，
+     放最底下拖完选区还得再滚一次才点得到（编辑弹窗时代被 sticky 吸底栏压过一次）。 */
+  return `<div class="wrap-split">
+    <div class="wrap-split-top">
+      <button class="diy-mini" id="diyWrapImport">＋ 导入整张展开图</button>
+      <span class="wrap-split-tip" id="diyWrapState">左边封底 · 中间书脊 · 右边封面</span>
+      <span class="wrap-top-acts" id="diyWrapTopActs" hidden>
+        <button class="diy-mini" id="diyWrapApply">应用三分</button>
+        <button class="diy-mini" id="diyWrapCancel">取消</button>
+      </span>
+    </div>
+    <div class="wrap-box" id="diyWrapBox" hidden>
+      <div class="wrap-stage" id="diyWrapStage">
+        <img id="diyWrapSrc" alt="整张展开图">
+        <div class="wrap-sel" id="diyWrapSel">
+          <i class="wrap-h l" data-edge="l"></i><i class="wrap-h r" data-edge="r"></i>
+          <span>书脊</span>
+        </div>
+        <span class="wrap-tag l">封底</span><span class="wrap-tag r">封面</span>
+      </div>
+      <div class="wrap-ctl">
+        <span>书脊宽度</span>
+        <input class="diy-range" type="range" id="diyWrapWidth" min="4" max="40" step="1" value="14">
+        <span id="diyWrapWidthVal">14%</span>
+      </div>
+      <div class="diy-hint">在图上横向拖一段就是书脊；拖动选区两端白线可微调，也可以只拉宽度滑块。应用后左段作封底、中段作书脊、右段铺满成封面。</div>
+    </div>
+  </div>`;
+}
+/* ---- 书脊卡「裁切封面」的展开区（原「书脊精调」融进来后的形态）----
+   不另起一节、不再放三档模式 / 上传 / 清除 / 效果预览：书脊卡就是唯一入口，
+   这里只负责「把当前画布合成成位图 → 拖一条竖窄区 → 裁成书脊片」。
+   ⚠️ spCrop.open 与 wrapCrop.open 互斥：同一张面板里不并排出现两块裁切台。 */
+function diySpineCropHTML() {
+  return `<div class="sp-crop-box" id="diySpineCropBox"${spCrop.open ? '' : ' hidden'}>
+    <div class="sp-crop-cap">从当前封面裁一条书脊<span>拖动选区或拉宽度滑块，选竖着的一条</span></div>
+    <div class="sp-crop-stage" id="diySpineCropWrap"><img id="diySpineSrc" alt="当前封面"><div class="sp-crop-sel" id="diySpineSel"></div></div>
+    <div class="sp-crop-ctl"><span>宽度</span><input class="diy-range" type="range" id="diySpineWidth" min="4" max="40" step="1" value="14"><span id="diySpineCropNum">14%</span></div>
+    <div class="sp-row">
+      <button class="diy-mini" id="diySpineCropOk">用选区作书脊</button>
+      <button class="diy-mini" id="diySpineCropCancel">收起</button>
+    </div>
+    <div class="diy-hint" id="diySpineCropNote"></div>
+  </div>`;
 }
 /* 折叠小节收起时，标题后面补一句当前取值（省得反复展开确认）。
    key 就是 .fold-sec 上的 data-sec，见 index.html 里的编辑器 */
@@ -149,9 +489,6 @@ const ED_SEC_HINT = {
   pattern: () => (ed.temp.cover.diym && ed.temp.cover.img ? '自定义封面'
     : (PATTERNS.find(p => p.k === normPat(ed.temp.cover.pattern)) || PATTERNS[0]).n),
   image:  () => ed.temp.cover.img ? (ed.temp.cover.diym ? '自定义封面' : '已上传') : '',
-  /* 自定义书脊：折叠时一眼看出这一根是跟着封面，还是用了自己传 / 裁的片子 */
-  spine:  () => spineImgOf(ed.temp)
-    ? (spineFromOf(ed.temp) === 'crop' ? '封面裁切' : '已上传书脊片') : '跟随封面',
   ribbon: () => ribbonIsNone(ed.temp.ribbon) ? '透明 · 隐藏彩带与书槽'
     : String(ribbonSpine(ed.temp.ribbon) || '').toUpperCase()
       + (coverGrooveOn(ed.temp) ? '' : ' · 书槽关'),
@@ -179,11 +516,10 @@ function openEditor(journal) {
   if (journal && !guardUnlocked(journal, () => openEditor(cur()))) return;
   ed.isNew = !journal;
   ed.temp = journal ? JSON.parse(JSON.stringify(journal)) : newJournal();
-  /* 每次开编辑器都收起裁切台，别把上一次那本的选区状态带过来 */
-  spCrop.open = false; spCrop.dragging = false;
   /* 非法色值回落默认彩带色；'none' 是合法的「透明」档，别把它归一化掉
      （色板要有选中态、预览封面要整列不画，点「完成」后原样写回数据） */
   ed.temp.ribbon = ribbonIsNone(ed.temp.ribbon) ? RIBBON_NONE : ribbonSpine(ed.temp.ribbon);
+  /* 三段展开图的草稿由 openDiyCover() 在进自定义封面页时重置，编辑弹窗不再管它 */
   $('#edTitle').textContent = ed.isNew ? '新建手帐本' : '编辑手帐本';
   $('#edName').value = ed.temp.name;
   $('#edPages').value = ed.temp.pages.length;
@@ -468,58 +804,8 @@ function buildEditor() {
      照旧生效，新本子不再写这个字段。 */
   $('#edUpload').onclick = () => $('#coverFile').click();
   $('#edClearImg').onclick = () => { ed.temp.cover.img = null; syncEditor(); };
-  /* ---- 自定义书脊：跟随封面 / 上传书脊片 / 从封面图裁一条 ----
-     事件一律用 onxxx 属性赋值（buildEditor 每次开编辑器都会跑一遍，
-     用 addEventListener 会越叠越多）。 */
-  $('#edSpineModes').onclick = e => {
-    const b = e.target.closest('button[data-spinemode]'); if (!b) return;
-    const m = b.dataset.spinemode;
-    if (m === 'auto') {
-      delete ed.temp.cover.spineImg; delete ed.temp.cover.spineFrom;
-      spCrop.open = false; syncEditor();
-    } else if (m === 'upload') {
-      $('#spineFile').click();
-    } else {
-      if (!spineCropSrc()) { toast('先上传封面图片，才能从封面上裁书脊'); return; }
-      spCrop.open = true; syncEditor();
-    }
-  };
-  $('#edSpinePick').onclick = () => $('#spineFile').click();
-  /* 选图独立一个 input，change 统一走 readPickedFiles（移动端先把 File 读成 dataURL
-     再清 input，免得底层 Blob 被提前释放）；压缩到长边 800 足够贴 26~55px 的书脊 */
-  $('#spineFile').onchange = async e => {
-    const [f] = await readPickedFiles(e);
-    if (!f) return;
-    const src = await shrinkImageFile(f, 800, { q: .9, bg: '#fff' });
-    if (!isImgData(src)) { toast('这张图读不出来，换一张试试'); return; }
-    ed.temp.cover.spineImg = src;
-    ed.temp.cover.spineFrom = 'upload';
-    spCrop.open = false;
-    syncEditor();
-    toast('已设为自定义书脊');
-  };
-  $('#edSpineClear').onclick = () => {
-    delete ed.temp.cover.spineImg; delete ed.temp.cover.spineFrom;
-    spCrop.open = false; syncEditor();
-  };
-  $('#edSpineCropOk').onclick = spineCropCommit;
-  $('#edSpineWidth').oninput = e => {
-    spCrop.w = clamp(parseInt(e.target.value, 10) || 14, 4, 40) / 100;
-    syncSpineCropSel();
-  };
-  {
-    const stage = $('#edSpineCropWrap');
-    stage.onpointerdown = e => {
-      if (!spineCropSrc()) return;
-      spCrop.dragging = true;
-      try { stage.setPointerCapture(e.pointerId); } catch (_) {}
-      spineCropPointer(e);
-      e.preventDefault();
-    };
-    stage.onpointermove = e => { if (spCrop.dragging) spineCropPointer(e); };
-    stage.onpointerup = () => { spCrop.dragging = false; };
-    stage.onpointercancel = () => { spCrop.dragging = false; };
-  }
+  /* 自定义书脊 / 封面·书脊·封底三段的入口都在「自定义封面 → 封面设置」，
+     那些控件每次 renderDiySheet() 重建，事件走 #diySheetBody 的委托，编辑器这里不绑。 */
   $('#edName').oninput = e => { ed.temp.name = e.target.value; };
   $('#edPages').oninput = e => { ed.temp.pagesN = clamp(parseInt(e.target.value) || 1, 1, 200); };
 }
@@ -659,7 +945,6 @@ function syncEditor() {
         pal.innerHTML = list.length
           ? list.map((c, i) => `<button data-pick="${i}" class="${i === (st.pick || 0) ? 'on' : ''}"`
               + ` style="background:${c}" title="主色 ${i + 1} · ${c}"></button>`).join('')
-            + `<span class="tip">从封面提取的 ${list.length} 个主色，点一个用作内衬</span>`
           : `<span class="tip">正在提取封面主色…</span>`;
       }
     }
@@ -690,8 +975,6 @@ function syncEditor() {
       box.innerHTML = `<span class="lk-state-ico">${LOCK_SVG}</span><div><b>${label}</b><small>${sub}</small></div>`;
     }
   }
-  /* 自定义书脊：模式 / 缩略图 / 裁切舞台 / 效果预览跟着 ed.temp 走 */
-  syncSpineUI();
   /* 折叠小节：统一刷新收起 / 展开，收起时把当前取值写在标题后面 */
   $$('#modal .fold-sec').forEach(sec => {
     const key = sec.dataset.sec; if (!key) return;
@@ -768,7 +1051,12 @@ const diy = {
   layerDrag: null, layerJustDragged: 0,    // 图层拖拽排序 / 抑制拖完那一下 click
   /* 封面纹理是 DIY 草稿：在「封面设置」面板里改，画布 / 合成都读它，点「完成」才写回
      ed.temp.cover.texture。点「返回」就整份丢掉，不会留下改了数据却没重合成的旧成品图。 */
-  tex: 'none'
+  tex: 'none',
+  /* 封底 / 三段展开图：跟纹理、自定义书脊一样是 DIY 草稿，在「封面设置」面板里改，
+     点右上角「完成」由 diyDone() 写回 ed.temp.cover；点「返回」整份丢掉。
+     wrapFrontId 记「铺满画布的那张封面底图」：卡片单独选图 / 三分的右段都往这张
+     对象上换 src，绝不直写 ed.temp.cover.img（会被 diyRenderCanvas 的合成图覆盖）。 */
+  backMode: '', backImg: '', backFrom: '', wrapFrontId: null
 };
 function diyBgOK(v) {
   const s = String(v || '').trim();
@@ -1308,10 +1596,12 @@ function renderDiySheet() {
       + `</div></div>`;
     return;
   }
-  /* 封面设置：彩带颜色（只有笔记本这一档有）+ 封面圆角。
-     这两项都是**本子级**设置，直接写 ed.temp（不进 cover.diym 草稿）：
-     diyDone() 只重写 cover.img / diym / pattern，不会把 ed.temp 冲掉。
-     改完只需 diyPaperSkin() 重刷画布外壳，不必重建 #diyContent。 */
+  /* 封面设置：封面 / 书脊 / 封底三段 + 整张展开图三分 + 彩带 / 纹理 / 圆角。
+     「书脊精调」已融进书脊卡：卡片上的「裁切封面」展开下面那块裁切台，
+     不再有第二处三档按钮 / 上传框 / 清除按钮 / 效果预览。
+     彩带与圆角是**本子级**设置，直接写 ed.temp；三段、纹理、自定义书脊都写 diy 草稿，
+     一律点右上角「完成」由 diyDone() 落盘，点「返回」整份作废。
+     本子级两项改完只需 diyPaperSkin() 重刷画布外壳，不必重建 #diyContent。 */
   if (diy.sheet === 'cover') {
     const j = ed.temp;
     const hasRb = bookHasRibbon(j);
@@ -1321,7 +1611,10 @@ function renderDiySheet() {
     const r = coverRadiusOf(j);
     const custom = j.cover && j.cover.radius != null;
     box.innerHTML =
-      (hasRb
+       diyWrapCardsHTML()
+      + diySpineCropHTML()          // 书脊卡「裁切封面」的展开区，紧贴三张卡片
+      + diyWrapPanelHTML()
+      + (hasRb
         ? `<div class="diy-row"><span class="diy-lab wide">彩带颜色</span><div class="diy-chips">`
           + `<button class="diy-sw ribbon-none${rb === RIBBON_NONE ? ' on' : ''}" data-ribbon="${RIBBON_NONE}" title="透明（隐藏彩带，也不画书槽）"></button>`
           + RIBBONS.map(c => `<button class="diy-sw${rb === c ? ' on' : ''}" data-ribbon="${c}" style="background:${c}" title="${c}"></button>`).join('')
@@ -1340,6 +1633,9 @@ function renderDiySheet() {
       + `<span class="diy-rval" id="diyRadiusVal">${r.toFixed(0)}px</span>`
       + `<button class="diy-mini" id="diyRadiusDefault" data-act="radiusdefault"${custom ? '' : ' disabled'}>默认</button></div>`
       + `<div class="diy-hint">只调右侧翻口两个角，左侧书脊两角固定；画布与成品封面同度，点「完成」后保存。</div>`;
+    /* 面板每次重建 #diySheetBody.innerHTML 都是新节点：两块裁切舞台的状态与手势都要重绑 */
+    syncDiySpine();
+    syncDiyWrapStage();
     return;
   }
   if (diy.sheet === 'text') {
@@ -1511,6 +1807,18 @@ function openDiyCover() {
   diy.d = d; diy.sel = null; diy.sheet = ''; diy.stTab = 'note'; diy.drag = null; diy.swapId = null;
   diy.tap = { t: 0, id: '', x: 0, y: 0 }; diy.layerDrag = null; diy.layerJustDragged = 0;
   diy.tex = texOf(cv);                   // 进页面时接上这本已有的材质档
+  /* 自定义书脊同样接上已有设置，但之后只活在 diy 草稿里，点「完成」才写回 */
+  diy.spineImg = spineImgOf(ed.temp);
+  diy.spineFrom = spineFromOf(ed.temp);
+  diy.spineSrc = '';
+  spCrop.open = false; spCrop.dragging = false; spCrop.busy = false;
+  /* 封底 / 三段展开图同样接上已有设置；展开图本身是每次进页面重新选的，草稿一律清空 */
+  diy.backMode = backModeOf(ed.temp);
+  diy.backImg = backImgOf(ed.temp);
+  diy.backFrom = backFromOf(ed.temp);
+  diy.wrapFrontId = null;
+  wrapCrop.src = ''; wrapCrop.open = false; wrapCrop.dragging = false;
+  wrapCrop.x = .43; wrapCrop.w = .14;
   diy.box = false; diy.editing = null; diy.caretPt = null; diy.textId = null;
   diy.stopping = false; diyCancelHold();
   DIY_FRESH_TEXTS.clear();
@@ -1554,6 +1862,25 @@ async function diyDone() {
     /* 纹理在合成图里已经烘进「底色与对象之间」，这里把档位落盘：
        以后主页 / 阅读器 / 导出都靠这张位图，textureStyle() 见 cover.img 一律不叠第二层。 */
     ed.temp.cover.texture = diy.tex;
+    /* 自定义书脊跟纹理一样是草稿：只有点「完成」才落盘，点「返回」整本作废 */
+    if (diySpineImg()) {
+      ed.temp.cover.spineImg = diySpineImg();
+      ed.temp.cover.spineFrom = diy.spineFrom === 'crop' ? 'crop' : 'upload';
+    } else { delete ed.temp.cover.spineImg; delete ed.temp.cover.spineFrom; }
+    /* 封底同理：'image' 档必须带合法位图，否则退回「没设封底」；
+       'follow' 只留档位，不带任何图片（跟导入白名单 normalizeJournal 一致）。 */
+    const bm = diy.backMode === 'image' && isImgData(diy.backImg) ? 'image'
+      : (diy.backMode === 'follow' ? 'follow' : '');
+    if (bm === 'image') {
+      ed.temp.cover.backMode = 'image';
+      ed.temp.cover.backImg = diy.backImg;
+      ed.temp.cover.backFrom = diy.backFrom === 'split' ? 'split' : 'upload';
+    } else if (bm === 'follow') {
+      ed.temp.cover.backMode = 'follow';
+      delete ed.temp.cover.backImg; delete ed.temp.cover.backFrom;
+    } else {
+      delete ed.temp.cover.backMode; delete ed.temp.cover.backImg; delete ed.temp.cover.backFrom;
+    }
     closeDiyCover();
     syncEditor();
     toast('自定义封面已应用，点「完成」保存手帐本');
@@ -1787,7 +2114,44 @@ $('#diyContent').addEventListener('pointerdown', e => {
 /* ---- 底栏与工具面板 ---- */
 $('#diyBack').onclick = () => { closeDiyCover(); toast('已放弃本次修改'); };
 $('#diyDone').onclick = diyDone;
-$('#diySheetClose').onclick = () => diySheet('');
+/* ---- bottom sheet：按住顶部拖动条向下拖，超过阈值松手就收起 ----
+   把手是 .diy-sheet-head::before 的视觉提示，手势绑在整条头部（命中区大得多）。
+   ⚠️ 只在竖屏启用：横屏面板是右侧栏，没有这条把手，向下拖没有意义。
+   ⚠️ 拖的时候只改 transform（不影响 flex 布局），松手超过阈值才真正 diySheet('')，
+      没超就撤掉内联 transform 弹回去。 */
+const sheetDrag = { on: false, id: 0, y0: 0, dy: 0 };
+function diySheetDragEnd(close) {
+  const el = $('#diySheet'), head = $('#diySheet .diy-sheet-head');
+  sheetDrag.on = false; sheetDrag.dy = 0;
+  if (el) { el.classList.remove('dragging'); el.style.transform = ''; }
+  if (head) head.classList.remove('grabbing');
+  if (close) diySheet('');
+}
+{
+  const head = $('#diySheet .diy-sheet-head');
+  const portrait = () => !!(window.matchMedia && window.matchMedia('(orientation:portrait)').matches);
+  head.addEventListener('pointerdown', e => {
+    if (!diy.open || $('#diySheet').hidden || !portrait() || e.button > 0) return;
+    sheetDrag.on = true; sheetDrag.id = e.pointerId;
+    sheetDrag.y0 = e.clientY; sheetDrag.dy = 0;
+    $('#diySheet').classList.add('dragging');
+    head.classList.add('grabbing');
+    try { head.setPointerCapture(e.pointerId); } catch (_) {}
+    e.preventDefault();
+  });
+  head.addEventListener('pointermove', e => {
+    if (!sheetDrag.on || e.pointerId !== sheetDrag.id) return;
+    sheetDrag.dy = Math.max(0, e.clientY - sheetDrag.y0);
+    $('#diySheet').style.transform = `translateY(${sheetDrag.dy.toFixed(1)}px)`;
+  });
+  head.addEventListener('pointerup', e => {
+    if (!sheetDrag.on || e.pointerId !== sheetDrag.id) return;
+    const h = $('#diySheet').offsetHeight;
+    const limit = Math.max(48, Math.min(96, h * .24));
+    diySheetDragEnd(sheetDrag.dy > limit);
+  });
+  head.addEventListener('pointercancel', () => { if (sheetDrag.on) diySheetDragEnd(false); });
+}
 $('#diyBar').onclick = e => {
   const b = e.target.closest('button[data-diyact]'); if (!b) return;
   const a = b.dataset.diyact;
@@ -1798,7 +2162,22 @@ $('#diyBar').onclick = e => {
 /* 封面圆角滑块：拖动中只重刷画布外壳的 --cr，不重建纸面、也不重绘面板
    （重绘会把手指正按着的 range 换掉，拖到一半就断）。 */
 $('#diySheetBody').addEventListener('input', e => {
-  if (!diy.open || e.target.id !== 'diyRadius') return;
+  if (!diy.open) return;
+  /* 自定义书脊的宽度滑块只改选区，不重绘面板（重绘会把手指正按着的 range 换掉） */
+  if (e.target.id === 'diySpineWidth') {
+    spCrop.w = clamp(parseInt(e.target.value, 10) || 14, 4, 40) / 100;
+    syncSpineCropSel();
+    return;
+  }
+  /* 三段展开图的宽度滑块：以选区中心为轴改宽，只动选区不重绘面板 */
+  if (e.target.id === 'diyWrapWidth') {
+    const cx = wrapCrop.x + wrapCrop.w / 2;
+    wrapCrop.w = clamp((parseInt(e.target.value, 10) || 14) / 100, .04, .4);
+    wrapCrop.x = cx - wrapCrop.w / 2;
+    syncWrapSel();
+    return;
+  }
+  if (e.target.id !== 'diyRadius') return;
   const v = clamp(Number(e.target.value) || 0, COVER_R_MIN, COVER_R_MAX);
   ed.temp.cover.radius = v;
   const lab = $('#diyRadiusVal'); if (lab) lab.textContent = v.toFixed(0) + 'px';
@@ -1816,6 +2195,55 @@ $('#diySheetBody').addEventListener('click', async e => {
   if (performance.now() - (diy.layerJustDragged || 0) < 120) return;  // 拖完排序那一下 click 不算
   const t = e.target.closest('button, .diy-layer'); if (!t) return;
   const d = t.dataset, act = d.act;
+  /* ---- 封面 · 书脊 · 封底（三段卡片 / 整张展开图三分）----
+     面板每次重建都是新节点，事件全走委托；改动只写 diy 草稿，点「完成」才落盘。 */
+  const wb = e.target.closest('[data-wrapact],[data-backmode]');
+  if (wb) {
+    if (wb.dataset.backmode !== undefined) {
+      const m = wb.dataset.backmode;
+      if (!m) { diy.backMode = ''; diy.backImg = ''; diy.backFrom = ''; }
+      else if (m === 'follow') { diy.backMode = 'follow'; diy.backImg = ''; diy.backFrom = ''; }
+      else if (isImgData(diy.backImg)) diy.backMode = 'image';
+      else { $('#wrapBackFile').click(); return; }   // 选了「图片」但还没图：直接去选
+      renderDiySheet(); return;
+    }
+    switch (wb.dataset.wrapact) {
+      case 'front-pick': $('#wrapFrontFile').click(); break;
+      case 'front-clear': diyWrapFrontClear(); renderDiyPaper(); renderDiySheet(); break;
+      case 'spine-pick': $('#wrapSpineFile').click(); break;
+      case 'spine-clear': diy.spineImg = ''; diy.spineFrom = ''; spCrop.open = false; renderDiySheet(); break;
+      case 'spine-crop':
+        /* 两块裁切台互斥：先收掉整张展开图，再把**当前画布**合成成位图展开书脊裁切台。
+           合成是异步的（diyRenderCanvas → SVG foreignObject），成功后再重绘并滚过去。 */
+        wrapCrop.open = false; wrapCrop.src = '';
+        if (await diySpinePrepareCrop()) {
+          renderDiySheet();
+          /* 把「用选区作书脊」滚进可视区：scrollIntoView 的 nearest 在窄 bottom sheet
+             里只会挪一点点（裁切台顶已经可见就不再滚），按钮仍然够不着；
+             自己按底边差值补一次最小滚动，卡片还能留一截在上面。
+             ⚠️ 必须等两帧：renderDiySheet() 刚换掉 innerHTML 时同步量到的是旧布局，
+                算出来的差值接近 0，滚动会被吞掉。 */
+          requestAnimationFrame(() => requestAnimationFrame(() => {
+            const body = $('#diySheetBody'), ok = $('#diySpineCropOk');
+            if (!body || !ok || !diy.open || diy.sheet !== 'cover') return;
+            const br = body.getBoundingClientRect(), or = ok.getBoundingClientRect();
+            if (or.bottom > br.bottom - 8) body.scrollTop += or.bottom - br.bottom + 12;
+          }));
+        }
+        break;
+      case 'back-pick': $('#wrapBackFile').click(); break;
+    }
+    return;
+  }
+  if (e.target.closest('#diyWrapImport')) { $('#wrapFile').click(); return; }
+  if (e.target.closest('#diyWrapApply')) { wrapApply(); return; }
+  if (e.target.closest('#diyWrapCancel')) {
+    wrapCrop.open = false; wrapCrop.src = ''; renderDiySheet(); return;
+  }
+  /* ---- 书脊裁切台（由书脊卡的「裁切封面」展开）----
+     上传 / 恢复跟随 / 模式切换都在卡片上，这里只管选区落定与收起。 */
+  if (e.target.closest('#diySpineCropOk')) { spineCropCommit(); return; }
+  if (e.target.closest('#diySpineCropCancel')) { spCrop.open = false; renderDiySheet(); return; }
   if (d.bg) { diy.d.bg = d.bg; renderDiyPaper(); renderDiySheet(); return; }
   if (d.grad) { diy.d.bg = d.grad; renderDiyPaper(); renderDiySheet(); return; }
   if (act === 'bgcustom') {

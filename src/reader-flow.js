@@ -60,7 +60,9 @@ function flyCover(from, to, reverse) {
   ghost.className = 'cover-ghost';
   const fit = document.createElement('div');
   fit.className = 'cover-ghost-fit';
-  fit.innerHTML = coverHTML(j);
+  /* 合着的书朝外那一面：停在封面就是封面、停在封底就是封底（封底态退场前会先翻回封面，
+     这里认 closedCoverHTML 只是多一道保险，免得 ghost 跟书上的皮不是同一张） */
+  fit.innerHTML = closedCoverHTML(j);
   fit.style.width = to.width + 'px';
   fit.style.height = to.height + 'px';
   ghost.appendChild(fit);
@@ -116,13 +118,14 @@ function openReader() {
   closeAddMenu();
   hideTextBar();
   state.page = -1; state.spread = -1;   // 先展示封面
+  primeEndpaper(cur());                 // 提前取封面 / 封底主色，翻到末页时不再补色
   const home = $('#home'), reader = $('#reader'), book = $('#book');
   const from = coverRect();
   const reduced = window.matchMedia('(prefers-reduced-motion:reduce)').matches;
   if (!from || reduced) {
     reader.classList.add('show');
     home.classList.remove('book-returning');
-    book.classList.remove('book-in', 'book-out', 'gone', 'folded', 'folding', 'cover-flip');
+    book.classList.remove('book-in', 'book-out', 'gone', 'folded', 'folding', 'folding-back', 'back-hinge', 'back-close', 'back-opening', 'cover-flip');
     renderReader();
     return;
   }
@@ -131,7 +134,7 @@ function openReader() {
   home.classList.add('book-opening');
   reader.classList.add('book-opening');
   reader.classList.add('show');
-  book.classList.remove('book-out', 'gone', 'folded', 'folding', 'cover-flip');
+  book.classList.remove('book-out', 'gone', 'folded', 'folding', 'folding-back', 'back-hinge', 'back-close', 'back-opening', 'cover-flip');
   renderReader();
   /* 量封面那一页本身，而不是整本书 —— 封面单独成页时书比封面宽一倍 */
   const to = coverPageRect();
@@ -143,14 +146,15 @@ function openReader() {
     book.classList.remove('book-in');
   }, FLY_MS + 40);
 }
-/* 是否停在封面：统一用 reader-view.js 的 isCoverView()，这里不再留第二份判定 */
+/* 是否停在「合着的书」：统一用 reader-view.js 的 isClosedView() / isBackView()，
+   这里不再留第二份判定（封面 -1 与封底 -3 都是合着的书） */
 /* ① 合上书：一次动画，不再先「哗哗翻回封面」。
    ⚠️ 以前是 flipBackToCover() 翻回封面（它最后一翻本身就把书合上了，而且只播 160ms 就被掐断，
       是个半截的「小合上」），完了再走 foldBook() —— 合上看着演了两遍，第一遍还只演了一半。
       现在合上**只留一次**：当前这一跨直接合。 */
 function closeBookOnce() {
   /* 单页模式本来就「合着」（一次只有一张纸），不补合书动画，直接回封面 */
-  if (state.mode !== 'spread') { state.page = -1; renderReader(); return Promise.resolve(); }
+  if (state.mode !== 'spread') { state.page = -1; state.spread = -1; renderReader(); return Promise.resolve(); }
   /* 第一跨页（封面内侧 + 第 1 页）：走翻页那套 —— 封面摊开 / 合拢的那段横移在里面。
      ⚠️ 它是「从左往右」合上的（叶片从 -180° 转到 0°），下面的 foldBook 必须同向 */
   if (state.spread === 0) return flipDone(-1);
@@ -165,7 +169,7 @@ function flipDone(dir) {
     (function wait() { if (flipA) requestAnimationFrame(wait); else done(); })();
   });
 }
-/* ② 合上书：**一律从左往右** —— 把左半边抬起来，沿书脊翻到右边盖上，落定后朝外的是封面。
+/* ② 合回封面：**从左往右** —— 把左半边抬起来，沿书脊翻到右边盖上，落定后朝外的是封面。
    ⚠️ 方向跟「第一跨页合回封面」那一翻（closeBookOnce 里的 flip(-1)）必须是同一个：
       以前第二跨往后是反着来（把右页往左掀），同一个「返回」一会儿左合一会儿右合，
       看着像两套本子 —— 现在两处都是「从左往右」。
@@ -175,7 +179,12 @@ function flipDone(dir) {
       ⚠️ 落点必须是 slotR（不是 slotL）：封面单独成页时 `.cover-only` 会把左槽收起来，
          放在左槽里它是 display:none，量出来的位置是 0×0，
          紧接着飞回主页那张 ghost 就会从屏幕左上角那么一个「无」里长出来。 */
-function foldBook() {
+/* landing = undefined/'front' 是合回封面（点返回时的老路径）；
+   ⚠️ 'back'（翻到最后一页再往后翻合到封底）**不共用这段动画**：真实本子翻到末页
+      是把右半边从右往左合上，跟合回封面正好镜像 —— 见下面的 foldBookBack()。 */
+function foldBook(landing) {
+  if (landing === 'back') return foldBookBack();
+  const landingHTML = coverPageHTML();
   return new Promise(done => {
     const book = $('#book'), leaf = $('#leaf'), lf = $('#leafF'), lb = $('#leafB');
     /* 换掉左槽前先把文字贴挂在 document 上的监听摘掉（跟 renderReader 同一套做法），
@@ -194,7 +203,7 @@ function foldBook() {
     lb.innerHTML = ringed
       ? insideCoverPageHTML() + `<div class="leaf-page-inset">${leftHTML}</div>`
       : leftHTML;                             // 背面：当前左页（起点那一面）
-    lf.innerHTML = coverPageHTML();           // 正面：封面（落地那一面）
+    lf.innerHTML = landingHTML;               // 正面：封面（落地那一面）
     /* 左页被"掀"起来带走：**整格一起收掉**（.book.folding，见 book-anim.css）——
        空槽自己垫的那层纸色看着就是「一张白纸停在左边」，而合上的是整本左半边，
        纸和封面都跟着翻过去了，那一格合书期间本来就该什么都没有 */
@@ -207,7 +216,7 @@ function foldBook() {
     flipA = {
       dir: -1, from: -180, to: 0, dur: FOLD_MS, raf: 0, t0: performance.now(),
       onEnd: () => {
-        $('#slotR').innerHTML = coverPageHTML();    // 交接给右槽：封面就停在自己落地的位置
+        $('#slotR').innerHTML = landingHTML;        // 交接给右槽：封面就停在自己落地的位置
         leaf.classList.remove('show', 'turning');
         leaf.style.transition = 'none';
         leaf.style.transform = 'none';
@@ -215,10 +224,60 @@ function foldBook() {
         $('#pager').textContent = '封面';            // 底栏页码跟上（整体重绘会破坏合拢形态，这里只改文字）
         /* 形态改到「封面单独成页」再按封面态重算尺寸：活页封面比内页大一圈
            （--pw 从内页宽变成封面宽），不重算的话收拢出来的是内页大小的一张封面 */
-        book.classList.remove('spread', 'first-spread', 'last-spread', 'has-under', 'folding', 'cover-flip');
+        book.classList.remove('spread', 'first-spread', 'last-spread', 'has-under', 'folding', 'folding-back', 'back-hinge', 'back-close', 'back-opening', 'cover-flip');
         book.classList.add('cover-only');
         layoutBook();
         book.classList.add('folded');              // 收成一本合着的书
+        done();
+      }
+    };
+    requestAnimationFrame(stepFlip);
+  });
+}
+/* ==================== 合到封底：从右往左 ====================
+   真实本子翻到最后一页再合上，抬起来的是**右半边**，沿书脊往左盖过去，
+   朝外的就是封底；合回封面（foldBook）抬的是左半边，两者正好镜像。
+   ⚠️ 叶片转轴固定在书脊（右槽左沿）：0° 盖右槽、-180° 盖左槽。所以这一翻
+      是 0° → -180°，起手叶正面 = 当前右页（静止那一帧接得上）、落地叶背 = 封底。
+   ⚠️ 叶片最后停在左槽，封底态就由 renderReader() 摆在**左槽**（.back-only）:
+      合书时整本右移半张封面（slide），左槽被推到屏幕正中；落定后位移保持这半张，
+      交接在同一帧完成，眼睛看不到任何跳动。
+      ⚠️ 别再把封底摆回右槽：那样从封底往前翻只能又翻一次右→左，跟合书方向反着来。
+   ⚠️ 右槽不清空、只靠 .folding-back 把它 visibility:hidden：文字贴挂在 document 上的
+      监听留给 renderReader() 统一摘，动画被打断时槽里也还是完整的那一页。 */
+function foldBookBack() {
+  return new Promise(done => {
+    const book = $('#book'), leaf = $('#leaf'), lf = $('#leafF'), lb = $('#leafB');
+    const ringed = !!bookStyleOf(cur()).rings;
+    const rightHTML = $('#slotR').innerHTML;
+    /* 活页右半边摊开时是「后封面内侧那张板 + 压在板上的内页」，起手照原样摆进叶正面 */
+    lf.innerHTML = ringed
+      ? insideCoverPageHTML() + `<div class="leaf-page-inset">${rightHTML}</div>`
+      : rightHTML;
+    lb.innerHTML = backCoverPageHTML();          // 落地那一面（-180°，盖住左槽）
+    book.style.transform = '';
+    book.classList.add('folding-back', 'back-view');
+    if (ringed) book.classList.add('cover-flip');
+    leaf.classList.add('show', 'turning');
+    leaf.style.transition = 'none';
+    leaf.style.transform = 'rotateY(0deg)';
+    /* 位移按「合着的封面」半宽算：活页封面比内页大一圈，拿内页宽去移会少走一截 */
+    const st = bookStyleOf(cur());
+    const coverK = st.rings ? 1 + (st.padX || 0) + (st.gap || 0) / 2 : 1;
+    const half = (state.pw || 0) * coverK / 2;
+    flipA = {
+      dir: 1, from: 0, to: -180, slide: [0, half], dur: FOLD_MS,
+      t0: performance.now(), raf: 0,
+      onEnd: () => {
+        leaf.classList.remove('show', 'turning');
+        leaf.style.transition = 'none';
+        leaf.style.transform = 'none';
+        book.style.transform = '';               // 交给 .back-only 的 CSS 位移（同为 +半张）
+        book.classList.remove('folding-back', 'back-hinge', 'back-close', 'back-opening', 'cover-flip', 'back-view', 'folding');
+        /* 合到封底后人还在阅读器里，不留 .folded：按封底态整体重绘，
+           把 back-only / back-view / --pw / 底栏按钮 / 页码一次算对。 */
+        state.page = PAGE_BACK_COVER; state.spread = PAGE_BACK_COVER;
+        renderReader();
         done();
       }
     };
@@ -235,7 +294,7 @@ function endClose() {
   const leaf = $('#leaf');
   if (leaf) { leaf.classList.remove('show', 'turning'); leaf.style.transition = 'none'; leaf.style.transform = 'none'; }
   $('#reader').classList.remove('show', 'closing');
-  $('#book').classList.remove('book-out', 'gone', 'folded', 'folding', 'cover-flip');
+  $('#book').classList.remove('book-out', 'gone', 'folded', 'folding', 'folding-back', 'back-hinge', 'back-close', 'back-opening', 'cover-flip');
   $('#book').style.transform = '';
   $('#home').classList.remove('book-returning');
 }
@@ -243,8 +302,8 @@ function endClose() {
 async function runCloseSequence(to) {
   const reader = $('#reader'), book = $('#book');
   const alive = () => reader.classList.contains('show') && !!cur();
-  /* 停在封面就不用再合；否则**合一次**就够（见 closeBookOnce 的注释） */
-  if (!isCoverView()) {
+  /* 停在「合着的书」（封面 / 封底）就不用再合；否则**合一次**就够（见 closeBookOnce 的注释） */
+  if (!isClosedView()) {
     await closeBookOnce();
     if (!alive()) { endClose(); return; }
   }
@@ -265,6 +324,9 @@ function closeReader() {
   hideTextBar();
   const home = $('#home'), reader = $('#reader'), book = $('#book');
   if (!reader.classList.contains('show')) return;
+  /* 从封底退出：先把书翻回封面那一面，再让封面飞回书架。
+     主页书架上摆的永远是封面，直接拿封底去缩回去会「封底飞着飞着变成封面」。 */
+  if (isBackView()) { state.page = -1; state.spread = -1; renderReader(); }
   const reduced = window.matchMedia('(prefers-reduced-motion:reduce)').matches;
   /* 书架模式先把要落位的那本滚进视野，不然封面飞回去会飞到屏幕外 */
   if (state.prefs.view === 'shelf') {
@@ -285,7 +347,7 @@ function closeReader() {
   if (!to || reduced) {
     reader.classList.remove('show');
     home.classList.remove('book-returning');
-    book.classList.remove('book-in', 'book-out', 'gone', 'folded', 'folding', 'cover-flip');
+    book.classList.remove('book-in', 'book-out', 'gone', 'folded', 'folding', 'folding-back', 'back-hinge', 'back-close', 'back-opening', 'cover-flip');
     $$('#spineRow .spine-item.pulling,#spineRow .spine-item.gone')
       .forEach(el => el.classList.remove('pulling', 'gone'));
     return;
@@ -346,7 +408,7 @@ document.addEventListener('pointerdown', e => {
 /* 加页：插在「目标页」的后面（双页模式下可以在左页后，也可以在右页后） */
 function addPageAfter() {
   const j = cur(); if (!j) return;
-  if (state.mode === 'spread' && !isCoverView()) {
+  if (state.mode === 'spread' && !isClosedView()) {
     const [a, b] = currentIndices();
     const t = currentAddPage();
     // 目标页是右页就插在右页后（落到下一跨页的左页），否则插在左页后（就是当前跨页的右页）

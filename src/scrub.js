@@ -92,8 +92,11 @@ function autoTick(now) {
 function openScrub(clientX) {
   const n = pageCount();
   if (!n) { toast('还没有页面'); return; }
-  if (isCoverView()) {                       // 停在封面时，从第 1 页开始选
-    if (state.mode === 'spread') state.spread = 0; else state.page = 0;
+  /* 停在合着的书时先把书摊开再选页：封面从第 1 页起、封底从最后一页起 */
+  if (isClosedView()) {
+    const last = state.mode === 'spread' ? Math.max(spreadCount(n) - 1, 0) : Math.max(n - 1, 0);
+    const to = isBackView() ? last : 0;
+    if (state.mode === 'spread') state.spread = to; else state.page = to;
     renderReader();
   }
   buildScrub();
@@ -221,7 +224,7 @@ window.addEventListener('keydown', e => {
       if (flipSuppressed(450)) return;
       /* 「+」菜单开着时点页面 = 切换目标页（右页也能选），不翻页 */
       const m = $('#addMenu');
-      if (m && m.classList.contains('show') && state.mode === 'spread' && !isCoverView()) {
+      if (m && m.classList.contains('show') && state.mode === 'spread' && !isClosedView()) {
         const slot = e.target.closest('#slotL, #slotR');
         if (slot) {
           const pid = slotPageIndex(slot);

@@ -55,6 +55,14 @@
    封面就正好落在正中；翻页用的叶子位置与静止时完全重合，翻页动画可以原样沿用 */
 .book.cover-only{transform:translateX(calc(var(--pw) * -.5))}
 .book.cover-only .page-slot.left{display:none}
+/* 封底：合上时右半边从右往左翻到左槽，合好的书就停在左槽；整本右移半页让它居中。
+   ⚠️ 跟 cover-only 镜像，不要复用 cover-only 再「把封底摆回右槽」—— 那样从封底
+      往前翻就只能再翻一次右→左，跟合书方向反着来（用户 11-16 反馈）。 */
+.book.back-only{transform:translateX(calc(var(--pw) * .5))}
+.book.back-only .page-slot.right{display:none}
+.book.back-only .page-slot.left{border-radius:var(--book-r-back,var(--cr-round) var(--cr-left) var(--cr-left) var(--cr-round))}
+.book.back-only .leaf-face.front,
+.book.back-only .leaf-face.back{border-radius:var(--book-r-back,var(--cr-round) var(--cr-left) var(--cr-left) var(--cr-round))}
 /* 合书封面 = 整本外框：吃 --book-r 在「合上」那一刻的值（活页 5px 25px 25px 5px、
    其它 5px 16px 16px 5px）；翻开后 .book-under 由 .has-under 覆写成四角一致的同角度 */
 .book.cover-only .page-slot.right{border-radius:var(--book-r,5px 16px 16px 5px)}
@@ -91,6 +99,25 @@
 .book.folding .book-under{clip-path:inset(0 0 0 50%)}
 /* 纸叠厚度那道白边只剩右半边：左半边的纸已经翻走了，留一道白边等于还在那儿 */
 .book.spread.folding{box-shadow:9px 0 0 -4px rgba(255,252,244,.42)}
+/* ---- 合到封底（2026-11-16）：右半边从右往左合上，跟 .folding 完全镜像 ----
+   抬走的是右槽，所以收的是右槽、裁掉的是 .book-under 的右半张；
+   叶片 0° → -180° 落在左槽，整本同时右移半张封面（flipA.slide），
+   落定后 renderReader() 把封底摆在左槽（.back-only 同为右移半张）—— 两处位置重合。
+   ⚠️ 别复用 .folding：它会把左槽收起来，那正好是要留着的那一半。 */
+.book.folding-back .page-slot.right{visibility:hidden}
+.book.folding-back .book-under{clip-path:inset(0 50% 0 0)}
+.book.spread:not(.ringed).folding-back{box-shadow:-9px 0 0 -4px rgba(255,252,244,.42)}
+/* ---- 从封底翻开（openFromBack）：跟 .cover-opening 完全镜像 ----
+   起手那帧书还合着、叶片正盖在左槽显示封底：右槽整格收起来，不能提前摆出
+   最后一跨的右页（否则「还没翻呢右侧就已经出现页了」）。那一页只画在叶片正面，
+   等叶片 -180° → 0° 盖过来才出现；land() 摘掉 .back-opening 后由 renderReader() 重建槽。 */
+.book.back-opening .page-slot.right{visibility:hidden}
+.book.back-opening .book-under{clip-path:inset(0 50% 0 0)}
+.book.spread:not(.ringed).back-opening{box-shadow:-9px 0 0 -4px rgba(255,252,244,.42)}
+/* 落地那一面是封底：书脊在右，圆角左右对调（--book-r-back 由 .back-view 定义） */
+.book.folding-back .leaf-face.back{border-radius:var(--book-r-back)}
+/* 活页右半边那张「后封面内侧」：左右镜像过来才跟静止时的 .cbrd-r 对得上 */
+.book.folding-back .leaf-face.front .paper.cover-inside{transform:scaleX(-1)}
 /* 退出时封面立刻让位给飞回主页的那一张，不做淡出 */
 .book.gone{opacity:0}
 /* 合上后：宽度收成一张封面，位移抵消「居中」带来的偏移，
@@ -109,3 +136,43 @@
   .carousel{padding:0 40vw}
 }
 
+
+/* ============ 封底态：合着的书翻了个面，书脊在右（2026-11-16）============
+   阅读器停在封底时给 #book 挂 .back-view：外框圆角跟着左右对调，
+   跟封底那张皮（.cover.backside）的装订列方向一致。
+   ⚠️ 特异性要压过 reader.css 的 .book.ringed.cover-only / .book.ringed.single
+      以及本文件里 .book.cover-only .page-slot.right 那几条。 */
+.book.back-view{--book-r-back:var(--cr-round) var(--cr-left) var(--cr-left) var(--cr-round)}
+.book.back-view.cover-only .page-slot.right,
+.book.back-view.back-only .page-slot.left,
+.book.back-view.cover-only .leaf-face.front,
+.book.back-view.cover-only .leaf-face.back,
+.book.back-view.back-only .leaf-face.front,
+.book.back-view.back-only .leaf-face.back,
+.book.back-view.single,
+.book.back-view.single .page-slot.right{border-radius:var(--book-r-back)}
+
+/* ---- 单页（手机竖屏）封底两翻：各用「当前朝上那一面的书脊」 ----
+   · 合到封底（.back-close）：末页朝上书脊在**左**，绕左沿 0° → -180° 从右往左合书，
+     最后一页翻走、槽里的封底从右边露出来。
+   · 从封底翻开（.back-hinge）：封底朝上书脊在**右**，绕右沿 0° → 180° 从左往右掀开，
+     封底转出书外、槽里的末页露出来。
+   ⚠️ 两根轴**不许合并**（用户 11-17 二次反馈：合书要以左侧为轴）；
+      也不再整本绕中轴翻面（旧的 .back-turn 已整块撤掉）。
+   ⚠️ 叶片都按整张封面板铺（同 .book.single.cover-flip .leaf），轴心才落在书的外沿；
+      只吃 --pw 的话活页会留一条缝，翻过去的叶背会在书里露出一小条。
+   ⚠️ 转过 90° 之后叶片落到书外、被 .book.single 的 overflow 裁掉，
+      槽里那一页/封底必须一开始就摆好，起手与落地都不跳。 */
+.book.single.back-hinge .leaf,
+.book.single.back-close .leaf{
+  left:0;top:0;width:var(--cbrd-w,var(--pw));height:var(--cbrd-h,var(--ph))
+}
+.book.single.back-hinge .leaf{transform-origin:100% 50%}
+.book.single.back-close .leaf{transform-origin:0% 50%}
+.book.single.back-hinge .gutter,
+.book.single.back-hinge .book-under,
+.book.single.back-close .gutter,
+.book.single.back-close .book-under{display:none}
+/* 合书起手那张是**最后一页**（正面圆角）；掀封底起手那张是**封底**（镜像圆角）。 */
+.book.single.back-close .leaf-face.front{border-radius:var(--book-r,5px 16px 16px 5px)}
+.book.single.back-hinge .leaf-face.front{border-radius:var(--book-r-back,var(--cr-round) var(--cr-left) var(--cr-left) var(--cr-round))}

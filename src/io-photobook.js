@@ -213,9 +213,12 @@ async function ensurePdfLib() {
   }
   return pdfLibTask;
 }
-/* PDF 的书名：拿文件名（去掉 .pdf），跟同名的排到后面一本 */
-function pdfBookName(file) {
-  return uniqJournalName(String((file && file.name) || '').replace(/\.pdf$/i, '').trim() || pbDefaultName());
+/* PDF 的书名：拿源文件名（去掉 .pdf），跟同名的排到后面一本。
+   ⚠️ buildPdfBook 收到的是已经读进内存的 ArrayBuffer，身上没有 File.name，
+      所以由 pickBookPDF 把文件名单独带进来；字符串 / 带 name 的对象两种都收。 */
+function pdfBookName(src) {
+  const raw = (src && typeof src === 'object') ? String(src.name || '') : String(src || '');
+  return uniqJournalName(raw.replace(/\.pdf$/i, '').trim() || pbDefaultName());
 }
 /* 渲染密度：页数越多越降一档 —— 一百多页全按 1500 渲，手机端内存先崩的是它 */
 function pdfRenderSide(n) {
@@ -242,7 +245,9 @@ async function renderPdfPage(page, maxSide) {
   catch (_) { return null; }
   finally { c.width = c.height = 0; }        // 画布还给浏览器，别让上百张一直挂着
 }
-async function buildPdfBook(input) {
+/* input 是 ArrayBuffer 或 File（两种入参都收）；srcName 是源文件名，
+   ⚠️ 必须单独传：移动端先把 Blob 读进内存再移除 input，那时 File 已经失效了。 */
+async function buildPdfBook(input, srcName) {
   if (pbBusy || !input) return;
   pbBusy = true;
   let doc = null;
@@ -277,7 +282,8 @@ async function buildPdfBook(input) {
       await new Promise(r => setTimeout(r, 0));            // 让出一帧，进度数字才画得出来
     }
     if (!srcs.length) { toast('这个 PDF 一页都没渲出来，换个文件试试'); return; }
-    const j = await fitPhotoPages(makePhotoBook(srcs, pdfBookName(file)));
+    const bookName = pdfBookName(srcName || (input && input.name) || '');
+    const j = await fitPhotoPages(makePhotoBook(srcs, bookName));
     const skipped = total - srcs.length;
     await pbDeliver(j, (n > PDF_MAX_PAGES ? ` · 只取前 ${PDF_MAX_PAGES} 页` : '')
       + (skipped > 0 ? ` · ${skipped} 页没渲出来已跳过` : ''));
@@ -301,11 +307,13 @@ function pickBookPDF() {
   inp.onchange = async () => {
     const f = inp.files && inp.files[0];
     if (!f) { drop(); return; }
-    /* 先同步把 Blob 读进内存，再移除 input：移动端 remove() 后 File 会失效 */
+    /* 先同步把 Blob 读进内存，再移除 input：移动端 remove() 后 File 会失效。
+       书名也要趁 File 还活着取出来，一起交给 buildPdfBook（ArrayBuffer 没有 name）。 */
     let buf = null;
+    const name = f.name || '';
     try { buf = await f.arrayBuffer(); } catch (_) {}
     drop();
-    if (buf) buildPdfBook(buf);
+    if (buf) buildPdfBook(buf, name);
   };
   inp.click();
 }
@@ -364,7 +372,7 @@ function spreadInsertIndex(refPid) {
   const n = j.pages.length;
   if (!n) return 0;
   const par = spreadHasInsideCover() ? 1 : 0;             // 左页下标的奇偶
-  if (state.mode === 'spread' && isCoverView()) return par;   // 停在封面 → 插在最前面那一跨
+  if (state.mode === 'spread' && isClosedView()) return par;   // 停在合着的书（封面 / 封底）→ 插在最前面那一跨
   const p = clamp(Number.isFinite(+refPid) ? +refPid : 0, 0, n - 1);
   /* 下一个同奇偶下标 = 下一跨页的左页；夹到 <= 页数，绝不插出「跨搭配对」 */
   const maxLeft = n % 2 === par ? n : n - 1;

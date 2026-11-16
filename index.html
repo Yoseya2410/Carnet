@@ -354,7 +354,6 @@
             <span class="ed-r-val" id="edRadiusVal">10px</span>
             <button class="btn ghost" id="edRadiusReset" style="flex:0 0 auto;padding:9px 13px;font-size:12.5px">默认</button>
           </div>
-          <p class="tpl-note">只调整封面右侧（翻口）的两个角，左侧靠书脊的两角保持装帧原样；数值越大越圆，0 为直角。主页、阅读器与导出的封面会一起变。</p>
         </div>
       </div>
 
@@ -371,8 +370,9 @@
         </div>
       </div>
 
-      <!--pnid:TexSec--><!-- 封面纹理不在这里：它属于「自定义封面」的封面设置面板（diySheet('cover')），
-          跟彩带颜色 / 封面圆角放一起；本页只管本子的名称、底色、图案、图片、装帧等。 -->
+      <!--pnid:TexSec--><!-- 封面纹理与自定义书脊都不在这里：它们属于「自定义封面」的
+          封面设置面板（diySheet('cover')），跟彩带颜色 / 封面圆角放一起；
+          本页只管本子的名称、底色、图案、图片、装帧等。 -->
 
       <!--pnid:ImgSec-->
       <div class="fold-sec" data-sec="image" id="edSecImg">
@@ -386,54 +386,17 @@
         </div>
       </div>
 
-      <!--pnid:SpineSec--><!-- 自定义书脊：单层书架露出的那一根，可另传图片或从封面图裁一条 -->
-      <div data-page-node-id="EDspineSec" class="fold-sec" data-sec="spine" id="edSecSpine">
-        <label class="fold-head" id="edSpineHead">自定义书脊<span class="fold-hint" id="edSpineHint"></span><i class="fold-caret"></i></label>
-        <div class="fold-body">
-          <p class="tpl-note">单层书架里露出的那一根。默认沿用封面；也可以另传一张竖长条书脊片，或从封面图片上裁一条下来。书脊上不显示书名。</p>
-          <div class="tpl-fit sp-modes" id="edSpineModes">
-            <button class="on" data-spinemode="auto">跟随封面</button>
-            <button data-spinemode="upload">上传书脊片</button>
-            <button data-spinemode="crop">裁切封面</button>
-          </div>
-          <div class="sp-row" id="edSpineUploadBox" hidden>
-            <button class="btn ghost" id="edSpinePick">选择图片</button>
-            <div class="upload-thumb sp-thumb" id="edSpineThumb"></div>
-            <span class="cus-tip">建议竖长条，会按书脊高矮拉伸铺满</span>
-          </div>
-          <div class="sp-crop-box" id="edSpineCropBox" hidden>
-            <div class="sp-crop-stage" id="edSpineCropWrap">
-              <img id="edSpineSrc" alt="封面裁切源图">
-              <div class="sp-crop-sel" id="edSpineSel"></div>
-            </div>
-            <div class="sp-crop-ctl">
-              <span>宽度</span>
-              <input class="ed-range" type="range" id="edSpineWidth" min="4" max="40" step="1" value="14">
-              <span class="ed-r-val" id="edSpineCropNum">14%</span>
-            </div>
-            <div class="sp-row"><button class="btn ghost" id="edSpineCropOk">用选区作书脊</button></div>
-            <p class="tpl-note" id="edSpineCropNote"></p>
-          </div>
-          <div class="sp-pv-row">
-            <span>效果 · <b id="edSpineState">跟随封面</b></span>
-            <div class="sp-preview" id="edSpinePreview"></div>
-          </div>
-          <button class="btn ghost" id="edSpineClear">恢复跟随封面</button>
-        </div>
-      </div>
-
       <!--pnid:RibbonSec-->
       <div class="fold-sec" data-sec="ribbon" id="edSecRibbon">
         <label class="fold-head" id="edRibbonHead">封面彩带颜色<span class="fold-hint" id="edRibbonHint"></span><i class="fold-caret"></i></label>
         <div class="fold-body">
           <div data-page-node-id="gfmWXJ2h8ollpVn43Vq92m" class="swatches" id="edRibbons"></div>
-          <p class="tpl-note">彩带只有「笔记本」这一档有，挑一个颜色就是封面左侧那条书脊；选「透明」则彩带隐藏、左侧连书槽一起不画；画册 / 精装书显示书槽，活页封面保持干净。</p>
         </div>
       </div>
 
       <!--pnid:InsideSec--><!-- 活页封面内侧：自动主色 / 与封面一致 / 自定义颜色或图片 -->
       <div class="fold-sec" data-sec="inside" id="edSecInside">
-        <label class="fold-head" id="edInsideHead">封面内侧（活页）<span class="fold-hint" id="edInsideHint"></span><i class="fold-caret"></i></label>
+        <label class="fold-head" id="edInsideHead">封面内侧<span class="fold-hint" id="edInsideHint"></span><i class="fold-caret"></i></label>
         <div class="fold-body">
           <div class="tpl-fit" id="edInsideModes">
             <span>内衬</span>
@@ -451,7 +414,6 @@
               <button class="btn ghost" id="edInsideClearImg" style="display:none;flex:0 0 auto;padding:10px 14px;font-size:13px">移除</button>
             </div>
           </div>
-          <p class="tpl-note">默认从封面里提取最多五个主色，点一个作纯色内衬；也可整张沿用封面，或自己挑颜色 / 传一张内衬图。仅活页手帐翻开后看得到。</p>
         </div>
       </div>
 
@@ -469,7 +431,6 @@
               <button data-fit="stretch">拉伸</button>
               <button data-fit="tile">平铺</button>
             </div>
-            <p class="tpl-note" id="edTplNote">点「＋」添加图片模板，可一次选多张；添加后立刻存进模板库，下次打开或新建手帐本都能继续用。</p>
           </div>
         </div>
       </div>
@@ -653,10 +614,15 @@
   <!-- 换图专用：跟「添加图片」分开，免得两者抢同一个 pendingPage -->
   <input data-page-node-id="SWAPfile" accept="image/*" class="file-input" id="swapFile" type="file">
   <input data-page-node-id="PfKLvwIHF0oGvl7g7C4CMc" accept="image/*" class="file-input" id="coverFile" type="file">
-  <!-- 自定义书脊专用选图：跟封面图 / 换图分开，免得几路上传抢同一个 change 回调 -->
-  <input accept="image/*" class="file-input" id="spineFile" type="file">
   <!-- 自定义内页模板专用：跟封面图 / 页内图片分开，免得几路上传抢同一个回调 -->
   <input accept="image/*" class="file-input" id="tplFile" type="file" multiple>
+  <!-- 封面 / 书脊 / 封底三段（自定义封面 → 封面设置）：整张展开图、单独封面 / 书脊 /
+       封底图各走一个 input，跟 DIY 页自己的加图 / 换图分开，免得抢 change 回调。
+       ⚠️ 这里的「封面」不是 #coverFile：DIY 页里封面是画布，选图会铺成底层全幅对象。 -->
+  <input accept="image/*" class="file-input" id="wrapFile" type="file">
+  <input accept="image/*" class="file-input" id="wrapFrontFile" type="file">
+  <input accept="image/*" class="file-input" id="wrapSpineFile" type="file">
+  <input accept="image/*" class="file-input" id="wrapBackFile" type="file">
   <!-- 自定义封面专用选图入口：加图片 / 换图 / 往贴纸库导入，三路分开免得抢回调 -->
   <input accept="image/*" class="file-input" id="diyFile" type="file">
   <input accept="image/*" class="file-input" id="diySwapFile" type="file">
@@ -673,7 +639,7 @@
       <button class="icon-btn" id="diyBack" title="返回（放弃本次修改）">
         <svg fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="20"><path d="M14.5 5.5L8 12l6.5 6.5"/></svg>
       </button>
-      <div class="diy-tt"><b>自定义封面</b><small>双击文字打字 · 长按解锁摆位置 · 四角缩放</small></div>
+      <div class="diy-tt"><b>自定义封面</b></div>
       <button class="pill-btn diy-done" id="diyDone">完成</button>
     </div>
     <!-- ⚠️ .diy-main / .diy-side 在竖屏是 display:contents（不生成盒子），
@@ -703,13 +669,15 @@
             <div class="diy-bar-grid">
               <button data-diyact="bg" title="封面底色"><svg viewBox="0 0 24 24"><path d="M12 3.5c4 4.2 6.5 6.9 6.5 10.2a6.5 6.5 0 01-13 0C5.5 10.4 8 7.7 12 3.5z"/></svg><span>底色</span></button>
               <button data-diyact="layer" title="图层 / 排序 / 重命名"><svg viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 12.5l9 5 9-5M3 16.5l9 5 9-5"/></svg><span>图层</span></button>
-              <button data-diyact="cover" title="封面设置：彩带颜色 / 圆角"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="15" height="18" rx="3"/><path d="M9 3v18M9 9h7"/></svg><span>封面</span></button>
+              <button data-diyact="cover" title="封面设置：封面 / 书脊 / 封底三段、整张展开图三分、彩带 / 纹理 / 圆角"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="15" height="18" rx="3"/><path d="M9 3v18M9 9h7"/></svg><span>封面</span></button>
             </div>
           </div>
         </div>
         <!-- 工具面板：底色 / 编辑文字 / 贴纸 / 图层共用这一块（竖屏贴底、横屏进右侧栏） -->
         <div class="diy-sheet" id="diySheet" hidden>
-          <div class="diy-sheet-head"><span id="diySheetTitle">底色</span><button id="diySheetClose" title="收起">✕</button></div>
+          <!-- 竖屏 bottom sheet：按住这条头部（中间的拖拽把手是 ::before）向下拖即可收起，
+               原来右上角那颗 ✕ 已撤掉；横屏面板是右侧栏，头部只作标题用。 -->
+          <div class="diy-sheet-head" title="向下拖动收起"><span id="diySheetTitle">底色</span></div>
           <div class="diy-sheet-body" id="diySheetBody"></div>
         </div>
       </div>

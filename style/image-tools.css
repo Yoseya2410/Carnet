@@ -48,7 +48,11 @@
 .paper.drop-in{
   box-shadow:inset 0 0 0 2px rgba(43,53,80,.42),inset 0 0 44px rgba(43,53,80,.12)
 }
-.paper.endpaper{background:linear-gradient(160deg,#3b425e,#2b3048)}
+/* 末页环衬的底色由 pageHTML() 内联写死（visuals.js endpaperStyle：封底 / 封面主色）。
+   这里只留一条兜底：极端脏数据也不会变成一张白纸。
+   ⚠️ 图片封面的主色是异步算的：只补 background-color，靠这条过渡平滑接过去，
+      别整页重绘，也别让「没算好」那一帧退成深色（用户明确不要先黑一下）。 */
+.paper.endpaper{background:linear-gradient(160deg,#ece5d8,#ded5c2);transition:background-color .26s ease}
 .paper.endpaper::after{display:none}
 /* 活页最后一跨的右半 = 后封面内侧：透明，露出底下 .book-under 铺的那张皮 */
 .paper.endpaper.see-through{background:none}

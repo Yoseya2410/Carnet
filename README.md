@@ -429,9 +429,9 @@ WebCrypto 不提供 MD5，所以 `md5Hex()` 是手写的标准 RFC 1321（中文
 | 16 | `shelf.css` | 137 | 多层书架：一排书 + **前挡玻璃 `.shelf-board`** + **脚下白色台面 `.shelf-plinth`** + 左右两颗铆钉；拖动排序时的淡坑与悬浮副本；书架吃满整屏高度，上下内边距用 `--topbar-h / --botbar-h` 让每排都能滑出浮层按钮的遮挡区。⚠️ 几何全按书宽 `--sbw` 同比：玻璃高 `.41×`（≈书高 29%，`--glass-h`）、上沿圆角按玻璃高的 `.38`（大圆角，台面只有 7px 小圆角）、台面厚 `.09×`；书脚靠 `.shelf-books{margin-bottom:calc(0px - var(--glass-h))}` **整段沉进玻璃**，正好落在台面上沿。⚠️ 玻璃与台面都必须 `pointer-events:none`（盖住书脚 29%，否则点击 / 悬停 / 长按全被挡住）。⚠️ **所有排等长**：`--bw` 由 `renderShelf` 挂在 `#shelfWrap` 上、取**可用宽的 95%**（`boardW = W*.95`，整条铺满显得过长），不再按该排书数伸缩；`--rivet-d / --rivet-x` 也由 `renderShelf` 按板宽的约 2% 算好挂上去，CSS 只吃变量（两边各写一套 clamp 曾让净宽算错）。分行净宽 `usable = boardW − 2×(rivetX + rivetD)` **只扣铆钉本身、不再额外留白**：板长从 W 收到 W*.95 已吃掉 5%，再留白会让 390 窄屏原本的 3 本/排掉成 2 本/排（用户要求收短不许改变每排本数）；这样既保证书落在两铆钉之间、铆钉不压封面，各视口本数也不变。⚠️ **移动端竖屏尽量一排 3 本**：`innerHeight > innerWidth && min(w,h) ≤ 520` 时，若 `3×书宽 + 2×默认间距 > usable`，就把 `--sgap` 收到「刚好够 3 本」那一档，但**下限 10px**（书不能挨着书）；收到下限仍放不下（320px 极窄屏 3 本光书宽就 258 > 净宽 244）则保持默认间距，别白挤。桌面 / 横屏 / 平板不走这条，否则宽屏会多塞一本。**浅底那套近乎全透的玻璃 + 书脚渐白 + 接触影在 `background.css` 的 `#home.bg-light` 下**（上沿亮线 1px/.40 白 + 3.5% 灰轮廓勾圆角，别调回 1.5px/.95 白）；铆钉贴图是 `assets/shelf-rivet.png`（参考图裁的透明车削金属圆片，CSS 里留了银色渐变兜底） | |
 | 17 | `menus.css` | 109 | 向上弹出的分享 / 导出菜单、书架多选时的底部选择条、封面上的勾选圈、纸面右键菜单 `.addmenu.pmenu`（fixed 跟随鼠标，挂在 `#reader` 直属子节点上，避开 `.book` 那层 filter）。**选择条按钮配色**：导出 = 黑色半透明玻璃（浅底 `rgba(17,19,24,.08)` + 深字 / 深底 `rgba(255,255,255,.1)` + 白字）、删除 = 淡红透明 + 红字，两者都 `box-shadow:none`；`purpose-del` 下删除只是红更浓一档，别恢复深色实心 + `0 8px 18px -8px` 大黑影。⚠️ 末尾别再给 `.primary` 单独设白字 | |
 | 18 | `decor.css` | 152 | 图片边框 `.pframe`（边框画在它的 padding 上）与**图片边框**面板 `#frsheet`（`.fr-*` 六档小样 / 颜色 / 粗细）；**贴纸**面板 `#stsheet`（`.st-grid` 便利贴 / 胶带 / 手绘三档格子）；便利贴皮肤 `.ptext-wrap.note .ptxt`（纸色底 + 内高光 + 落地影 + 右下折角） |
-| 19 | `background.css` | 235 | 主页设置面板，以及**浅色背景时整套界面换「白玻璃」**那一套（`bg-light`）：面板底色走 `--frost / --frost-bd / --frost-fx` 三个变量（下拉菜单 / 确认框 / 取色盘一次全变），遮罩、弹窗、搜索栏、底部面板那些写死底色的逐个换；面板内文字一律换深色。⚠️ **选择器挂 `#home` 还是 `#reader` 要看元素真长在哪**：`.rbot`（底栏）和 `.scrub`（页数轴）是阅读器里的，写 `#home.bg-light .rbot …` 永远命中不了；**搜索页改成整屏后 `.bg-light .search-panel` 换成整块均匀浅底**（`rgba(248,249,252,.8)` + backdrop blur，白玻璃质感），不再是顶部渐隐；⚠️ 别降到 `.4`（宽屏整排彩色封面会透到结果条底下，像没盖住），结果条也要跟着从「纯白玻璃」换成「更白 + 淡灰描边 + 浅影」才分得出卡片；深底那条是 `search.css` 里的 `rgba(24,27,44,.96)`；单层书架台面 `#home.bg-light .spine-plinth` 有自己一套渐变与投影（11-15 起不与多层 `.shelf-plinth` 共用；⚠️ 它整条覆盖 `spine-shelf.css` 的深色版，改深色必须同步这里） | |
+| 19 | `background.css` | 362 | 主页设置面板，以及**浅色背景时整套界面换「白玻璃」**那一套（`bg-light`）：面板底色走 `--frost / --frost-bd / --frost-fx` 三个变量（下拉菜单 / 确认框 / 取色盘一次全变），遮罩、弹窗、搜索栏、底部面板那些写死底色的逐个换；面板内文字一律换深色。⚠️ **选择器挂 `#home` 还是 `#reader` 要看元素真长在哪**：`.rbot`（底栏）和 `.scrub`（页数轴）是阅读器里的，写 `#home.bg-light .rbot …` 永远命中不了；**搜索页改成整屏后 `.bg-light .search-panel` 换成整块均匀浅底**（`rgba(248,249,252,.8)` + backdrop blur，白玻璃质感），不再是顶部渐隐；⚠️ 别降到 `.4`（宽屏整排彩色封面会透到结果条底下，像没盖住），结果条也要跟着从「纯白玻璃」换成「更白 + 淡灰描边 + 浅影」才分得出卡片；深底那条是 `search.css` 里的 `rgba(24,27,44,.96)`；单层书架台面 `#home.bg-light .spine-plinth` 有自己一套渐变与投影（11-15 起不与多层 `.shelf-plinth` 共用；⚠️ 它整条覆盖 `spine-shelf.css` 的深色版，改深色必须同步这里） | |
 | 20 | `spine-shelf.css` | 194 | **单层书架台面**（2026-11-15）：`.spine-plinth` 只加白色台面、**不加上面的玻璃**；长度由 `syncSpinePlinth()` 按「第一根左边 → 最后一根右边」量真实书排宽算出来写进 `style.width` / `style.left`（比书排每端多出一截，两端离屏幕边留白，书少则短、书多则一起变长横滑）；⚠️ 必须量书排占位而不是 `row.clientWidth`（书少时 row 被 `min-width:100%` 撑成整屏宽，台面就永远不变短），台面 `pointer-events:none` 且挂在 `#spineRow` 里才会随横滑一起走。单层书架模式：底边对齐、只留一条细缝（`gap:clamp(1px,.16vw,3px)`）的一排书脊，窄屏横向滑动；**书脊宽度按页数走**：`width = --spine-min-w + (--spine-max-w - --spine-min-w) × --spine-p`，`--spine-p` 由 `spineWidthRatio()` 按 `log2(1+页数)/log2(65)` 算（越厚越宽、64 页封顶，再薄也有 `--spine-min-w` 保底；**2026-11-15 定稿：`--spine-min-w / --spine-max-w` 四档一律固定 px，书脊粗细不随屏幕宽度变化，只有 `--spine-max-h` 仍按 vh 走**）；高低错落由 `id` 散列（`spineSeed`，不掺下标）出 `--spine-h` 与 `deco-N`；排序中 `#spineWrap.sorting` 把整排压回**基础档**（`transform:none` + 基础 `filter` / 投影、`.active::after` 白边收掉），否则手指经过 / 选中的那本会抬起、变亮；**书脚落地影 11-15 调浅到 `rgba(10,12,20,.28)`**，⚠️ 常驻 `.spine-item` 与这里这条基础档 `box-shadow` 同源，改一处必须同步另一处；下方预览框 `#spineDetail`（默认跟着 `state.sel` 走并**横移对到那根书脊底下**：封面 `position:absolute` + `transform:translateX(calc(var(--px) - 50%))`，`--px` 由 `spineDetailShift()` 量；悬停别的书脊时临时切过去，`.empty` 时不吃点击）；长按拖动排序的淡坑 `.spine-item.lifted` 与悬浮副本 `.spine-ghost`（**必须 `transition:none`**，否则克隆来的副本会带着书脊那套 hover 过渡从屏幕左上角飘到手指下）；点书脊翻开时的**抽出动画** `.spine-item.pulling / .gone`（起飞点量的是抬起**之后**的实时 rect，见 reader-flow.js 的 `coverRect`）；`#spineWrap.no-preview`（无悬停能力的设备）把预览框整块收掉；**矮屏 / 横屏各有一档**（`max-height:620px` 与 `orientation:landscape and max-height:560px`）：高度按 vh 收紧、上下避让让开，`--spine-min-w / --spine-max-w` 换成各自一套固定 px（27/36、29/39，都不吃 vw） | | **手机竖屏（`@media (max-width:520px) and (orientation:portrait)`）单独调比例与居中**：屏幕又窄又高时书脊按 vh 给长度会拉成 ~1:26 的细长条，这一档把宽度定成固定 `37px / 55px`（不再吃 `9.5vw / 14vw`）、长度收到 `50vh`，比例落在 ~1:7（接近真实书脊）；整排书作为**一块**垂直居中（`.spine-scroll` 变 flex + `align-items:center`、row 收成 `height:auto`），row 内部仍 `align-items:flex-end` 让书站同一条底线；横向用 `justify-content:safe center` —— 书少时居中、书多要横滑时自动退回 `flex-start`，否则普通 `center` 溢出后左边几本滚不到
-| 21 | `diy-cover.css` | 320 | 自定义封面（DIY）独立全屏页：`#diyPage` 两层壳（横屏 `display:contents`）、纸面 / 画布 / 对象工具条 / 文字框三态、铺满档的 `object-fit:fill`。⚠️ 编辑器专用的压槽 `.diy-paper::before` 别烘进 `diyExportHTML()`；**封面设置里的三档纹理小样 `.diy-texs / .diy-tex / .diy-tex-pv` 一律白底**（2026-11-15，不跟封面底色变），选中态只加 1px 深色描边 |
+| 21 | `diy-cover.css` | 534 | 自定义封面（DIY）独立全屏页：`#diyPage` 两层壳（横屏 `display:contents`）、纸面 / 画布 / 对象工具条 / 文字框三态、铺满档的 `object-fit:fill`。⚠️ 编辑器专用的压槽 `.diy-paper::before` 别烘进 `diyExportHTML()`；**封面设置里的三档纹理小样 `.diy-texs / .diy-tex / .diy-tex-pv` 一律白底**（2026-11-15，不跟封面底色变），选中态只加 1px 深色描边；**书脊裁切台** `.sp-crop-box / .sp-crop-cap / .sp-crop-stage / .sp-crop-ctl / .sp-crop-sel` 也在这一栏（2026-11-16 二次定稿：「书脊精调」独立一节连同 `.sp-sep / .sp-cap / .sp-thumb / .sp-pv-row / .sp-preview` 一起删掉，裁切台由三张卡片里书脊卡的「裁切封面」展开，紧贴卡片下方；裁切舞台宽高由 JS 按图片实际显示尺寸写死）；**2026-11-16 起「封面 · 书脊 · 封底」三段设置 + 整张展开图三分也在这里**（`.wrap-*` 一整套浅色控件：三列卡片用 `repeat(auto-fit,minmax(92px,1fr))`，横屏 299px 侧栏自动收成两列、竖屏 356px 三列；⚠️ 面板是白玻璃深字，别套弹窗那套半透明白；`.wrap-stage` 宽高由 `wrapFitStage()` 写死成图片实际显示尺寸，别加 `width:100%`）；**竖屏底栏**在末尾单独的 `@media (orientation:portrait)` 里改成居中的白色圆角胶囊 + 纯线性图标（文字用 `.sr-only` 式裁切留给读屏；⚠️ 不铺灰底带，底栏与整页白底一致，只靠描边 + 阴影勾轮廓）；**工具面板**换成 bottom sheet（顶部 22px 圆角 + 居中拖拽把手 + 上浮阴影 + 轻微滑入，仍是 flex 子项以免盖住工具条；右上角 ✕ 已删，按住头部 / 把手下拖超过阈值即收起，只在竖屏启用），必须排在横屏 media query 之后，横屏右侧栏那套分组网格才不会受影响；**2026-11-16 定稿：移动端竖屏高度统一 45%** —— 基础 `.diy-sheet` 只写一次 `max-height:45%`，portrait 块再固定 `height:45%;max-height:45%;min-height:0`，五个工具面板（底色 / 文字 / 贴纸 / 图层 / 封面）打开时同高、画布尺寸恒定，内容只在 `.diy-sheet-body` 里滚；⚠️ 别在 `@media (max-height:720px)` 等档里再覆写高度，横屏侧栏仍由 `orientation:landscape` 顶成 `max-height:none` + `flex:1 1 auto` |
 | 22 | `lock.css` | 139 | 手帐本加密弹窗：`#lockMask` 白玻璃面板（浅色背景 `.bg-light` 同款）、锁徽章 `.lock-flag`（封面**右下角** / 书脊右上角；⚠️ 封面右上已被编辑齿轮 `.gear` 占了，放那里会叠成两个错位的圆）、两档密钥 tab 与表单、状态卡 `已加密 / 未加密`；`.kb` 只在触屏聚焦输入框时把面板顶到上半屏（桌面永不生效，见第六节不变量 10）；深色玻璃下给黑色强调控件补浅描边。**最后一个引入**，别往前挪 |
 ---
 
@@ -460,8 +460,11 @@ WebCrypto 不提供 MD5，所以 `md5Hex()` 是手写的标准 RFC 1321（中文
   cover: { type: 'solid|gradient', value: '#f4a9b8', pattern: 'heart', patColor: '#e0668a',
            texture: 'none',        // 封面材质：none 无纹理 / paper 纸纹 / cloth 布纹；缺省 = none
            img: null, diym: null,   // diym = {bg,images,texts} 封面草稿（阅读器同款对象）；img = 合成后的成品封面图
-           spineImg: null,          // 自定义书脊片（base64 位图 dataURL）：另传的片子 / 从封面裁下的窄条；缺省跟随封面
-           spineFrom: '' },         // 'upload' | 'crop'，只记来源给编辑器显示，渲染一概不认
+           spineImg: null,          // 自定义书脊片（base64 位图 dataURL）：另传的片子 / 从当前画布封面裁下的窄条；缺省跟随封面
+           spineFrom: '',           // 'upload' | 'crop'，只记来源给「封面设置」面板显示，渲染一概不认
+           backMode: '',            // 封底：缺字段 = 没设封底（最后一页不能再往后翻）；'follow' = 与封面同一张皮；'image' = 用 backImg
+           backImg: null,           // 封底图（base64 位图 dataURL）：单独上传 / 三段展开图裁出来的左段
+           backFrom: '' },          // 'upload' | 'split'，只记来源给设置面板显示，渲染一概不认
   ribbon: '#c98a8a',           // 封面彩带（书脊）颜色；'none' = 透明，隐藏彩带且左侧不画书槽
   style: 'classic',            // 装帧样式：classic 精装 / ring 活页 / personal Personal 活页 / square 方形画册
   template: 'grid',            // 内页模板：blank / lined / grid / dots / kraftplain / kraft / custom
@@ -582,6 +585,72 @@ PDF / 长图 / 源文件导出本来就有「有封面图就铺图」这一条�
 `io-doc.js` 同步把版心留白设成 0。图片在手帐数据里，跟封面图片一样随源文件 / PDF / 长图一起走，
 导入时 `normalizeJournal()` 只收 base64 位图 dataURL，标了 `custom` 却没图的一律落回 `blank`。
 
+### 封底与「封面 | 书脊 | 封底」三段展开图（2026-11-16）
+
+**数据**：`cover.backMode` 只有三档 —— 缺字段 = **没设封底**、`'follow'` = 封底沿用封面那张皮、
+`'image'` = 用 `cover.backImg`。`hasBackCover(j)` 是「能不能往后翻合书」的唯一判据：
+`'image'` 却没有合法位图（导入脏数据 / 上锁后只剩空壳）一律退回「没设封底」。
+`backFrom` 只记来源（`upload` / `split`），渲染一概不认。三个字段都随源文件导出，
+`normalizeJournal` 逐项洗；**`backImg` 是敏感图片**，跟 `cover.img / spineImg` 一样不进
+`lkShell` 的明文外壳（只有不含图片的 `backMode='follow'` 允许留在外壳里）。
+
+**入口**：**自定义封面 →「封面」设置**（`diySheet('cover')`），跟彩带 / 纹理 / 圆角在同一张面板里。
+编辑手帐本弹窗没有这一栏；从「封面图案」栏的 DIY 封面格子上到独立页面。三张卡片各自能选图 / 清除：
+  · **封面** —— DIY 页里封面就是画布，「铺满图片」把图作为最底层全幅图片对象写进
+    `diy.d.images`，点「完成」由 `diyRenderCanvas()` 合成 `cover.img`
+    （⚠️ 不能直写 `cover.img`，会被合成图覆盖）；
+  · **书脊** —— 写 `diy.spineImg` 草稿，是书脊的**唯一入口**：「选择图片 / 换图」「裁切封面」
+    「跟随封面」三颗按钮都在卡片上。原来的「书脊精调」独立小节已融进来：点「裁切封面」把
+    **当前画布**合成成位图，在三张卡片正下方展开裁切台（拖选区 / 宽度滑块 / 「用选区作书脊」/「收起」），
+    不再有第二处三档模式、上传框、清除按钮与效果预览。`#spineFile` 也随之撤掉，书脊选图统一走
+    `#wrapSpineFile`。两块裁切台（这里与整张展开图）**互斥**：打开一个就收掉另一个。
+  · **封底** —— `diy.backMode` 三档「不设 / 同封面 / 图片」，图片写 `diy.backImg`。
+四个独立 file input：`#wrapFile` 整张展开图、`#wrapFrontFile` 封面、`#wrapSpineFile` 书脊、
+`#wrapBackFile` 封底，change 一律走 `readPickedFiles(e)`。点「裁切封面」后会等两帧再把
+「用选区作书脊」滚进可视区（`renderDiySheet()` 刚换完 `innerHTML` 时同步量到的是旧布局）。
+「＋ 导入整张展开图」把一张「封底 | 书脊 | 封面」的横向图铺在舞台上，
+**只要横向拖出中间那条书脊**（拖两端白线微调，或拉宽度滑块），点「应用三分」就按原图像素
+canvas 裁三段：左 → `diy.backImg`（`backMode='image'`）、中 → `diy.spineImg`（`spineFrom='crop'`）、
+右 → 画布底层的全幅对象。铺白底转 JPEG、单段长边 1200。
+⚠️ 全部改动都是 **DIY 草稿**：`wrapCrop` 只存待裁的展开图，其余写进 `diy`，一律等页面右上角
+「完成」由 `diyDone()` 写回 `ed.temp.cover`；点「返回」整份作废。`openDiyCover()` 进页面时把
+本子已有的 `backMode / backImg / backFrom` 接进草稿，`'image'` 档没合法位图会退回「没设封底」。
+面板每次 `renderDiySheet()` 都重建 DOM，卡片 / 按钮事件走 `#diySheetBody` 委托，
+两块裁切舞台的图片与手势由 `syncDiySpine()` / `syncDiyWrapStage()` 各自重绑。
+
+**阅读器**：封底不是一张正文页，而是「合着的书翻了个面」，用页号 `-3`（`PAGE_BACK_COVER`，
+定义在 `visuals.js`，因为 `io-doc.js` 比 `reader-view.js` 先加载）。`isClosedView()` = 封面或封底，
+`isCoverView()` 只指封面，`isBackView()` 只指封底。设了封底时，翻到最后一页 / 最后一跨再往后翻
+会合上书显示封底，两个方向一定要分开记：
+- **合上（往后翻）= 从右往左**：双页 `foldBook('back')` → `foldBookBack()` 抬起**右半边**沿书脊翻到左槽
+  （叶片 `0° → -180°`，`.folding-back` 收右槽、裁 `.book-under` 右半张，整本同时右移半张封面）；
+  单页用 `.back-turn` 把叶片转轴挪到自己中心，**整本书翻个面**（槽里先摆封底，叶片收窄时
+  两侧露出的就是封底皮），不再像翻走一张纸。
+- **翻开（往前翻）= 从左往右**：`openFromBack()` 严格是合书的逆动作，封底从左槽 `-180° → 0°`
+  翻回右槽，整本从 `+半页` 横移回摊开位。封底静止态因此必须停在**左槽** `.book.back-only`
+  （整本右移半页、右槽收起），跟封面态的 `.book.cover-only`（右槽、左移半页）正好镜像；
+  把封底摆回右槽会让这一翻又变成右→左，跟合书同向。
+  ⚠️ 起手那一帧书仍合着，右槽要用 `.back-opening` **整格收起**（镜像「封面 → 第一跨」的
+  `.cover-opening`），最后一跨的右页只画在叶片正面，等叶片盖过来才出现；否则会「还没翻呢
+  右侧就已经出现一整页」。落地由 `land()` 摘掉 `.back-opening` 再 `renderReader()` 重建槽。
+- 末页右页越界那张空白环衬不再是写死的深蓝：`endpaperStyle()` 有封底取封底主色、
+  没封底取封面主色。图片封面的主色要异步读像素，所以先用 `cover.value` 的底色同步兜底
+  （**绝不能给深色**，否则会先黑一下），算完只改现存环衬的 `background-color`（CSS 过渡接过去，
+  不整页重绘、不打断翻页叶片）；`renderHome()` / `openReader()` 会提前 `primeEndpaper()` 预热。
+- `.last-spread`（右页越界）**不再只给活页**：胶装本最后一跨右格是环衬，右边已经没有纸叠，
+  所以 `.book.spread:not(.ringed).last-spread` 把 `.book.spread` 那道纸叠白边收成只剩左侧
+  （活页仍走 `.book.ringed.spread{box-shadow:none}`）。`renderReader()` / `flip()` / `openFromBack()`
+  三处判定同步改成只看右页下标 `>= n`，别再各写一套。
+
+没设封底时边界守卫照旧把这一下挡掉，**到最后一页只能往前翻**，行为跟加功能之前一模一样。
+封底皮由 `backCoverHTML()` 走同一个 `coverHTML(j, true)`，`.cover.backside` 把装订列 / 暗角 /
+光泽 / 圆角左右镜像（书脊本来就在右边），`.book.back-view` 把整本外框圆角也对调。
+从封底点「返回」会先翻回封面，再让封面飞回书架（主页摆的永远是封面）。
+
+**导出**：`exportPages(j)` 在正文之后多一页 `-3`（仅当 `hasBackCover(j)`），
+`pageExportHTML(j, -3, W, H)` 与封面页共用同一套底色 / 图案 / 纹理 / 彩带 / 压槽规则，
+只把装订列换到右侧并镜像圆角 —— PDF / SVG / 长图三者因此与屏幕同源。
+
 ## 七、导入导出
 
 - **导出 `.json`**：单本一个文件，结构为
@@ -589,6 +658,7 @@ PDF / 长图 / 源文件导出本来就有「有封面图就铺图」这一条�
   `checksum` 是对内容做的稳定摘要，导入时可以验证文件有没有被改动或传输出错。
 - **导出 PDF**：纯前端手写 PDF（每页一张 JPEG + 自造对象表），不引第三方库。
 - **导出 SVG**：每页一个 `<foreignObject>` 竖向拼成矢量长图，放大不糊。
+- **封底页**：设了封底的本子，PDF / SVG / 长图在正文之后多一页封底（`exportPages(j)` 末尾的 `-3`）；没设封底就不多这一页，跟阅读器保持一致。
 - **多选批量导出**：勾选多本后一次输出多个文件（每本一个，文件名各自用书名）。
 - **导入**：兼容「单本导出文件 / 裸手帐本对象 / 多本数组」三种写法；按内容摘要查重，
   重复的会问一句要不要再存一份；导入后给出「收了多少页 / 图 / 文字」的核对报告。
@@ -640,7 +710,9 @@ PDF / 长图 / 源文件导出本来就有「有封面图就铺图」这一条�
 | 单层书架 | 鼠标停在某根书脊上 | **即选中这一根**：抬起一截 + 描一圈白边（`.spine-item.active`），下方预览框显示它的封面（书脊上不印书名、页数点开就有，这里也不挂编辑按钮）；**鼠标离开书脊就取消选中** —— 书脊落回架上、预览收起。默认**一根都不选中**（渲染时不写 `.active`，跟多层书架一个规矩），`state.sel` 仍跟着悬停走，抽出来翻开的动画要它当目标 |
 | 单层书架 | 点书脊 | 鼠标悬停那一刻它已经是选中的了，所以**点一下就是翻开**：把书脊从架上抽出来（`.pulling`），再由封面 ghost 从它抬起后的位置飞成书，真身随即隐去（`.gone`），关书回来再放回架上。没有鼠标的场景（键盘 Tab / 手机）仍是两段式：第一次点选中，第二次才翻开 |
 | 单层书架 | 长按书脊 — 拖动 | 左右拖动排序；原地松手 = 打开编辑（只有一本时同样开编辑） |
-| 编辑手帐本 → 自定义书脊 | 跟随封面 / 上传书脊片 / 裁切封面 | 每本单独设一根书脊：另传竖长条图片（压到长边 800），或在已有封面图上拖选一条竖窄区、用 canvas 裁下来。书脊上不印书名，靠悬停预览认书 |
+| 自定义封面 →「封面」设置 → 书脊卡 | 选择图片 / 裁切封面 / 跟随封面 | 每本单独设一根书脊，书脊卡是唯一入口：另传竖长条图片（压到长边 800），或点「裁切封面」把**当前画布**合成成位图、在卡片下方展开裁切台拖选一条竖窄区用 canvas 裁下来；有片子时多一颗「跟随封面」清掉。原来的「书脊精调」独立小节已融进这张卡。跟纹理一样是草稿，点自定义封面的「完成」才写回 `cover.spineImg`，点「返回」作废。书脊上不印书名，靠悬停预览认书 |
+| 自定义封面 →「封面」设置 →「封面 · 书脊 · 封底」 | 三张卡片 / ＋导入整张展开图 | 三部分各设各的图，封底另有「不设 / 同封面 / 图片」三档；导入后在图上**只拖出中间那条书脊**（两端白线微调 / 宽度滑块），点「应用三分」按左段封底、中段书脊、右段铺满成封面裁好。跟画布一样是 DIY 草稿，点右上角「完成」才写回本子，点「返回」作废。设了封底才能在最后一页往后翻合书 |
+| 阅读器 | 最后一页再往后翻 | **设了封底**：合上手帐本、朝外显示封底（**从右往左合**，手机上是整本翻个面；底栏写「封底」，往前翻回去是**从左往右**翻开）；**没设封底**：翻不动，跟以前一样只能往前翻。最后一跨旁边那张空白环衬取封底 / 封面主色，不再是一块深蓝。从封底点「返回」会先翻回封面再飞回书架 |
 | 手机 / 平板上的单层书架 | 点书脊 | **没有预览框**（无悬停能力 → `no-preview`，省下的高度全给书脊），点一下直接抽出翻开 |
 | 单层书架 | 点搜索结果 | **定位 + 直接翻开**：先把目标书脊同步滚进视口（⚠️ 不能用 smooth / rAF，否则 `coverRect()` 量到屏幕外坐标、封面从画外飞进来），抬起它并切下方预览，再走「从架上抽出来 → 飞成书」。多层书架同款是「定位后直接翻开」，左右滑动模式仍是两段式（先滑到那本，再点封面） |
 | 底栏「删除 / 分享」 | 书架模式下 | 进入多选，可批量导出或删除 |

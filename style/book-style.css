@@ -155,3 +155,16 @@
 .sty-pv .gear,.sty-pv .cover-badge{display:none}
 .sty-n{font-size:12px;text-align:center;letter-spacing:.04em;line-height:1.25}
 .sty-d{font-size:10.5px;text-align:center;opacity:.62;margin-top:2px;letter-spacing:.02em}
+
+/* ============ 封底：整张皮左右镜像（2026-11-16）====================
+   书翻过来朝外是封底时，书脊在**右**边：整张展开图的顺序本来就是
+   「封底 | 书脊 | 封面」，所以装订列、暗角、斜向光泽、圆角都要对调。
+   ⚠️ 只镜像装饰层，**不能镜像整块 .cover**（封底图里的文字会反过来）；
+      .spine 用 scaleX(-1) 连它自己的接触影一起翻，跟导出封底页同一套做法。 */
+.cover.backside{
+  border-radius:calc(var(--cr) * var(--cr-scale)) calc(var(--cr-left) * var(--cr-scale))
+                calc(var(--cr-left) * var(--cr-scale)) calc(var(--cr) * var(--cr-scale));
+}
+.cover.backside .spine{left:auto;right:0;transform:scaleX(-1)}
+.cover.backside::after{transform:scaleX(-1)}
+.cover.backside .gloss{transform:scaleX(-1)}

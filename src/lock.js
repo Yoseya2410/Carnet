@@ -163,7 +163,7 @@ async function verifyLockKey(lock, km) {
    · enc.data = AES-GCM(JSON.stringify(去掉 lock/enc 的整本手帐))，一次加密覆盖全部内容；
    · 外壳只留书架要用的：书名 / 封面配色图案 / 装帧 / 彩带 / 模板 / 页数空壳。
      照片封面 cover.img、封面草稿 diym、封面内侧图片、自定义书脊片 cover.spineImg、
-     tplImg / tplImgs 都不进外壳，
+     封底图 cover.backImg、tplImg / tplImgs 都不进外壳，
      一并卷进密文里 —— 锁着的书在书架上就是一张纯色 / 图案封面。
    · pages 留一组空对象只为保持页数（书脊厚度、页数角标、normalizeJournal 的结构校验）。 */
 function journalHasLock(j) { return !!(j && j.lock && j.lock.v); }
@@ -180,10 +180,13 @@ function lkShell(j, lock, enc) {
   return {
     id: j.id, name: j.name, created: j.created,
     style: j.style, ribbon: j.ribbon, template: j.template, tplFit: j.tplFit, pageBg: j.pageBg,
-    /* ⚠️ 这里只挑外观字段，绝不能写 ...cv —— 会把 cover.img / diym / inside.img 一起带出来 */
+    /* ⚠️ 这里只挑外观字段，绝不能写 ...cv —— 会把 cover.img / diym / inside.img /
+       backImg 一起带出来。backMode='follow' 不含敏感图片，可以留在外壳里让锁着的本子
+       也知道自己设了封底；backMode='image' 一律不进外壳（没有图就当没设封底）。 */
     cover: {
       type: cv.type, value: cv.value, pattern: cv.pattern, patColor: cv.patColor,
-      texture: cv.texture, radius: cv.radius, groove: cv.groove, inside: ins
+      texture: cv.texture, radius: cv.radius, groove: cv.groove, inside: ins,
+      backMode: cv.backMode === 'follow' ? 'follow' : undefined
     },
     pages: (Array.isArray(j.pages) ? j.pages : []).map(() => ({})),
     lock, enc

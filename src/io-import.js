@@ -80,6 +80,17 @@ function normalizeJournal(raw) {
      免得外链 / svg 文本混进 style 或下一次导出。 */
   if (!isImgData(out.cover.spineImg)) delete out.cover.spineImg;
   if (out.cover.spineFrom !== 'upload' && out.cover.spineFrom !== 'crop') delete out.cover.spineFrom;
+  /* 封底：backMode 只认 follow / image；image 档必须带一张合法位图，
+     否则整组删掉 = 没设封底（阅读器退回「最后一页不能再往后翻」）。
+     ⚠️ 导入的封底图是敏感内容，不能留在明文外壳里 —— 加密本由 lock.js 单独处理。 */
+  const bm = out.cover.backMode;
+  if (bm === 'follow') {
+    delete out.cover.backImg; delete out.cover.backFrom;
+  } else if (bm === 'image' && isImgData(out.cover.backImg)) {
+    if (out.cover.backFrom !== 'upload' && out.cover.backFrom !== 'split') delete out.cover.backFrom;
+  } else {
+    delete out.cover.backMode; delete out.cover.backImg; delete out.cover.backFrom;
+  }
   /* 活页封面内侧：只认合法模式 / hex 色 / base64 位图；老文件没这个字段就删掉（走 auto 主色）。
      ⚠️ 别把 insideDominant 之类的派生缓存写进来，主色一律在运行时按封面现算。 */
   if (cv.inside && typeof cv.inside === 'object') {
