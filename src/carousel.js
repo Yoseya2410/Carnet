@@ -24,7 +24,7 @@ const carousel = (() => {
      translate / scale 走的是 transform，不参与布局，拖动过程中这两个数不会变。
      原来是边写 el.style.transform 边读 el.offsetWidth —— 写一次就强制重排一次，
      n 本书就是每帧 n 次重排，拖起来发涩全花在这上面。 */
-  let mets = [], wrapW = 0, lastK = [];
+  let mets = [], wrapW = 0, lastK = [], lastF = [];
   /* 只有「节点换了」或「视口变了」才重新量布局。
      拖动松手 / 滚轮换本都会调 snap()，以前每次都把 n 本书的 offsetLeft / offsetWidth
      读一遍 —— CSS transform 刚写完就同步读布局，是一次强制重排，落在松手那一下最明显。
@@ -37,6 +37,7 @@ const carousel = (() => {
     wrapW = wrap.clientWidth;
     mets = items.map(el => ({ c: el.offsetLeft + el.offsetWidth / 2, w: el.offsetWidth }));
     lastK = items.map(() => NaN);     // 节点重建过，下一帧必须全量写一次
+    lastF = items.map(() => NaN);     // filter 档位同理，必须重新写一遍
     minOff = maxOff = 0;
     if (!items.length) return;
     maxOff = wrapW / 2 - mets[0].c;
@@ -54,19 +55,31 @@ const carousel = (() => {
       if (dist > edge + span && prev === 0) continue;
       const k = dist >= span ? 0 : 1 - dist / span;
       /* 只写真正变了的书：拖动时绝大多数书 k 恒为 0，中心附近 1~2 本在变。
-         ⚠️ 阈值 .0002 是照着下面三个 toFixed 的精度算的 —— 小于它时
-         scale(4 位小数)、saturate / brightness(3 位小数) 三串都不会变，
-         跳过写 DOM 不会有任何像素差异，只是省掉字符串拼接与 CSSOM 写入。 */
+         ⚠️ 阈值 .0002 是照着 scale 的 toFixed(4) 精度算的 —— 小于它时
+         scale 串不会变，跳过写 DOM 不会有任何像素差异。
+         filter 另有一套更粗的 1/16 档阈值，见下面那段。 */
       if (Number.isFinite(prev) && Math.abs(k - prev) < .0002) continue;
       lastK[i] = k;
       const el = items[i];
       el.style.transform = `scale(${(1 + 0.055 * k).toFixed(4)})`;
-      el.style.filter = `saturate(${(0.86 + 0.14 * k).toFixed(3)}) brightness(${(0.94 + 0.06 * k).toFixed(3)})`;
+      /* ⚠️ filter 每帧改值会让浏览器重新栅格化整本书（封面图案 / 纹理 /
+         阴影全在里面），是拖动时最贵的一笔，也是「左右滑动发涩」的主因。
+         把明暗强度量化到 1/16 档：scale 仍然每帧连续跟手，filter 只在跨档时
+         写一次 CSSOM，重栅格次数降一个数量级，16 档的阶梯肉眼看不出来。
+         松手吸附后 JS 不再写 filter，由 ease() 里的 filter transition 平滑收尾。 */
+      const fq = Math.round(k * 16) / 16;
+      if (lastF[i] !== fq) {
+        lastF[i] = fq;
+        el.style.filter = `saturate(${(0.86 + 0.14 * fq).toFixed(3)}) brightness(${(0.94 + 0.06 * fq).toFixed(3)})`;
+      }
     }
   }
   function paint() {
     track.style.transform = `translate3d(${off.toFixed(2)}px,0,0)`;
     styleItems();
+    /* 第十一轮：把位移 / 速度递给 WebGL 光影层（纯数值，不读布局）。
+       静止后 GPU 层会自动停帧并把画布 display:none，不会拖慢左右滑动。 */
+    if (window.GLLab && GLLab.on) GLLab.carouselFrame(off, vel);
   }
   /* 跟手那一下按帧画：pointermove 一秒能来上百次，每次都立刻写样式会把主线程堵住。
      攒到下一帧统一画一次 —— 看上去一样跟手，掉帧没了。snap() 走的是带缓动的落位，直接 paint。 */
@@ -79,6 +92,8 @@ const carousel = (() => {
   function ease(animate) {
     track.style.transition = animate ? EASE : 'none';
     items.forEach(el => el.style.transition = animate ? EASE + ',filter .46s ease' : 'none');
+    /* 吸附是 CSS transition（中间帧没有 JS paint），让 GPU 光影层按同样时长继续画 */
+    if (animate && window.GLLab && GLLab.on) GLLab.carouselHold(460);
   }
   /* ===== 松手惯性 =====
      vel 的单位是 px/帧（pointermove 里已按 16.7ms 归一），摩擦按帧衰减。

@@ -388,7 +388,7 @@ function renderSpineShelf() {
   /* 手机 / 平板没有悬停，预览框整块收掉：点书脊直接翻开，省下的高度全给书脊 */
   const wrap = $('#spineWrap');
   if (wrap) wrap.classList.toggle('no-preview', !spineCanHover());
-  /* 台面可显隐（默认不显示，开关在「主页设置」）：关掉时连 DOM 都不放，
+  /* 台面可显隐（默认不显示，开关在「设置」页）：关掉时连 DOM 都不放，
      依附在台面上的那条长影自然也不画。no-plinth 类只负责收紧书脚下方那段留白。 */
   const showPlinth = !!state.prefs.spinePlinth;
   if (wrap) wrap.classList.toggle('no-plinth', !showPlinth);
@@ -427,11 +427,17 @@ function syncPickBar() {
   $('#pickDelete').disabled = !n;
   $('#pickAll').textContent = (n && n === all) ? '全不选' : '全选';
 }
-/* purpose: 'export' 从分享进来（导出为主）/ 'del' 从删除进来（删除为主） */
+/* purpose: 'export' 从分享进来（导出为主）/ 'del' 从删除进来（删除为主）
+   ⚠️ 多选的勾选圈画在**多层书架的封面**上（.shelf-wrap.picking .book-item），
+      单层书架只有一排书脊、轮播一次只露一本，都没有可勾的节点。所以任何非多层书架的
+      入口都先切过去（setView 会落盘 prefs、对齐切换按钮、并由 renderShelf() 把封面画出来），
+      再进多选 —— 否则会出现「多选条在底下、书却勾不了」的半套状态。
+      ⚠️ 顺序不能反：下面要读 #shelfWrap 里的 .book-item，必须先切视图。 */
 function enterPickMode(purpose) {
   if (state.picking) return;
   const forDel = purpose === 'del';
   if (!state.journals.length) { toast(forDel ? '还没有手帐本可以删除' : '还没有手帐本可以导出'); return; }
+  if (state.prefs.view !== 'shelf') setView('shelf');
   state.picking = true;
   state.pickPurpose = forDel ? 'del' : 'export';
   state.picked = new Set();                            // 一本都不预勾，选什么由你决定

@@ -40,7 +40,10 @@
   height:calc(var(--ph) + var(--bu-t,0px) + var(--bu-b,0px));
   width:calc(var(--pw) * 2 + var(--ggap,0px) + var(--bleed,0px) * 2);
   transform-style:preserve-3d;
-  filter:drop-shadow(0 30px 40px rgba(0,0,0,.5))
+  /* ⚠️ filter **属性必须保留**：它参与浏览器对 preserve-3d 子树的 3D 分组，
+     摘掉会出现静止态左侧白页 / 翻页叶片半透明 / 矩形灰影（只能压淡，不能删）。
+     11-17 第十二轮：整体落地影再淡一档、模糊半径加大，书才像"落在桌上"而不是浮着。 */
+  filter:drop-shadow(0 24px 38px rgba(16,18,30,.26))
 }
 /* 单页态整本就是合着的封面：外框与纸都吃 --book-r（按装帧 + 开合状态取值），和翻开后的皮同一个弧度 */
 .book.single{width:calc(var(--pw) + var(--bleed,0px) + var(--mech-w,0px));overflow:hidden;
@@ -71,10 +74,10 @@
   box-shadow:
     /* ⚠️ 压一道**暗**描边而不是亮描边：浅色封面（米白 / 浅灰）本来就接近纸色，
        只有内侧这一圈压暗，封面和内页才分得开（亮描边在浅封面上等于没有） */
-    inset 0 0 0 1px rgba(20,16,10,.34),
-    inset 0 0 26px -8px rgba(0,0,0,.55),
+    inset 0 0 0 1px rgba(20,16,10,.24),
+    inset 0 0 26px -8px rgba(0,0,0,.34),
     inset 0 14px 22px -18px rgba(255,255,255,.26),
-    0 14px 30px -16px rgba(0,0,0,.55)
+    0 14px 30px -16px rgba(0,0,0,.32)
 }
 /* 封面内侧比正面沉一点（背光、压不出高光），并带一层柔和的中央受光 —— 像皮革衬里。
    底色就是本子自己的封面色 / 封面图，由 coverUnderStyle() 写成内联 background */
@@ -180,9 +183,9 @@
 /* ⚠️ 第一跨页左半边是**封面内侧**，不是纸：那一格已经被 .first-spread 设成透明，
    这里再叠纸边接触影就会在皮面上留下一条莫名其妙的竖暗边（「内页隐藏了、阴影还在」）。
    用 :not(.first-spread) 把这一档排除掉，其余跨页的纸边阴影一点不动。 */
-.book.ringed.spread:not(.first-spread) .page-slot.left{box-shadow:inset -13px 0 20px -20px rgba(35,30,22,.72),
+.book.ringed.spread:not(.first-spread) .page-slot.left{box-shadow:inset -13px 0 20px -20px rgba(35,30,22,.42),
   0 1px 1px rgba(69,60,45,.14),0 7px 12px -9px rgba(34,29,20,.58),inset 0 0 0 1px rgba(112,101,80,.055)}
-.book.ringed.spread .page-slot.right{box-shadow:inset 13px 0 20px -20px rgba(35,30,22,.72),
+.book.ringed.spread .page-slot.right{box-shadow:inset 13px 0 20px -20px rgba(35,30,22,.42),
   0 1px 1px rgba(69,60,45,.14),0 7px 12px -9px rgba(34,29,20,.58),inset 0 0 0 1px rgba(112,101,80,.055)}
 /* ---- 活页最后一跨：右半是后封面内侧 ----
    右页越界时 #slotR 里只剩一张透明的 .endpaper.see-through；槽自己也不能垫纸色、
@@ -203,15 +206,15 @@
   opacity:1;transition:opacity .18s ease;   /* 摊开封面那一翻的淡入（见 page-flip.js 的 gutterHold） */
   background:linear-gradient(90deg,
     rgba(26,22,48,0) 0%,
-    rgba(26,22,48,.05) 13%,
-    rgba(26,22,48,.13) 30%,
-    rgba(26,22,48,.25) 43%,
-    rgba(18,14,36,.36) 49%,
-    rgba(11,8,26,.44) 50%,
-    rgba(18,14,36,.36) 51%,
-    rgba(26,22,48,.25) 57%,
-    rgba(26,22,48,.13) 70%,
-    rgba(26,22,48,.05) 87%,
+    rgba(26,22,48,.028) 13%,
+    rgba(26,22,48,.07) 30%,
+    rgba(26,22,48,.14) 43%,
+    rgba(18,14,36,.20) 49%,
+    rgba(11,8,26,.25) 50%,
+    rgba(18,14,36,.20) 51%,
+    rgba(26,22,48,.14) 57%,
+    rgba(26,22,48,.07) 70%,
+    rgba(26,22,48,.028) 87%,
     rgba(26,22,48,0) 100%)
 }
 /* 只在双页摊开时显示；封面单独成页 / 合上的书都没有中缝。
@@ -243,8 +246,8 @@
 .book.ringed.spread .gutter::before,
 .book.ringed.single .gutter::before{
   left:50%;width:2px;transform:translateX(-50%);z-index:25;
-  background:linear-gradient(90deg,rgba(30,34,32,.72),rgba(239,243,237,.58) 58%,rgba(45,49,46,.38));
-  box-shadow:0 0 2px rgba(20,23,21,.28);opacity:.72
+  background:linear-gradient(90deg,rgba(30,34,32,.52),rgba(239,243,237,.58) 58%,rgba(45,49,46,.26));
+  box-shadow:0 0 2px rgba(20,23,21,.18);opacity:.62
 }
 /* 活页：两页中间露出活页夹的**机构金属条**（环就是从这条上伸出来的）。
    横向多段明暗模拟圆润的银色金属，细密拉丝只作辅助，两端各一颗铆钉把它拧在脊背上。
@@ -475,15 +478,28 @@
 .gutter .grings i .wire .ring-rim{stroke:#3f4642;stroke-width:calc(var(--pw) * .030);opacity:.95}
 .gutter .grings i .wire .ring-body{stroke-width:calc(var(--pw) * .026)}
 .gutter .grings i .wire .ring-glint{stroke:rgba(255,255,252,.96);stroke-width:calc(var(--pw) * .0072)}
-/* 翻页时，叶片靠书脊的一侧也压暗，翻动过程中折痕不会消失 */
+/* 翻页时，叶片靠书脊的一侧也压暗，翻动过程中折痕不会消失。
+   11-17 第十二轮：压暗强度 / 纸面高光 / 投影都跟着翻起角度（--turn）与抬升（--lift）走：
+   翻到 90° 时受光最斜、投影最深，落地前收干净，更像真的在翻一张纸。
+   ⚠️ --turn / --lift 由 page-flip.js stepFlip 写在 #leaf 的内联 style 上（纯属性写入，不读布局）。
+   ⚠️ 白色高光 alpha 上限 .10，只提亮不糊内容；别加任何深色叠层（会变「中缝黑影」）。 */
 .leaf-face::before{
   content:"";position:absolute;inset:0;pointer-events:none;z-index:5;
-  background:linear-gradient(90deg,rgba(14,10,30,.34),rgba(14,10,30,.10) 12%,rgba(14,10,30,0) 30%)
+  background:
+    linear-gradient(90deg,rgba(14,10,30,.34),rgba(14,10,30,.10) 12%,rgba(14,10,30,0) 30%),
+    linear-gradient(100deg,transparent 34%,rgba(255,255,255,calc(var(--lift,0) * .10)) 52%,transparent 70%);
+  opacity:calc(.55 + var(--turn,0) * .45)
 }
 .leaf-face.back::before{
-  background:linear-gradient(270deg,rgba(14,10,30,.34),rgba(14,10,30,.10) 12%,rgba(14,10,30,0) 30%)
+  background:
+    linear-gradient(270deg,rgba(14,10,30,.34),rgba(14,10,30,.10) 12%,rgba(14,10,30,0) 30%),
+    linear-gradient(260deg,transparent 34%,rgba(255,255,255,calc(var(--lift,0) * .10)) 52%,transparent 70%)
 }
-.leaf-face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;overflow:hidden;background:var(--paper);box-shadow:0 0 26px rgba(0,0,0,.34)}
+.leaf-face{
+  position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;
+  overflow:hidden;background:var(--paper);
+  box-shadow:0 0 calc(16px + 18px * var(--turn,0)) rgba(20,18,32,calc(.10 + .14 * var(--turn,0)))
+}
 /* 翻口那两个角跟着本子的纸角（摊开态 = 四角统一的 --book-r-open），装订侧在 .back 上 */
 .leaf-face.front{border-radius:0 var(--slot-r-r,10px) var(--slot-r-r,10px) 0}
 .leaf-face.back{transform:rotateY(180deg);border-radius:3px 0 0 3px}

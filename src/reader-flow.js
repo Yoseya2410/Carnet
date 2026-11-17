@@ -17,8 +17,14 @@
 const FLY_MS = 560;
 const FLY_OUT_MS = 600;                          // 关闭：慢慢缩回主页
 const FLY_EASE = 'cubic-bezier(.22,1,.28,1)';   // 收尾更绵长，落地不生硬
+/* 抬起 / 插回那一段要看得见，用匀速感更强的 ease-in-out；
+   原来的强 ease-out 会在头 15% 时间就走完大半，看着像瞬间跳上去。 */
+const FLY_LIFT_EASE = 'cubic-bezier(.42,0,.58,1)';
 const FOLD_MS = 400;                             // 合书：左半边沿书脊翻到右侧（统一从左往右）
 let flyBusy = false;
+/* 每次 flyCover 递增：上一趟动画的落地回调（ms+60 的 setTimeout）不能去摘
+   新一趟的 .book-in，否则新动画放大途中书会提前显形、又变成两张封面。 */
+let flySeq = 0;
 function coverRect() {
   /* 书架里一眼能看到好几本，必须认准当前那一本，动画才不会从别的位置飞出去 */
   const view = state.prefs && state.prefs.view;
@@ -53,8 +59,13 @@ function coverPageRect() {
 function fitScale(win, to) {
   return Math.max(win.width / Math.max(to.width, 1), win.height / Math.max(to.height, 1));
 }
-function flyCover(from, to, reverse) {
-  const j = cur(); if (!j || !from || !to) return null;
+function flyCover(from, to, reverse, onLand) {
+  const j = cur();
+  if (!j || !from || !to) { if (onLand) onLand(); return null; }
+  /* 开场先收掉任何残留的飞行封面：动画中途被返回键打断、又立刻点开另一本时，
+     旧的 ghost 会一直飞到自己的 ms+60 才消失，与新 ghost 叠成两张封面。 */
+  const seq = ++flySeq;
+  $$('.cover-ghost').forEach(g => g.remove());
   const a = reverse ? to : from, b = reverse ? from : to;      // a = 起飞的窗口，b = 落地的窗口
   const ghost = document.createElement('div');
   ghost.className = 'cover-ghost';
@@ -86,26 +97,64 @@ function flyCover(from, to, reverse) {
   ghost.style.borderRadius = reverse ? rEnd : rStart;
   ghost.style.transform = `translate(${a.left}px,${a.top}px)`;
   fit.style.transform = `translate(-50%,-50%) scale(${fitScale(a, to)})`;
-  // 关闭时不做渐变：封面一路保持不透明，直接缩回主页封面大小
-  if (!reverse) ghost.style.animation = `ghostOut ${FLY_MS}ms ease both`;
+  /* ⚠️ 不给 ghost 设 CSS animation（见 book-anim.css 的重影说明）：
+     飞行全程保持不透明，落地那一帧才与书交接。关闭时同样不做渐变。 */
   $('#app').appendChild(ghost);
+  /* ⚠️ 强制一次样式计算，给刚插入的 ghost 建立「旧样式」基线。
+     少了这一下，浏览器会把下一帧里「设置 transition + 改目标值」当成同一次变更，
+     第一段的抬起会整段跳过去（实测 headless 里 top 直接落到终点）。只在开场读一次，
+     动画过程中绝不碰布局。 */
+  void ghost.offsetWidth;
   const ms = reverse ? FLY_OUT_MS : FLY_MS;
+  /* 11-17 第十二轮：**两段式开合书**。
+     打开 = 先把书从书架上「抬」出玻璃挡板（尺寸不变，书底高过玻璃上沿）→ 再放大飞进阅读器；
+     退出 = 先缩回到玻璃上方（尺寸变回书架那本）→ 再往下「插」回书架原位。
+     ⚠️ 中间点取书架那一端的矩形，只做垂直上移；抬起量按玻璃高度算才真的「抽出来」。
+     ⚠️ 只在开场量一次布局，之后全靠 CSS transition，不在每帧读 rect。 */
+  const shelfRect = reverse ? b : a;
+  const glass = state.prefs.view === 'shelf'
+    ? document.querySelector('#shelfWrap .shelf-board') : null;
+  const lift = Math.max(22, glass ? glass.getBoundingClientRect().height * 1.18 : shelfRect.height * .18);
+  const mid = {
+    left: shelfRect.left, top: shelfRect.top - lift,
+    width: shelfRect.width, height: shelfRect.height
+  };
+  const liftMs = Math.round(ms * .38), zoomMs = ms - liftMs;
+  const winTrans = (d, ease) => `width ${d}ms ${ease},height ${d}ms ${ease},` +
+    `transform ${d}ms ${ease},border-radius ${d}ms ${ease}`;
+  /* GPU 光影层也按同样的两段插值（a → mid → b），落地影在抬起时变淡、放大时回来 */
+  if (window.GLLab && GLLab.on) GLLab.fly(a, mid, b, ms, reverse);
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      /* 窗口的尺寸与位置、内容的等比缩放，三处必须用同一个 easing 同时长 ——
-         否则中途会露出窗口空白（内容填不满）或被挤出可视区 */
-      ghost.style.transition =
-        `width ${ms}ms ${FLY_EASE},height ${ms}ms ${FLY_EASE},` +
-        `transform ${ms}ms ${FLY_EASE},border-radius ${ms}ms ${FLY_EASE}`;
-      ghost.style.width = b.width + 'px';
-      ghost.style.height = b.height + 'px';
-      ghost.style.borderRadius = reverse ? rStart : rEnd;
-      ghost.style.transform = `translate(${b.left}px,${b.top}px)`;
-      fit.style.transition = `transform ${ms}ms ${FLY_EASE}`;
-      fit.style.transform = `translate(-50%,-50%) scale(${fitScale(b, to)})`;
+      /* 段 ①：抬起 / 缩到玻璃上方。窗口尺寸不变（打开时）或缩回书架尺寸（退出时），
+         圆角先回到书架那档；内容的等比缩放与窗口必须同一个 easing / 时长。 */
+      ghost.style.transition = winTrans(liftMs, FLY_LIFT_EASE);
+      ghost.style.width = mid.width + 'px';
+      ghost.style.height = mid.height + 'px';
+      ghost.style.borderRadius = rStart;
+      ghost.style.transform = `translate(${mid.left}px,${mid.top}px)`;
+      fit.style.transition = `transform ${liftMs}ms ${FLY_LIFT_EASE}`;
+      fit.style.transform = `translate(-50%,-50%) scale(${fitScale(mid, to)})`;
+      setTimeout(() => {
+        /* 段 ②：放大进阅读器 / 插回书架 */
+        ghost.style.transition = winTrans(zoomMs, FLY_EASE);
+        ghost.style.width = b.width + 'px';
+        ghost.style.height = b.height + 'px';
+        ghost.style.borderRadius = reverse ? rStart : rEnd;
+        ghost.style.transform = `translate(${b.left}px,${b.top}px)`;
+        fit.style.transition = `transform ${zoomMs}ms ${FLY_EASE}`;
+        fit.style.transform = `translate(-50%,-50%) scale(${fitScale(b, to)})`;
+      }, liftMs);
     });
   });
-  setTimeout(() => ghost.remove(), ms + 60);
+  /* 落地交接：ghost 移除与「书显形」必须在**同一次任务**里完成，浏览器只会渲染
+     合并后的那一帧 —— 两张皮同源同尺寸同位置，零跳变、零重影。
+     +60ms 是留给双 rAF 起步与 transition 尾帧的余量，别再提前。 */
+  setTimeout(() => {
+    ghost.remove();
+    /* 只认最后一趟：被打断后旧回调仍会 remove 自己的 ghost，但不能再动书的状态 */
+    if (onLand && seq === flySeq) onLand();
+  }, ms + 60);
   return ghost;
 }
 function openReader() {
@@ -139,12 +188,13 @@ function openReader() {
   /* 量封面那一页本身，而不是整本书 —— 封面单独成页时书比封面宽一倍 */
   const to = coverPageRect();
   book.classList.add('book-in');
-  flyCover(from, to, false);
-  setTimeout(() => {
+  /* 交接回调挂在 flyCover 的落地帧上：ghost.remove() 之后立刻摘 .book-in，
+     不再另开一个 setTimeout（两个定时器错开哪怕 20ms，都会在放大末尾露出一帧重影）。 */
+  flyCover(from, to, false, () => {
     flyBusy = false;
     reader.classList.remove('book-opening');
     book.classList.remove('book-in');
-  }, FLY_MS + 40);
+  });
 }
 /* 是否停在「合着的书」：统一用 reader-view.js 的 isClosedView() / isBackView()，
    这里不再留第二份判定（封面 -1 与封底 -3 都是合着的书） */
@@ -352,7 +402,8 @@ function closeReader() {
       .forEach(el => el.classList.remove('pulling', 'gone'));
     return;
   }
-  if (flyBusy) {                               // 退场动画没播完就再点一次：直接收掉
+  if (flyBusy) {                               // 飞入 / 退场动画没播完就再点：直接收掉
+    $$('.cover-ghost').forEach(g => g.remove());   // 别让被打断的封面继续飞到空背景上
     endClose();
     return;
   }
@@ -382,6 +433,8 @@ $$('#addMenu [data-addact]').forEach(btn => {
     if (act === 'text') { addTextTo(currentAddPage()); return; }
     /* 贴纸：便利贴 / 装饰胶带 / 手绘图案，面板自己会关掉菜单 */
     if (act === 'sticker') { openStickerSheet(currentAddPage()); return; }
+    /* 跨本复制：勾一页或多页 → 挑目标手帐 → 追加到目标末尾 */
+    if (act === 'copy') { openCopyPanel(); return; }
     if (act === 'del') { deleteCurrentPage(); return; }
     addPageAfter();
   });
@@ -458,3 +511,102 @@ function deleteCurrentPage() {
     title: '删除这一页', ok: '删除', onOk: doDelete
   });
 }
+
+/* ==================== 跨本复制页面（单页 / 多页） ====================
+   入口：阅读器右上角「＋ → 复制页面到…」。源本是当前打开的这一本，
+   勾选任意多页后挑一本目标手帐，按页码顺序**追加**到目标本末尾。
+   ⚠️ 页面里的每个图片 / 文字对象都要换一个新 id：id 是页内对象的唯一键，
+      两本里出现同 id 会让选中态、工具条、换图串台。其余字段（含页底色）原样深拷贝。
+   ⚠️ 目标本可能是加密本：统一走 guardUnlocked(tgt, doCopyPages)，解锁后重入本函数，
+      重入时按 id 重新 find —— 解锁会用明文替换 state.journals，旧引用会失效。 */
+const copyState = { picked: new Set(), target: '' };
+function cloneCopyPage(pg) {
+  const c = JSON.parse(JSON.stringify(pg || {}));
+  (c.images || []).forEach(im => { im.id = uid(); });
+  (c.texts || []).forEach(t => { t.id = uid(); });
+  return c;
+}
+function renderCopyPages() {
+  const j = cur(), box = $('#copyPages');
+  if (!box || !j) return;
+  box.innerHTML = (j.pages || []).map((pg, i) => {
+    const ni = (pg.images || []).length, nt = (pg.texts || []).length;
+    const info = [ni ? ni + ' 张图' : '', nt ? nt + ' 段文字' : ''].filter(Boolean).join(' · ') || '空白页';
+    return `<button class="cp2-page${copyState.picked.has(i) ? ' on' : ''}" data-pg="${i}">
+      <span class="cp2-page-thumb"><b>${i + 1}</b></span>
+      <span class="cp2-page-tx">第 ${i + 1} 页<small>${info}</small></span>
+      <i class="cp2-tick">✓</i>
+    </button>`;
+  }).join('');
+}
+function renderCopyTargets() {
+  const j = cur(), box = $('#copyTargets');
+  if (!box || !j) return;
+  const list = state.journals.filter(x => x && x.id !== j.id);
+  box.innerHTML = list.length ? list.map(t => {
+    const cv = t.cover && /^#[0-9a-f]{3,8}$/i.test(String(t.cover.value || '')) ? t.cover.value : '#b9bec9';
+    const locked = typeof journalHasLock === 'function' && journalHasLock(t) ? ' · 已加密' : '';
+    return `<button class="cp2-target${copyState.target === t.id ? ' on' : ''}" data-tid="${t.id}">
+      <span class="cp2-target-sw" style="background:${cv}"></span>
+      <span class="cp2-target-tx">${esc(t.name || '未命名手帐')}<small>${(t.pages || []).length} 页${locked}</small></span>
+      <i class="cp2-tick">✓</i>
+    </button>`;
+  }).join('') : '<p class="cp2-empty">书架里还没有别的手帐本，先新建一本吧</p>';
+  const ok = $('#copyOk'); if (ok) ok.disabled = !copyState.target;
+}
+function openCopyPanel() {
+  const j = cur();
+  if (!j || !j.pages || !j.pages.length) { toast('这一本还没有页面可以复制'); return; }
+  copyState.picked = new Set([clamp(currentAddPage(), 0, j.pages.length - 1)]);  // 默认勾当前页
+  copyState.target = '';
+  renderCopyPages();
+  renderCopyTargets();
+  const m = $('#copyMask'); if (m) m.hidden = false;
+}
+function closeCopyPanel() {
+  const m = $('#copyMask'); if (m) m.hidden = true;
+  markFlipSuppressed();
+}
+function doCopyPages() {
+  const src = cur();
+  const ids = [...copyState.picked].sort((a, b) => a - b);
+  const tid = copyState.target;
+  if (!src || !ids.length) { toast('先勾选要复制的页面'); return; }
+  if (!tid) { toast('先选一本目标手帐'); return; }
+  let tgt = state.journals.find(x => x && x.id === tid);
+  if (!tgt) { toast('目标手帐不存在'); closeCopyPanel(); return; }
+  if (!guardUnlocked(tgt, doCopyPages)) return;      // 加密本：解锁后重入
+  tgt = state.journals.find(x => x && x.id === tid) || tgt;
+  const pages = ids.filter(i => src.pages[i]).map(cloneCopyPage);
+  if (!pages.length) { toast('这些页面已经不存在了'); return; }
+  if (!Array.isArray(tgt.pages)) tgt.pages = [];
+  tgt.pages.push(...pages);
+  save();
+  closeCopyPanel();
+  renderHome();
+  toast('已把 ' + pages.length + ' 页复制到《' + (tgt.name || '未命名手帐') + '》', 2800);
+}
+(() => {
+  const pages = $('#copyPages'), targets = $('#copyTargets');
+  if (pages) pages.addEventListener('click', e => {
+    const b = e.target.closest('.cp2-page'); if (!b) return;
+    const i = Number(b.dataset.pg);
+    if (copyState.picked.has(i)) copyState.picked.delete(i); else copyState.picked.add(i);
+    b.classList.toggle('on', copyState.picked.has(i));
+  });
+  if (targets) targets.addEventListener('click', e => {
+    const b = e.target.closest('.cp2-target'); if (!b) return;
+    copyState.target = b.dataset.tid;
+    renderCopyTargets();
+  });
+  const ok = $('#copyOk'); if (ok) ok.onclick = doCopyPages;
+  const close = $('#copyClose'); if (close) close.onclick = closeCopyPanel;
+  const back = $('#copyBack'); if (back) back.onclick = closeCopyPanel;   // 移动端左上返回
+  const cancel = $('#copyCancel'); if (cancel) cancel.onclick = closeCopyPanel;
+  const mask = $('#copyMask');
+  if (mask) mask.addEventListener('click', e => { if (e.target === mask) closeCopyPanel(); });
+  window.addEventListener('keydown', e => {
+    const m = $('#copyMask');
+    if (e.key === 'Escape' && m && !m.hidden) closeCopyPanel();
+  });
+})();

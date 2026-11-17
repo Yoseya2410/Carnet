@@ -1,9 +1,9 @@
 /* =====================================================================
  * Carnet · 页数轴   （样式 9 / 19）
  * ---------------------------------------------------------------------
- * ① 固定长度的白色胶囊「搓擦条」：左右拖动相对翻页，不按落点绝对定位
- * ② 胶囊里一排黑色细刻度，拖动时整排反向滚动（左拖 → 轴右滚，右拖 → 轴左滚）
- * ③ 正中一块放大的黑色页码块，比两边刻度大，指示当前页
+ * ① 一根刻度 = 一页，刻度数与页数一一对应；拖动时整排连续滚动
+ * ② 轴本身透明、无背景，当前页对应的刻度在轴正中变宽并显示页数
+ * ③ 不再有悬在轴上跟手平移的拖动条；左右拖动只是「加速摇杆」
  * ---------------------------------------------------------------------
  * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
  * ===================================================================== */
@@ -14,13 +14,13 @@
 }
 .scrub.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
 .scrub-wrap{position:relative}
-/* 80% 透明（白色只剩 20%）：均匀一层玻璃，无渐变 / 描边 / 投影，
-   纯靠背景模糊透出底色；黑色刻度与滑块照旧清晰 */
+/* 11-17 定稿：拖动轴**没有背景**，整条轴透明，只留刻度浮在页面上。
+   ⚠️ overflow:hidden 只用来裁掉滚出轴两端的刻度，不是画胶囊底；别再加回
+      rgba 白底 / backdrop-filter —— 那会变成一条压在书上的白色横带。 */
 .scrub-track{
   position:relative;height:34px;border-radius:17px;overflow:hidden;touch-action:none;
-  background:rgba(255,255,255,.2);
-  backdrop-filter:blur(20px) saturate(160%);
-  -webkit-backdrop-filter:blur(20px) saturate(160%)
+  background:transparent;
+  backdrop-filter:none;-webkit-backdrop-filter:none
 }
 /* 一根刻度 = 一页，由 buildScrub() 按页数生成；全部实心黑、不渐隐，
    只由 JS 按离中心的距离调粗细 / 长短，做到「中间粗两边细」但每一根都清晰 */
@@ -31,16 +31,19 @@
   pointer-events:none
 }
 .scrub-fill,.scrub-bar{display:none}
-/* 正中黑色滑块：跟着手指到胶囊两端，松手过冲一下再弹回正中 */
+/* 正中那一格：就是**变宽的那根刻度**，里面显示页数。
+   ⚠️ 固定在轴正中、绝不跟手平移（以前那块黑色滑块是悬在轴上的拖动条，已撤）；
+      刻度带滚动时由 paintScrub() 把当前刻度淡掉，让位给这一格。 */
 .scrub-num{
   position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
-  z-index:2;min-width:44px;height:26px;padding:0 9px;border-radius:9px;
+  z-index:2;width:24px;height:22px;padding:0;border-radius:6px;
   display:grid;place-items:center;pointer-events:none;
-  background:var(--accent);color:#fff;font-size:13px;font-weight:700;
+  background:var(--accent);color:#fff;font-size:11px;font-weight:700;
   font-variant-numeric:tabular-nums;white-space:nowrap;
-  transition:transform .44s cubic-bezier(.18,1.5,.38,1)
+  box-shadow:0 2px 8px -4px rgba(10,12,24,.7)
 }
-.scrub.dragging .scrub-num{transition:none}   /* 跟手时不要缓动 */
+/* 页码到三位数才放宽：两位数保持 24px，别把相邻那两根刻度盖住 */
+.scrub-num.wide{width:36px}
 
 /* 封面页：整页铺满，不留白 */
 .paper.coverpage{display:block;padding:0;--patw:var(--pw)}

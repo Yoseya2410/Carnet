@@ -67,6 +67,14 @@
   background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);transition:background .2s
 }
 .sr-item:hover{background:rgba(255,255,255,.16)}
+/* 结果卡现在是逐帧一条条 append 进来的：每张轻轻淡入，配合「一个一个出来」的节奏。
+   fill-mode 用 backwards —— 动画放完把样式交还基础态，不锁住 :hover 的背景过渡。 */
+.sr-item{animation:srItemIn .26s cubic-bezier(.2,.9,.3,1) backwards}
+@keyframes srItemIn{
+  from{opacity:0;transform:translateY(7px)}
+  to{opacity:1;transform:none}
+}
+@media (prefers-reduced-motion:reduce){.sr-item{animation:none}}
 /* 搜索里的封面缩略图：按真实封面等比缩小渲染，图案疏密、圆角比例都跟原封面一致 */
 /* 右侧两角跟着这一本的封面圆角（--cr 由 renderSearch 写进内联样式），按缩略图的
    缩放系数 --sr-k 折算；max(4px,…) 保证默认档仍是原来的 4px，只有调大了才变圆。

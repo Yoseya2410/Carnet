@@ -12,6 +12,10 @@
  *
  * 说明：模块间共用全局作用域，加载顺序即依赖顺序（见 index.html 与 README）。
  * ===================================================================== */
+/* 全屏菜单开合动画的「静默期」：这段时间内不更新鼠标柔光，
+   免得全屏渐变重绘去跟 clip-path 揭示抢同一帧（见文件末尾的 pointermove 监听）。 */
+let hmSettledAt = 0;
+
 /* ==================== 主页交互 ==================== */
 $('#carousel').addEventListener('click', e => {
   if (carousel.consumeClick()) return;
@@ -831,18 +835,75 @@ $('#confirmOk').onclick = () => { const cb = confirmCb; closeConfirm(); cb && cb
 $('#confirmMask').addEventListener('click', e => { if (e.target === $('#confirmMask')) closeConfirm(); });
 
 /* ==================== 搜索 ==================== */
+/* 结果不再一次性把整列封面 innerHTML 出来：
+   ① 打字重建只清空容器 + 换一份「待渲染清单」，旧的逐帧批次用 srGen 当场作废；
+   ② 一帧只落一张卡，视觉上一个一个出来，也不会有几十本一起渲染的长任务；
+   ③ 首屏先出 SR_FIRST 条，内容没撑满一屏 / 快滚到底时再续批（SR_STEP）。
+   点击改事件委托：卡片是后加进来的，逐张绑 onclick 既费又容易漏。 */
+let srGen = 0, srRaf = 0, srState = null;
+const SR_FIRST = 10;    // 首屏先落多少条
+const SR_STEP = 8;      // 每次续批补多少条
+const SR_AHEAD = 360;   // 距底部多少 px 开始预加载
+
+function srCancel() {
+  srGen++;
+  if (srRaf) { cancelAnimationFrame(srRaf); srRaf = 0; }
+  srState = null;
+}
+/* 单张结果卡：从原来 list.map 里原样搬出来，封面 / 高亮 / 方形画册逻辑一点没动 */
+function srItemHTML(j, i, re) {
+  const nm = re ? esc(j.name).replace(re, '<mark>$1</mark>') : esc(j.name);
+  const d = new Date(j.created || Date.now());
+  const date = `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+  /* 方形画册比其它本子宽 1.35 倍（一样高、只是方），缩略图容器要跟着放开，否则右边被裁 */
+  const sq = bookStyleOf(j).k === 'square' ? ' sq' : '';
+  return `<div class="sr-item" data-i="${i}">
+      <div class="sr-thumb${sq}" style="${coverRadiusVar(j)}">${coverHTML(j)}</div>
+      <div class="info"><div class="nm">${nm}</div><div class="meta">${j.pages.length} 页 · ${date}</div></div>
+    </div>`;
+}
+function srEnsureBudget() {
+  const s = srState, box = $('#searchResults');
+  if (!s || s.done || s.gen !== srGen || !box) return;
+  if (s.i >= s.list.length) { s.done = true; return; }
+  /* 宽屏多列时首屏那几条只占一两行、或用户已滚到底 → 再放一批 */
+  const nearBottom = box.scrollTop + box.clientHeight + SR_AHEAD >= box.scrollHeight;
+  if (nearBottom && s.budget < s.list.length) s.budget = Math.min(s.list.length, s.budget + SR_STEP);
+}
+function srKick() {
+  srEnsureBudget();
+  const s = srState;
+  if (s && !s.done && s.gen === srGen && s.i < s.budget && !srRaf) srRaf = requestAnimationFrame(srPump);
+}
+function srPump() {
+  srRaf = 0;
+  const s = srState, box = $('#searchResults');
+  if (!s || s.gen !== srGen || !box) return;
+  if (s.i < s.budget && s.i < s.list.length) {
+    const o = s.list[s.i];
+    box.insertAdjacentHTML('beforeend', srItemHTML(o.j, o.i, s.re));
+    s.i++;
+    srRaf = requestAnimationFrame(srPump);   // 下一帧再落一条
+    return;
+  }
+  srKick();   // 这批落完，看看要不要续
+}
 function toggleSearch(open) {
   const p = $('#searchPanel');
+  if (!open) srCancel();                    // 收面板时停掉还在排队的结果，别往隐藏层里塞
   p.classList.toggle('show', open);
   if (open) { renderSearch(''); setTimeout(() => { try { $('#searchInput').focus(); } catch (_) {} }, 320); }
   else $('#searchInput').value = '';
 }
 function renderSearch(q) {
   const box = $('#searchResults');
+  srCancel();
   const key = (q || '').trim().toLowerCase();
-  const list = key
-    ? state.journals.filter(j => String(j.name || '').toLowerCase().includes(key))
-    : state.journals.slice();
+  /* 存 {j, i}：i 是 state.journals 里的真实下标，跳转要用，不能用结果数组里的序号 */
+  const list = state.journals
+    .map((j, i) => ({ j, i }))
+    .filter(o => !key || String(o.j.name || '').toLowerCase().includes(key));
+  box.innerHTML = '';
   if (!list.length) {
     box.innerHTML = `<div class="sr-empty">${state.journals.length ? '没有找到匹配的手帐本' : '还没有手帐本，先新建一个吧'}</div>`;
     return;
@@ -853,56 +914,53 @@ function renderSearch(q) {
   const cw = Math.max(42, realCover ? Math.round(realCover.offsetWidth) || 148 : 148);
   box.style.setProperty('--sr-cw', cw + 'px');
   box.style.setProperty('--sr-k', (42 / cw).toFixed(4));
-  box.innerHTML = list.map(j => {
-    const i = state.journals.indexOf(j);
-    const nm = re ? esc(j.name).replace(re, '<mark>$1</mark>') : esc(j.name);
-    const d = new Date(j.created || Date.now());
-    const date = `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
-    /* 方形画册比其它本子宽 1.35 倍（一样高、只是方），缩略图容器要跟着放开，否则右边被裁 */
-    const sq = bookStyleOf(j).k === 'square' ? ' sq' : '';
-    return `<div class="sr-item" data-i="${i}">
-      <div class="sr-thumb${sq}" style="${coverRadiusVar(j)}">${coverHTML(j)}</div>
-      <div class="info"><div class="nm">${nm}</div><div class="meta">${j.pages.length} 页 · ${date}</div></div>
-    </div>`;
-  }).join('');
-  $$('#searchResults .sr-item').forEach(el => el.onclick = () => {
-    const i = +el.dataset.i;
-    toggleSearch(false);
-    if (i < 0) return;
-    if (state.picking) { togglePick(i); return; }     // 多选勾选状态下：点结果 = 勾上这一本
-    /* 书架模式：一眼能看到好几本，点搜索结果就是「找到就翻开」—— 跟直接点封面完全一个行为。
-       ⚠️ 翻开前必须先把它滚进视口：开书动画要量这本封面**此刻**的位置（reader-flow.js 的 coverRect），
-          滚到位之前量到的是屏幕外的坐标，封面会从画面外飞进来。
-       ⚠️ 这里不能用 smooth：平滑滚动要跑几百毫秒，而 openReader 已经先把位置量走、动画也起了。 */
-    if (state.prefs.view === 'shelf') {
-      shelfPick(i);
-      const target = $(`#shelfWrap .book-item[data-i="${i}"]`);
-      if (target && target.scrollIntoView) target.scrollIntoView({ block: 'center' });
-      openReader();
-      return;
-    }
-    /* 单层书架：先定位到那一根书脊，再从架上抽出来翻开（跟直接点书脊同一个动画）。
-       ⚠️ 定位必须**同步、瞬时**完成：开书动画由 coverRect() 量书脊此刻的 rect，
-          用 smooth 或塞进 requestAnimationFrame 都会量到屏幕外的坐标，封面会从画外飞进来
-          （多层书架那条分支的注释说的是同一件事）。
-       ⚠️ 别走 selectJournal(i, true)：它在 spine 档里带 smooth 横滑，且只定位不翻开。 */
-    if (state.prefs.view === 'spine') {
-      state.sel = clamp(i, 0, Math.max(state.journals.length - 1, 0));
-      syncSpineSelection(false);               // 抬起这一根 + 预览切过去，但不做平滑滚动
-      const target = $(`#spineRow .spine-item[data-i="${state.sel}"]`);
-      if (target && target.scrollIntoView) target.scrollIntoView({ block: 'nearest', inline: 'center' });
-      if (typeof spineDetailShift === 'function') spineDetailShift();   // 滚完重新对位预览
-      spineOpen(state.sel);                    // 抽出 → openReader()，起飞点才落在视口里
-      return;
-    }
-    selectJournal(i, true);    // 左右滑动：先滑到这一本，再点一下封面才翻开（跟平时翻书一致）
-  });
+  srState = { list, re, gen: srGen, i: 0, budget: SR_FIRST, done: false };
+  srKick();
 }
+/* 事件委托：卡片是逐帧后加进来的，一次绑在容器上就够了 */
+$('#searchResults').addEventListener('click', e => {
+  const el = e.target.closest('.sr-item');
+  if (!el || !$('#searchResults').contains(el)) return;
+  const i = +el.dataset.i;
+  toggleSearch(false);
+  if (i < 0) return;
+  if (state.picking) { togglePick(i); return; }     // 多选勾选状态下：点结果 = 勾上这一本
+  /* 书架模式：一眼能看到好几本，点搜索结果就是「找到就翻开」—— 跟直接点封面完全一个行为。
+     ⚠️ 翻开前必须先把它滚进视口：开书动画要量这本封面**此刻**的位置（reader-flow.js 的 coverRect），
+        滚到位之前量到的是屏幕外的坐标，封面会从画面外飞进来。
+     ⚠️ 这里不能用 smooth：平滑滚动要跑几百毫秒，而 openReader 已经先把位置量走、动画也起了。 */
+  if (state.prefs.view === 'shelf') {
+    shelfPick(i);
+    const target = $(`#shelfWrap .book-item[data-i="${i}"]`);
+    if (target && target.scrollIntoView) target.scrollIntoView({ block: 'center' });
+    openReader();
+    return;
+  }
+  /* 单层书架：先定位到那一根书脊，再从架上抽出来翻开（跟直接点书脊同一个动画）。
+     ⚠️ 定位必须**同步、瞬时**完成：开书动画由 coverRect() 量书脊此刻的 rect，
+        用 smooth 或塞进 requestAnimationFrame 都会量到屏幕外的坐标，封面会从画外飞进来
+        （多层书架那条分支的注释说的是同一件事）。
+     ⚠️ 别走 selectJournal(i, true)：它在 spine 档里带 smooth 横滑，且只定位不翻开。 */
+  if (state.prefs.view === 'spine') {
+    state.sel = clamp(i, 0, Math.max(state.journals.length - 1, 0));
+    syncSpineSelection(false);               // 抬起这一根 + 预览切过去，但不做平滑滚动
+    const target = $(`#spineRow .spine-item[data-i="${state.sel}"]`);
+    if (target && target.scrollIntoView) target.scrollIntoView({ block: 'nearest', inline: 'center' });
+    if (typeof spineDetailShift === 'function') spineDetailShift();   // 滚完重新对位预览
+    spineOpen(state.sel);                    // 抽出 → openReader()，起飞点才落在视口里
+    return;
+  }
+  selectJournal(i, true);    // 左右滑动：先滑到这一本，再点一下封面才翻开（跟平时翻书一致）
+});
 $('#searchBtn').onclick = () => toggleSearch(!$('#searchPanel').classList.contains('show'));
 $('#searchClose').onclick = () => toggleSearch(false);
-/* 每敲一个字都重建整列结果（含每本封面）太重，按帧合一次，手感不变 */
+/* 每敲一个字只重建「待渲染清单」，按帧合一次；真正落卡交给上面的逐帧泵 */
 const searchQ = frameQueue(q => renderSearch(q));
 $('#searchInput').oninput = e => searchQ.push(e.target.value);
+/* 滚动 / 改窗口尺寸（列数会变）时再看看要不要续批，同样逐帧合一次 */
+const srScrollQ = frameQueue(() => srKick());
+$('#searchResults').addEventListener('scroll', () => srScrollQ.push(1), { passive: true });
+window.addEventListener('resize', () => srScrollQ.push(1));
 document.addEventListener('pointerdown', e => {
   if (!$('#searchPanel').classList.contains('show')) return;
   if (e.target.closest('#searchPanel') || e.target.closest('#searchBtn')) return;
@@ -914,8 +972,9 @@ $$('.actionbar .icon-btn').forEach(b => b.onclick = () => {
   const a = b.dataset.act;
   if (a === 'new') { openEditor(null); }
   else if (a === 'del') {
-    /* 书架模式下一眼能看好几本，删除前先进多选勾要删哪几本；轮播模式本来就只删当前这本 */
-    if (state.prefs.view === 'shelf') { enterPickMode('del'); return; }
+    /* 两种书架一屏能看好几本 → 进多选勾要删哪几本（单层书架会先切到多层，见 enterPickMode）；
+       轮播模式本来就只删当前这本 */
+    if (state.prefs.view === 'shelf' || state.prefs.view === 'spine') { enterPickMode('del'); return; }
     const j = cur(); if (!j) return;
     askConfirm(`手帐本「${j.name}」及其 ${j.pages.length} 页内容会被删除，此操作不可恢复。`, {
       title: '删除手帐本', ok: '删除',
@@ -928,8 +987,9 @@ $$('.actionbar .icon-btn').forEach(b => b.onclick = () => {
       }
     });
   } else if (a === 'share') {
-    /* 书架模式下一眼能看好几本，导出前先勾选要哪几本；轮播模式本来就只导出当前这本 */
-    if (state.prefs.view === 'shelf') enterPickMode('export');
+    /* 两种书架一屏能看好几本 → 进多选（单层书架会先切到多层，见 enterPickMode）；
+       轮播模式本来就只导出当前这本 */
+    if (state.prefs.view === 'shelf' || state.prefs.view === 'spine') enterPickMode('export');
     else toggleMenu($('#shareMenu'));
   }
 });
@@ -974,22 +1034,66 @@ $('#pickDelete').onclick = () => {
 };
 
 /* ==================== 主页右上角菜单 / 分享菜单 ==================== */
-function closeMenus() { $$('.addmenu.show').forEach(m => m.classList.remove('show')); }
+function closeMenus() {
+  /* 收回这 380ms 里也别动柔光，玻璃收缩才能跑满合成线程 */
+  if ($('#homeMenu').classList.contains('show')) hmSettledAt = performance.now() + 400;
+  $$('.addmenu.show').forEach(m => m.classList.remove('show'));
+}
 function toggleMenu(el) {
   const open = !el.classList.contains('show');
   closeMenus();
   if (open) el.classList.add('show');
 }
-/* 右上角「菜单」：导入 / 一键成书 / 导入 PDF / 主页设置 / 帮助与反馈。
-   后三项原先挂在底栏那颗「更多」上，现在一并收在这里（底栏只留 分享 · 删除 · 新建） */
-$$('#homeMenu button').forEach(b => b.onclick = () => {
+/* 右上角「菜单」：导入 / 设置 / 帮助与反馈（现在是全屏毛玻璃里的三行大字）。
+   11-17：一键成书 / 导入手账本源文件 / 导入 PDF 三项收进「导入」页，
+   菜单只留一个入口。⚠️ data-menuact="bg" 是历史值：那一栏打开的是「设置」页
+   （外观 + 实验性功能），保留 act 值只为不动分派与历史验证脚本。
+   ⚠️ 选择器锁 button[data-menuact]：#homeMenuClose 是纯关闭热区，别给它绑分派。 */
+$$('#homeMenu button[data-menuact]').forEach(b => b.onclick = () => {
   closeMenus();
   const a = b.dataset.menuact;
-  if (a === 'import') pickImportFile();
-  else if (a === 'book') pickBookImages();
-  else if (a === 'pdf') pickBookPDF();
+  if (a === 'importPage') openImportPage();
   else if (a === 'bg') openBgPanel();
   else if (a === 'help') openHelpMail();
+  /* 旧三项已搬走，这里只留兜底：老缓存 / 外部脚本里若还带着这几个 act，
+     点了照样干活，不会出现「菜单点了没反应」。 */
+  else if (a === 'book') pickBookImages();
+  else if (a === 'pdf') pickBookPDF();
+  else if (a === 'import') pickImportFile();
+});
+/* ---- 「导入」页：三个入口聚在一屏，点任意一项先收页再调原来的选文件链路 ---- */
+function openImportPage() {
+  closeMenus();
+  const p = $('#importPanel');
+  if (p) p.hidden = false;
+}
+function closeImportPage() {
+  const p = $('#importPanel');
+  if (p) p.hidden = true;
+}
+$('#impBack').onclick = closeImportPage;
+$('#impClose').onclick = closeImportPage;   // 电脑端右上 ✕，和返回按钮同一件事
+/* 弹窗态点卡片外的遮罩可以关掉；整屏页不这么干，点空白不该误关。
+   ⚠️ 判定必须和 menus.css / background.css 完全一致：
+      (orientation:portrait) and (max-width:1024px) 是整屏页，其余都是弹窗。 */
+$('#importPanel').addEventListener('click', e => {
+  const p = $('#importPanel');
+  const fullPage = window.matchMedia && window.matchMedia('(orientation:portrait) and (max-width:1024px)').matches;
+  if (e.target === p && !fullPage) closeImportPage();
+});
+$$('#importPanel [data-impact]').forEach(b => b.onclick = () => {
+  const a = b.dataset.impact;
+  closeImportPage();
+  if (a === 'book') pickBookImages();
+  else if (a === 'source') pickImportFile();
+  else if (a === 'pdf') pickBookPDF();
+});
+window.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  const hm = $('#homeMenu');
+  if (hm && hm.classList.contains('show')) { closeMenus(); e.stopPropagation(); return; }
+  const p = $('#importPanel');
+  if (p && !p.hidden) { closeImportPage(); e.stopPropagation(); }
 });
 /* 分享菜单：备份 / PDF / 长图 */
 $$('#shareMenu button').forEach(b => b.onclick = async () => {
@@ -1003,11 +1107,56 @@ $$('#shareMenu button').forEach(b => b.onclick = async () => {
 });
 /* 点空白处收起菜单 */
 document.addEventListener('pointerdown', e => {
+  /* 全屏菜单铺满整屏，点它的空白（.hm-list 不吃点击，target 直接是 #homeMenu）就收回 */
+  const hm = $('#homeMenu');
+  if (hm && hm.classList.contains('show') && e.target === hm) { closeMenus(); return; }
   if (e.target.closest('.addmenu') || e.target.closest('#menuBtn') || e.target.closest('.share-wrap')) return;
   /* 阅读器的「+」菜单：点页面是「切换加到哪一页」，不能在这一步关掉它 */
   const am = $('#addMenu');
   if (am && am.classList.contains('show') && (e.target.closest('#book') || e.target.closest('#rAdd'))) return;
   closeMenus();
 });
-$('#menuBtn').onclick = () => toggleMenu($('#homeMenu'));
+/* 全屏菜单：开之前量一次按钮中心，clip-path 圆形揭示就从这个点扩散到整屏。
+   ⚠️ 只在「点按钮」这一下读一次 rect，不是翻页动画里的逐帧读，没有强制重排风险。
+   --hm-r 取圆心到视口四角的最远距离 + 6px 余量，保证任何屏比例都盖得满。 */
+function openHomeMenu() {
+  const el = $('#homeMenu');
+  const r = $('#menuBtn').getBoundingClientRect();
+  const x = r.left + r.width / 2, y = r.top + r.height / 2;
+  const w = window.innerWidth, h = window.innerHeight;
+  const far = Math.max(
+    Math.hypot(x, y), Math.hypot(w - x, y),
+    Math.hypot(x, h - y), Math.hypot(w - x, h - y)
+  );
+  el.style.setProperty('--hm-x', x + 'px');
+  el.style.setProperty('--hm-y', y + 'px');
+  el.style.setProperty('--hm-r', Math.ceil(far + 6) + 'px');
+  hmSettledAt = performance.now() + 460;   // 开合期间不写柔光变量，见文件末尾
+  toggleMenu(el);
+}
+$('#menuBtn').onclick = openHomeMenu;
+$('#homeMenuClose').onclick = closeMenus;
+/* 桌面鼠标柔光：玻璃上极淡的一团高光跟着指针走，全屏白底才不是一张死板的纸。
+   ⚠️ 只写 CSS 变量、走 frameQueue 合帧，并把百分比量化到 2% —— 值没变就不重绘；
+      触屏（没有 hover）和「减少动画」偏好下这一路监听整个不挂。 */
+if (window.matchMedia &&
+    window.matchMedia('(pointer:fine)').matches &&
+    !window.matchMedia('(prefers-reduced-motion:reduce)').matches) {
+  const hmEl = $('#homeMenu');
+  const hmMoveQ = frameQueue(p => {
+    hmEl.style.setProperty('--hm-mx', p[0] + '%');
+    hmEl.style.setProperty('--hm-my', p[1] + '%');
+  });
+  hmEl.addEventListener('pointermove', e => {
+    if (e.pointerType && e.pointerType !== 'mouse') return;
+    /* 开合动画这几百毫秒里整块玻璃正在做 clip-path 揭示，改渐变会逼它每帧重绘；
+       静默期过了、菜单真正静止了才让柔光跟上。 */
+    if (!hmEl.classList.contains('show') || performance.now() < hmSettledAt) return;
+    const q = v => Math.round(v / 2) * 2;
+    hmMoveQ.push([
+      q(e.clientX / window.innerWidth * 100),
+      q(e.clientY / window.innerHeight * 100)
+    ]);
+  }, { passive: true });
+}
 

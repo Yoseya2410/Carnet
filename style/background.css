@@ -1,18 +1,28 @@
 /* =====================================================================
- * Carnet · 主页设置面板与浅色适配   （样式 19 / 19）
+ * Carnet · 设置页与浅色适配   （样式 19 / 19）
  * ---------------------------------------------------------------------
- * ① 主页设置面板（预设色 / 图片操作区 / 单层书架台面开关）
+ * ① 设置页（外观：预设色 / 图片操作区 / 台面开关；实验性功能：WebGL 渲染开关）
  * ② 浅色背景下文字与玻璃控件自动换深色
  *
  * 说明：样式拆分成多个文件后靠 <link> 顺序层叠，脱离这块上下文单独看时请留意。
  * ===================================================================== */
-/* ============ 主页设置面板 ============ */
+/* ============ 设置页（沿用历史 id #bgMask） ============ */
+/* 设置页比原来的背景面板长了一节「实验性功能」：横屏 / 矮屏 / 键盘弹起时让遮罩自己滚，
+   别让 .cp-panel 被垂直居中裁掉顶部（同 #cpMask 的做法）。 */
+#bgMask{overflow-y:auto}
+/* 「实验性功能」分区：一条分隔线把外观与实验项分开。
+   ⚠️ .bg-opt 自己带一条 border-top，分区里要摘掉，否则叠成两条线。 */
+.set-sec{margin-top:18px;padding-top:2px;border-top:1px solid rgba(255,255,255,.12)}
+.bg-light .set-sec{border-top-color:rgba(40,44,66,.12)}
+.set-sec .bg-label{margin-top:14px}
+.set-sec .bg-opt{border-top:0;margin-top:2px;padding-top:0}
+.set-sec .bg-note{margin-top:8px}
 /* 主页 / 阅读器 共用同一份背景，不再有切换页签 */
 .bg-label{font-size:12.5px;opacity:.72;margin:14px 0 8px;letter-spacing:.05em}
 .bg-note{font-size:11px;opacity:.5;margin-top:10px;letter-spacing:.03em}
 #bgClearImg[disabled]{opacity:.4;pointer-events:none}
 /* 标题栏左侧占位：.cp-head 是「38px | 1fr | 38px」，取色盘那格放吸管，
-   主页设置没有吸管，用这一格把标题顶回正中间、关闭按钮留在右端。 */
+   设置页没有吸管，用这一格把标题顶回正中间、关闭按钮留在右端。 */
 .cp-head-pad{display:block;width:38px;height:38px}
 /* 单层书架台面开关：黑白两档，跟界面强调色一致，不用彩色 */
 .bg-opt{
@@ -87,7 +97,7 @@
   -webkit-backdrop-filter:blur(10px) saturate(120%)}
 .bg-light .confirm-mask{background:rgba(246,246,249,.34);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px)}
 
-/* ---- 弹窗（新建 / 编辑手帐本、主页设置…）---- */
+/* ---- 弹窗（新建 / 编辑手帐本、设置…）---- */
 .bg-light .modal{
   color:#2b2f3d;
   background:linear-gradient(180deg,rgba(255,255,255,.58),rgba(255,255,255,.46));
@@ -240,7 +250,7 @@
 #reader.bg-light .pager.jumpable:hover,
 #reader.bg-light .pager.pressing{background:rgba(40,44,66,.1)}
 /* 阅读器跟主页一样是浅底了，书的落地影也得跟着收：深色背景上 .5 的黑影压在浅底上是一坨脏灰 */
-#reader.bg-light .book{filter:drop-shadow(0 26px 34px rgba(40,42,60,.28))}
+#reader.bg-light .book{filter:drop-shadow(0 22px 38px rgba(40,42,60,.15))}
 /* ---- 页数轴 ----
    新版是自带深色底的胶囊 + 白刻度 / 白标签，深浅背景都立得住，
    不再需要为浅底单独翻一套白玻璃样式（旧的那几条覆盖已随改造删掉）。 */
@@ -308,7 +318,7 @@
 
 /* ============ 剩下的深色浮层统一改「白玻璃」 ============
    前面 .bg-light 把 --frost 换成了白，但下面这几处把深色**写死**了 / 压根没写背景，
-   在浅底上依旧是一块黑板：取色盘（含主页设置面板）、吸管操作条、一键成书进度胶囊、
+   在浅底上依旧是一块黑板：取色盘（含设置页）、吸管操作条、一键成书进度胶囊、
    确认框。这里一次性改成不透白的玻璃，并把里面的白字反成深字。
    ⚠️ 只改浮层本身，不动取样用的色板 / 色相条（那些得保持原色才取得准）。 */
 .bg-light .cp-mask{
@@ -360,3 +370,65 @@
 .bg-light .confirm-box .ci{
   color:#2b2f3d;background:rgba(40,44,66,.07);border-color:rgba(40,44,66,.16)
 }
+
+/* ============ 设置页：移动端竖屏 = 整屏页面 / 横屏 = 居中弹窗 ============
+   和「导入」页同一套规则（menus.css 末尾）。基础态（含横屏、桌面）就是原来的
+   .cp-mask + .cp-panel 居中弹窗，这里只在竖屏窄屏把它撑成整屏。
+   ⚠️ 选择器必须锁 #bgMask：#cpMask（自定义取色盘）共用 .cp-mask/.cp-panel，
+      取色盘在设置页之上还要正常居中，不能被这条撑满。 */
+@media (orientation:portrait) and (max-width:1024px){
+  #bgMask.cp-mask{
+    padding:0;justify-items:stretch;align-items:safe start;
+    background:rgba(24,27,44,.96);
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)
+  }
+  .bg-light #bgMask.cp-mask{background:rgba(248,249,252,.97)}
+  #bgMask .cp-panel{
+    width:100%;max-width:none;min-width:0;min-height:100%;height:auto;
+    padding:calc(env(safe-area-inset-top) + 16px) 18px calc(18px + env(safe-area-inset-bottom));
+    border-radius:0;border:0;box-shadow:none;
+    display:flex;flex-direction:column;overflow-y:auto;
+    background:rgba(35,38,50,.96)
+  }
+  .bg-light #bgMask .cp-panel{background:rgba(255,255,255,.97)}
+  #bgMask .cp-actions{margin-top:auto;padding-top:16px}
+}
+/* 矮横屏：面板自己内部滚，别让圆角卡片被视口裁掉半截（底部「完成」也要滚得到） */
+@media (orientation:landscape) and (max-height:520px){
+  #bgMask .cp-panel{max-height:calc(100vh - 36px);overflow-y:auto}
+}
+
+/* ============ 统一面板头部：移动端左上「返回」/ 电脑端右上「✕」 ============
+   设置 / 导入 / 跨本复制三块共用 .panel-back + .panel-x，两颗按钮功能完全一样，
+   只是按同一套响应式切换：整屏页露返回、弹窗露叉。取色盘的左槽是吸管（功能按钮），
+   不参与这套，别给它加 .panel-back。 */
+.panel-back,.panel-x{
+  width:38px;height:38px;padding:0;border:0;border-radius:50%;
+  display:grid;place-items:center;color:inherit;background:transparent;
+  font-size:18px;line-height:1;cursor:pointer;
+  transition:background .18s,transform .15s
+}
+.panel-back svg{width:20px;height:20px;display:block}
+.panel-back:hover,.panel-x:hover{background:rgba(255,255,255,.12)}
+.panel-back:active,.panel-x:active{transform:scale(.92)}
+.bg-light .panel-back:hover,.bg-light .panel-x:hover{background:rgba(40,44,66,.08)}
+/* 默认（弹窗 / 电脑端）：只显示右上 ✕
+   ⚠️ 千万别用 display:none 隐藏另一颗：display:none 的 grid item 不生成盒子，
+      自动放置会把标题和另一颗按钮依次塞进第 1、2 列（实测标题/✕ 全挤到左边）。
+      用 visibility 隐藏 —— 38px 槽位还在，三列永远对齐，标题始终居中。 */
+.panel-back{visibility:hidden;pointer-events:none}
+.panel-x{visibility:visible;pointer-events:auto}
+/* 移动端整屏页：只显示左上返回 */
+@media (orientation:portrait) and (max-width:1024px){
+  .panel-back{visibility:visible;pointer-events:auto}
+  .panel-x{visibility:hidden;pointer-events:none}
+}
+/* 恢复默认背景：从底部操作条挪进「背景颜色」那一栏后的行内小按钮 */
+.bg-label-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.bg-reset{
+  flex:none;padding:4px 10px;border-radius:999px;font-size:11.5px;letter-spacing:.02em;
+  color:inherit;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2)
+}
+.bg-reset:hover{background:rgba(255,255,255,.18)}
+.bg-light .bg-reset{color:#2b2f3d;background:rgba(40,44,66,.1);border-color:rgba(40,44,66,.26)}
+.bg-light .bg-reset:hover{background:rgba(40,44,66,.18)}

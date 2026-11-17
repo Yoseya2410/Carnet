@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 通用控件 · 取色盘与背景面板   （脚本 20 / 28）
+ * Carnet · 通用控件 · 取色盘与设置页   （脚本 20 / 28）
  * ---------------------------------------------------------------------
  * ① 自定义取色盘 openColorPicker：HSV 面板 + 色相条 + 手输色值
  *    （App 内置浏览器常唤不起原生 input[type=color]，所以自己实现一套）
@@ -7,7 +7,8 @@
  *    （点吸管后浮层一律让位藏起，直接在活页面上点；从 elementsFromPoint 逐层合成取色，
  *      图片把屏幕坐标逆映射回原始像素采样，CSS 渐变 / 图案 / 模板细线则把 background-*
  *      塞进 SVG foreignObject 栅格化后再按点取样；放大镜按半个 CSS 像素取样，旋转 / 缩放都对得上）
- * ③ 主页设置面板 openBgPanel：预设色 / 自定义色 / 背景图片 / 恢复默认 / 单层书架台面开关
+ * ③ 设置页 openBgPanel：外观（预设色 / 自定义色 / 背景图片 / 恢复默认 / 单层书架台面）
+ *    + 实验性功能（WebGL 渲染开关，运行时调 gl-lab.js 的 window.GLLab）
  *
  * 对外接口：openColorPicker, closeColorPicker, openEyedropper, openBgPanel
  *
@@ -615,7 +616,31 @@ window.addEventListener('pointerup', ev => {
   epApply();                                // 松手即定，少一步操作
 }, true);
 
-/* ==================== 主页设置面板（背景 / 单层书架台面） ==================== */
+/* ==================== 设置页（外观 / 实验性功能） ====================
+   ⚠️ 历史函数名 openBgPanel 与整套 #bgMask / #bgXxx id 一律保留：取色器层级、
+      历史验证脚本都认这套 id。这里只是把同一个面板从「主页设置」升级成「设置」。 */
+/* WebGL 实验层（gl-lab.js，脚本 29）比本文件（20）晚加载，但这里只在
+   「打开设置页 / 拨开关」的运行时访问 window.GLLab，不会撞 TDZ。
+   ⚠️ 开关状态由 gl-lab.js 自己存 localStorage，不进 state.prefs、
+      不跟着 .json 导出文件走 —— 它是本机显示偏好，不是手帐本数据。 */
+function glLab() { return window.GLLab || null; }
+function syncGlSetting() {
+  const cb = $('#glEnabled'), note = $('#glNote');
+  if (!cb || !note) return;
+  const st = glLab() ? window.GLLab.status() : null;
+  cb.checked = !!(st && st.on);
+  cb.disabled = !st || !!st.failed;
+  /* ⚠️ 这条说明必须常显：书架装饰层交回 DOM 之后，WebGL 只画一层很淡的落地影，
+     用户在画面上几乎看不出开关前后的差别，没有文字就会以为「开了没生效」。
+     顺带讲清生效范围 —— 左右滑动 / 单层书架是刻意 0 帧（见 gl-lab.js 的红线）。 */
+  let msg;
+  if (!st) msg = '当前浏览器没有可用的 WebGL 实验层';
+  else if (st.failed) msg = st.failed;
+  else if (st.on) msg = '已开启 · 在多层书架和阅读器中由 GPU 绘制；左右滑动 / 单层书架为保持流畅不启用';
+  else msg = '已关闭 · 当前使用标准渲染';
+  note.hidden = false;
+  note.textContent = msg;
+}
 const BG_PRESETS = ['#5b6182', '#445070', '#3a4358', '#232840', '#6e5a66', '#7a5c49', '#4f6b5d', '#3d5a66', '#8a8fa8', '#b8a98f'];
 function bgCur() { return state.prefs.bg || { mode: 'default', value: '', img: null }; }
 function syncBgPanel() {
@@ -641,20 +666,35 @@ function syncBgPanel() {
   $('#bgClearImg').disabled = b.mode !== 'image';
   $('#bgUpload').textContent = b.mode === 'image' ? '换一张图片' : '选择图片';
 }
-/* 只有一个面板：主页和阅读器共用同一份背景，不用再切来切去 */
+/* 设置页只有一个弹窗：外观与实验性功能同页，主页和阅读器共用同一份背景 */
 function openBgPanel() {
   syncBgPanel();
+  syncGlSetting();
   $('#bgMask').classList.add('show');
 }
-$('#bgClose').onclick = () => $('#bgMask').classList.remove('show');
-$('#bgOk').onclick = () => $('#bgMask').classList.remove('show');
-$('#bgMask').addEventListener('click', e => { if (e.target === $('#bgMask')) $('#bgMask').classList.remove('show'); });
+/* 头部两颗按钮功能完全一样：移动端显示左上「返回」，电脑端显示右上「✕」。
+   ⚠️ 底部「完成」按钮已删，别再留 $('#bgOk').onclick —— 元素不存在会在顶层抛 TypeError。 */
+const closeBgPanel = () => $('#bgMask').classList.remove('show');
+$('#bgClose').onclick = closeBgPanel;
+$('#bgBack').onclick = closeBgPanel;
+$('#bgMask').addEventListener('click', e => { if (e.target === $('#bgMask')) closeBgPanel(); });
 /* 单层书架台面：默认关。开关即时落盘 + 重绘当前单层书架，不用等「完成」。
    只在 spine 视图下重绘，别的模式切回来时 renderSpineShelf 自己会按 prefs 决定。 */
 $('#bgPlinth').addEventListener('change', e => {
   state.prefs.spinePlinth = !!e.target.checked;
   savePrefs();
   if (state.prefs.view === 'spine' && typeof renderSpineShelf === 'function') renderSpineShelf();
+});
+/* 实验性功能：统一走 GLLab.set()，由它负责 enable/disable 与落 localStorage。
+   ⚠️ 别直接调 enable/disable —— 那两个不写存储，刷新就丢；也别只调 toggle()，
+      开关是「设定值」语义，toggle 是「翻转」语义，外部状态不同步时会拨反。 */
+$('#glEnabled').addEventListener('change', e => {
+  const gl = glLab();
+  if (!gl) { e.target.checked = false; return; }
+  const ok = gl.set(e.target.checked);
+  if (!ok) e.target.checked = false;
+  syncGlSetting();
+  toast(e.target.checked ? '已开启 WebGL 渲染' : '已关闭 WebGL 渲染');
 });
 $('#bgReset').onclick = () => { setBg({ mode: 'default', value: '', img: null }); syncBgPanel(); toast('已恢复默认背景'); };
 $('#bgClearImg').onclick = () => { setBg({ mode: 'default', value: '', img: null }); syncBgPanel(); };

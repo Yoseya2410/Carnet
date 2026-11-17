@@ -44,7 +44,7 @@
   position:relative;                  /* 台面 .spine-plinth 贴着书脚定位 */
   padding:18px 24px calc(var(--spine-plinth-h) + var(--spine-shadow-space,48px))
 }
-/* ---- 台面关闭（默认，开关在「主页设置」）----
+/* ---- 台面关闭（默认，开关在「设置」页）----
    台面压根不进 DOM（renderSpineShelf 按 prefs.spinePlinth 决定），这里只把
    「台面厚度 + 长影长度」那段 padding 收成一小截，让书排往下坐、不悬空。
    ⚠️ --spine-shadow-space 同时被 .spine-detail 的负 margin 吃掉，改这里会连带

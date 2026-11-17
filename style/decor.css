@@ -191,3 +191,79 @@
   content:"";position:absolute;right:0;bottom:0;width:15px;height:15px;pointer-events:none;
   background:linear-gradient(135deg,transparent 50%,rgba(0,0,0,.16) 50%)
 }
+
+/* ============ .lbl 贴纸包：工具行 / 多选条 / 按文件分组 ============ */
+.st-tools{display:flex;gap:8px;flex-wrap:wrap;padding:2px 0 6px}
+.st-tools .st-imp{flex:1 1 auto;min-width:104px;padding:9px 10px;font-size:12px}
+.st-selbar{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px;border-radius:12px;
+  background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.18)
+}
+.st-sel-n{font-size:12px;white-space:nowrap;opacity:.85}
+.st-sel-name{flex:1 1 120px;min-width:88px;padding:7px 9px;font-size:12px}
+.st-sel-btn{
+  padding:7px 11px;border-radius:9px;font-size:12px;color:inherit;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2)
+}
+.st-sel-btn.primary{background:var(--accent,#111318);color:#fff;border-color:transparent}
+.st-sel-btn[disabled]{opacity:.4;pointer-events:none}
+/* 一组 = 一个 .lbl 文件；同名文件重复导入也各占一组（packId 不同） */
+.st-packs{display:flex;flex-direction:column;gap:12px}
+.st-group{border-radius:12px;background:rgba(255,255,255,.045);padding:8px}
+.st-group-head{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.st-group-toggle{
+  width:20px;height:20px;flex:none;border:none;background:transparent;color:inherit;
+  font-size:13px;line-height:1;opacity:.7;transition:transform .18s
+}
+.st-group-toggle.folded{transform:rotate(-90deg)}
+.st-group-name{
+  flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:12px;font-weight:600;opacity:.9
+}
+.st-group-n{font-size:11px;opacity:.55;white-space:nowrap}
+.st-group-del{
+  width:20px;height:20px;flex:none;border:none;border-radius:50%;
+  background:rgba(255,255,255,.12);color:inherit;font-size:14px;line-height:1;opacity:.7
+}
+.st-group-body{padding:0}
+/* 多选态：左上角勾选圈；点格子只切勾选，不往页面上贴 */
+.st-check{
+  position:absolute;left:5px;top:5px;width:18px;height:18px;border-radius:50%;
+  display:grid;place-items:center;font-style:normal;font-size:11px;line-height:1;
+  color:transparent;background:rgba(255,255,255,.16);
+  border:1.5px solid rgba(255,255,255,.55);opacity:0;transition:opacity .16s
+}
+.st-packs.selecting .st-check{opacity:1}
+.st-opt.checked .st-check{color:#fff;background:var(--accent,#111318);border-color:#fff}
+.st-opt.checked{border-color:#fff;background:rgba(255,255,255,.2)}
+.st-opt.on{border-color:#fff;background:rgba(255,255,255,.18)}
+.st-tapes .st-opt.on img{filter:drop-shadow(0 2px 4px rgba(0,0,0,.3))}
+
+/* ============ 装饰胶带：待贴提示条 + 拖动预览 ============ */
+.tape-hint{
+  position:absolute;left:50%;top:calc(var(--topbar-h,76px) + 8px);transform:translateX(-50%);
+  z-index:75;display:flex;align-items:center;gap:10px;
+  padding:8px 10px 8px 14px;border-radius:999px;
+  background:rgba(24,27,38,.9);color:#fff;font-size:12px;white-space:nowrap;
+  box-shadow:0 8px 24px -10px rgba(0,0,0,.6);backdrop-filter:blur(10px)
+}
+.tape-hint b{font-weight:700}
+.tape-hint button{
+  border:none;border-radius:999px;padding:5px 10px;
+  background:rgba(255,255,255,.16);color:#fff;font-size:12px
+}
+/* transform-origin 在左侧中心：从起点沿拖动方向直线延伸，绝不成折线 */
+.tape-preview{
+  position:fixed;left:0;top:0;z-index:78;pointer-events:none;transform-origin:0 50%;
+  background-repeat:no-repeat;background-size:100% 100%;
+  filter:drop-shadow(0 3px 5px rgba(20,22,40,.28));opacity:.92
+}
+/* 浅色底（.bg-light 挂在 #home / #reader / body）：上面那套白玻璃描边会糊在白面板里，
+   勾选圈 / 选中框 / 分组卡片都得换成深灰线，跟 background.css 的 .bg-light .st-opt 同源 */
+.bg-light .st-check{background:rgba(40,44,66,.1);border-color:rgba(40,44,66,.5)}
+.bg-light .st-opt.checked{border-color:#111318;background:rgba(40,44,66,.12)}
+.bg-light .st-opt.on{border-color:#111318;background:rgba(40,44,66,.12)}
+.bg-light .st-group{background:rgba(40,44,66,.04)}
+.bg-light .st-selbar{background:rgba(40,44,66,.05);border-color:rgba(40,44,66,.16)}
+.bg-light .st-sel-btn{background:rgba(40,44,66,.08);border-color:rgba(40,44,66,.16)}
+.bg-light .st-group-del{background:rgba(40,44,66,.1)}

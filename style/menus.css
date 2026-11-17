@@ -107,3 +107,304 @@
 .shelf-wrap.picking .book-item.picked{transform:translateY(-4px)}
 .shelf-wrap.picking .book-item.picked .cover{filter:brightness(1.05)}
 
+/* ============ 「导入」页：横屏 / 宽屏 = 居中弹窗，移动端竖屏 = 整屏页面 ============
+   ⚠️ 判定必须和「设置」页（background.css 末尾）完全同一套：
+      (orientation:portrait) and (max-width:1024px) → 整屏；其余 → 弹窗。
+      以前一个按 orientation、一个按宽度，桌面竖屏会出现「导入整屏、设置弹窗」的错位。 */
+.imp-panel{
+  position:absolute;inset:0;z-index:120;display:grid;
+  grid-template-columns:minmax(0,1fr);justify-items:center;align-items:safe center;
+  padding:18px;overflow-y:auto;color:#f4f6fb;
+  background:rgba(20,22,38,.62);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)
+}
+body.bg-light .imp-panel{background:rgba(20,22,38,.45);color:#2b2f3d}
+.imp-box{
+  display:flex;flex-direction:column;width:min(430px,100%);min-height:0;max-height:min(84vh,620px);
+  border-radius:24px;overflow:hidden;
+  background:rgba(35,38,50,.94);border:1px solid var(--frost-bd);
+  backdrop-filter:var(--frost-fx);-webkit-backdrop-filter:var(--frost-fx);
+  box-shadow:0 30px 60px -18px rgba(0,0,0,.7);animation:pop .24s cubic-bezier(.2,.9,.3,1.2)
+}
+body.bg-light .imp-box{background:rgba(255,255,255,.97);border-color:rgba(17,19,24,.12)}
+.imp-top{
+  display:grid;grid-template-columns:38px 1fr 38px;align-items:center;gap:8px;
+  padding:12px 12px 8px;border-bottom:1px solid rgba(255,255,255,.1)
+}
+body.bg-light .imp-top{border-bottom-color:rgba(17,19,24,.09)}
+.imp-top h2{margin:0;text-align:center;font-size:16px;font-weight:700;letter-spacing:.06em}
+.imp-body{flex:1;min-height:0;overflow-y:auto;padding:6px 18px 20px}
+.imp-lead{margin:12px 0 14px;font-size:13px;opacity:.68;line-height:1.7}
+.imp-card{
+  display:flex;align-items:center;gap:14px;width:100%;margin-bottom:10px;padding:12px 14px;
+  border-radius:16px;text-align:left;color:inherit;
+  background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.18);
+  transition:background .18s,transform .14s
+}
+.imp-card:hover{background:rgba(255,255,255,.16)}
+.imp-card:active{transform:scale(.99)}
+body.bg-light .imp-card{
+  background:rgba(255,255,255,.72);border-color:rgba(17,19,24,.1);
+  box-shadow:0 8px 22px -16px rgba(20,22,40,.65)
+}
+body.bg-light .imp-card:hover{background:rgba(255,255,255,.92)}
+.imp-ico{
+  flex:none;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;
+  background:rgba(255,255,255,.12);color:inherit
+}
+body.bg-light .imp-ico{background:rgba(17,19,24,.06)}
+.imp-card-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.imp-card-tx b{font-size:14px;letter-spacing:.03em}
+.imp-card-tx small{font-size:11.5px;opacity:.6;line-height:1.5}
+.imp-arrow{font-size:22px;opacity:.45}
+.imp-note{margin-top:14px;font-size:11.5px;opacity:.5;line-height:1.7}
+
+/* 移动端 / 平板竖屏：整屏页面（内层 .imp-box 退回透明布局壳） */
+@media (orientation:portrait) and (max-width:1024px){
+  .imp-panel{
+    display:flex;flex-direction:column;padding:0;overflow-y:auto;
+    background:rgba(24,27,44,.94);color:#f4f6fb;
+    backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)
+  }
+  body.bg-light .imp-panel{background:rgba(248,249,252,.94);color:#2b2f3d}
+  .imp-box{
+    width:100%;min-height:100%;max-height:none;border-radius:0;border:0;
+    box-shadow:none;background:transparent;animation:none;overflow:visible
+  }
+  body.bg-light .imp-box{background:transparent;border-color:transparent}
+  .imp-top{padding:calc(env(safe-area-inset-top) + 14px) 16px 10px;border-bottom:0}
+  .imp-body{
+    flex:1;min-height:0;overflow:visible;
+    padding:8px clamp(16px,5vw,40px) 40px;max-width:620px;width:100%;margin:0 auto
+  }
+  .imp-lead{margin:14px 0 20px}
+  .imp-card{padding:16px;margin-bottom:12px}
+  .imp-ico{width:44px;height:44px}
+  .imp-note{margin-top:20px}
+}
+
+/* ============ 跨本复制页面面板 ============ */
+.cp2-mask{
+  position:absolute;inset:0;z-index:120;display:grid;place-items:center;padding:16px;
+  background:rgba(16,18,30,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)
+}
+.cp2-panel{
+  width:min(480px,100%);max-height:min(78vh,680px);display:flex;flex-direction:column;
+  border-radius:24px;overflow:hidden;background:rgba(35,38,50,.94);color:#f4f6fb;
+  border:1px solid var(--frost-bd);
+  backdrop-filter:var(--frost-fx);-webkit-backdrop-filter:var(--frost-fx);
+  box-shadow:0 30px 60px -18px rgba(0,0,0,.7)
+}
+body.bg-light .cp2-panel{background:rgba(255,255,255,.97);color:#2b2f3d;border-color:rgba(17,19,24,.12)}
+.cp2-head{
+  display:grid;grid-template-columns:38px 1fr 38px;align-items:center;
+  padding:12px 12px 10px;border-bottom:1px solid rgba(255,255,255,.1)
+}
+body.bg-light .cp2-head{border-color:rgba(17,19,24,.09)}
+.cp2-head b{text-align:center;font-size:14px;letter-spacing:.04em}
+.cp2-x{border:none;background:transparent;color:inherit;font-size:16px;opacity:.7}
+.cp2-body{flex:1;min-height:0;overflow-y:auto;padding:12px 14px}
+.cp2-lab{font-size:12px;opacity:.65;margin:8px 0 10px;letter-spacing:.04em}
+.cp2-pages{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:9px;margin-bottom:18px}
+.cp2-page{
+  position:relative;display:flex;align-items:center;gap:9px;padding:8px;border-radius:12px;
+  color:inherit;text-align:left;background:rgba(255,255,255,.07);border:1.5px solid transparent
+}
+.cp2-page.on{border-color:var(--accent-on-dark,#fff);background:rgba(255,255,255,.16)}
+body.bg-light .cp2-page{background:rgba(17,19,24,.04)}
+body.bg-light .cp2-page.on{border-color:#111318;background:rgba(17,19,24,.08)}
+.cp2-page-thumb{
+  flex:none;width:30px;height:40px;border-radius:3px;display:grid;place-items:center;
+  background:#fdfaf3;color:#3a3f52;box-shadow:0 2px 6px -3px rgba(0,0,0,.5)
+}
+.cp2-page-thumb b{font-size:12px}
+.cp2-page-tx{min-width:0;display:flex;flex-direction:column;gap:3px;font-size:12px}
+.cp2-page-tx small{font-size:10.5px;opacity:.55}
+.cp2-tick{position:absolute;right:7px;top:7px;font-style:normal;font-size:10px;line-height:1;opacity:0}
+.cp2-page.on .cp2-tick,.cp2-target.on .cp2-tick{opacity:1}
+.cp2-targets{display:flex;flex-direction:column;gap:8px}
+.cp2-target{
+  position:relative;display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:12px;
+  color:inherit;text-align:left;background:rgba(255,255,255,.07);border:1.5px solid transparent
+}
+.cp2-target.on{border-color:var(--accent-on-dark,#fff);background:rgba(255,255,255,.16)}
+body.bg-light .cp2-target{background:rgba(17,19,24,.04)}
+body.bg-light .cp2-target.on{border-color:#111318;background:rgba(17,19,24,.08)}
+.cp2-target-sw{flex:none;width:24px;height:32px;border-radius:3px;box-shadow:0 2px 6px -3px rgba(0,0,0,.55)}
+.cp2-target-tx{
+  flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;font-size:13px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
+.cp2-target-tx small{font-size:10.5px;opacity:.55}
+.cp2-empty{font-size:12px;opacity:.6;line-height:1.7;margin:6px 0}
+.cp2-foot{display:flex;justify-content:flex-end;gap:10px;padding:12px 14px;border-top:1px solid rgba(255,255,255,.1)}
+body.bg-light .cp2-foot{border-color:rgba(17,19,24,.09)}
+
+/* 矮横屏（手机横过来只剩 ~390px 高）：弹窗里收起说明文字，三张卡片一次看完 */
+@media (orientation:landscape) and (max-height:480px){
+  .imp-lead,.imp-note{display:none}
+  .imp-body{padding-top:12px}
+  .imp-card{padding:10px 14px;margin-bottom:8px}
+}
+
+/* =====================================================================
+ * ============ 主页「菜单」：从菜单按钮扩散成全屏毛玻璃 ============
+ * ---------------------------------------------------------------------
+ * #homeMenu 与 #home 平级挂在 #app 下（见 index.html），避开 .topbar 的
+ * z-index:5 层叠上下文与 #home.bars-away 的整条淡出。
+ * 开合靠 clip-path 圆形揭示：圆心 = 菜单按钮中心（--hm-x/--hm-y 由 JS 量好写进来），
+ * --hm-r 是「圆心到视口四角的最远距离」，一扩到底刚好盖满整屏。
+ * 毛玻璃刻意用**浅色白玻璃**：黑字压在深玻璃上看不见，浅白底在任何背景下都清楚。
+ *
+ * 二次打磨（用户：电脑端字太大 / 要更艺术更高级）：
+ *  · 字号 clamp(30px,3vw,42px)：手机仍是 30px，桌面从 62px 收到 ~38px；
+ *  · 中文衬线 + 细字重 + 宽字距，靠排版而不是靠字号撑气场；
+ *  · 眉标 MENU / 页脚 CARNET / hover 展开的细线，做编辑式版面层次；
+ *  · 悬浮时其余两项退到 .34 透明度，焦点自然落到鼠标那一项；
+ *  · 桌面鼠标带一团极淡柔光（--hm-mx/--hm-my，frameQueue 合帧、2% 量化）。
+ *
+ * 三次打磨（用户：开关动画再快一点、再流畅一点）：
+ *  · 开 .44s / 关 .38s，文字 stagger 收到 .05/.11/.17s，整段从 ~1.2s 压到 ~.55s；
+ *  · ⚠️ **去掉 backdrop-filter 的逐帧过渡**：每帧重算全屏高斯模糊是最大的掉帧源。
+ *    blur 固定不变，圆形揭示本身就带来「圆内失焦、圆外清晰」的扩散失焦感，
+ *    完全不需要让 blur 值跟着动；这样开合只有 clip-path / opacity / transform 在动，
+ *    全是合成线程属性。
+ *  · ⚠️ 文字入场也去掉 filter:blur() 与 letter-spacing 动画（前者重算滤镜、后者每帧重排），
+ *    只留 opacity + transform，显影靠节奏而不是特效。
+ *  · 打开 / 关闭各用一条缓动：开是强 ease-out（起步快、尾巴短），关是收得干脆的 ease-in-out。
+ * ⚠️ 其余 .addmenu（阅读器「＋」、分享、纸面右键…）完全不动，靠 #homeMenu 这个 id 锁死。
+ * ===================================================================== */
+#homeMenu.addmenu{
+  /* --hm-blur 只由下面的触屏 media 改，closed / show 两态共用同一个值：
+     模糊值全程不变，就不会有逐帧重算高斯模糊；扩散失焦感由 clip-path 自己给。 */
+  --hm-blur:28px;
+  position:absolute;inset:0;z-index:135;
+  min-width:0;margin:0;padding:0;border:0;border-radius:0;box-shadow:none;
+  display:flex;flex-direction:row;align-items:center;justify-content:center;gap:0;
+  background:
+    radial-gradient(58% 52% at var(--hm-mx,50%) var(--hm-my,46%),rgba(255,255,255,.62),rgba(255,255,255,0) 72%),
+    radial-gradient(86% 80% at 12% 96%,rgba(196,205,224,.2),rgba(196,205,224,0) 70%),
+    rgba(247,248,251,.74);
+  backdrop-filter:blur(var(--hm-blur)) saturate(148%);
+  -webkit-backdrop-filter:blur(var(--hm-blur)) saturate(148%);
+  opacity:0;transform:none;pointer-events:none;visibility:hidden;
+  clip-path:circle(0px at var(--hm-x,calc(100% - 44px)) var(--hm-y,40px));
+  will-change:clip-path,opacity;
+  /* 这条是「关闭」时用的：收得干脆，visibility 延迟到圆收完才藏 */
+  transition:clip-path .38s cubic-bezier(.4,0,.2,1),opacity .18s ease,
+             visibility 0s linear .38s
+}
+#homeMenu.addmenu.show{
+  opacity:1;transform:none;pointer-events:auto;visibility:visible;
+  clip-path:circle(var(--hm-r,150vmax) at var(--hm-x,calc(100% - 44px)) var(--hm-y,40px));
+  /* 这条是「打开」时用的：强 ease-out，起步极快、尾巴短，不拖泥带水 */
+  transition:clip-path .44s cubic-bezier(.16,1,.3,1),opacity .22s ease,visibility 0s
+}
+/* 功能名竖排居中：容器自己不吃点击，行间空白点下去会落到 #homeMenu 上（= 关闭）。
+   眉标 absolute 不占流，所以三项仍精确居中在页面正中。 */
+#homeMenu .hm-list{
+  position:relative;
+  display:flex;flex-direction:column;align-items:center;
+  gap:clamp(6px,1.5vh,16px);max-width:100%;
+  padding:calc(env(safe-area-inset-top) + 24px) 18px calc(env(safe-area-inset-bottom) + 24px);
+  pointer-events:none
+}
+#homeMenu .hm-eyebrow,#homeMenu .hm-wordmark{
+  position:absolute;left:50%;pointer-events:none;white-space:nowrap;
+  font-family:Georgia,"Times New Roman",serif;font-weight:600;
+  transform:translateX(-50%);
+  transition:opacity .18s ease,transform .22s cubic-bezier(.16,1,.3,1)
+}
+#homeMenu .hm-eyebrow{
+  bottom:calc(100% + clamp(30px,5.5vh,60px));
+  font-size:10px;letter-spacing:.62em;color:rgba(17,19,24,.42)
+}
+/* 眉标下那根 26px 细线：纯装饰，不是图标 */
+#homeMenu .hm-eyebrow::after{
+  content:'';display:block;width:26px;height:1px;margin:11px auto 0;
+  background:rgba(17,19,24,.3)
+}
+#homeMenu .hm-wordmark{
+  bottom:calc(env(safe-area-inset-bottom) + 26px);
+  font-size:9px;letter-spacing:.5em;color:rgba(17,19,24,.26)
+}
+#homeMenu .hm-item{
+  position:relative;
+  pointer-events:auto;display:block;width:auto;max-width:min(92vw,900px);
+  padding:clamp(6px,1.2vh,14px) 18px clamp(15px,2.2vh,24px);
+  border:0;border-radius:0;background:transparent;
+  /* 中文衬线 + 宽字距：编辑式排版，比 62px 粗黑体更耐看。
+     ⚠️ 字重 600 别降到 400 —— 400 在这套衬线上笔画太细，整片看着发灰、不像「黑色大文本」；
+        实测 Chromium 下 600 仍是清晰的衬线黑字，没有合成假粗体的糊边。 */
+  font-family:"Songti SC","STSong","Noto Serif SC","Source Han Serif SC","SimSun",Georgia,"Times New Roman",serif;
+  color:#111318;font-size:clamp(30px,3vw,42px);font-weight:600;
+  letter-spacing:.14em;line-height:1.28;text-align:center;white-space:nowrap;
+  transform:scale(1);transform-origin:center center;
+  transition:transform .26s cubic-bezier(.16,1,.3,1),letter-spacing .3s cubic-bezier(.16,1,.3,1),
+             opacity .16s ease
+}
+/* hover 才展开的一条细线：纯装饰，不是图标 */
+#homeMenu .hm-item::after{
+  content:'';position:absolute;left:50%;bottom:5px;width:0;height:1px;
+  background:currentColor;opacity:0;transform:translateX(-50%);
+  transition:width .4s cubic-bezier(.16,1,.3,1),opacity .26s ease
+}
+/* 鼠标停在哪一项上，那一项就更大一点（键盘 focus 同样待遇） */
+#homeMenu .hm-item:hover,#homeMenu .hm-item:focus-visible{
+  background:transparent;transform:scale(1.14);letter-spacing:.21em;outline:none
+}
+#homeMenu .hm-item:hover::after,#homeMenu .hm-item:focus-visible::after{width:54px;opacity:.5}
+#homeMenu .hm-item:active{background:transparent;transform:scale(1.07)}
+/* 悬浮时另外两项退到背景里，焦点自然收拢；只在真有 hover 的设备上生效 */
+@media (hover:hover){
+  #homeMenu.show:has(.hm-item:hover) .hm-item:not(:hover){opacity:.34}
+}
+/* 收起时文字先散、玻璃再收回。⚠️ 只压非 show 态，别盖掉入场动画的 to 值 */
+#homeMenu:not(.show) .hm-item{opacity:0;transform:translateY(-8px)}
+#homeMenu:not(.show) .hm-eyebrow,#homeMenu:not(.show) .hm-wordmark{
+  opacity:0;transform:translate(-50%,8px)
+}
+/* 只显示文本不显示图标：HTML 里已把三颗 svg 摘掉，这条兜住老缓存 / 外部注入的图标 */
+#homeMenu button svg{display:none}
+/* 逐条显影：只动 opacity + transform（全是合成属性，不重排、不重算滤镜）。
+   ⚠️ fill-mode 一律 backwards —— 动画放完把 transform / opacity 交还 :hover，
+      用 both 会把 transform 锁成 none，悬停放大就失效。 */
+#homeMenu.show .hm-item{animation:hmItemIn .38s cubic-bezier(.16,1,.3,1) backwards}
+#homeMenu.show .hm-item:nth-of-type(1){animation-delay:.05s}
+#homeMenu.show .hm-item:nth-of-type(2){animation-delay:.11s}
+#homeMenu.show .hm-item:nth-of-type(3){animation-delay:.17s}
+@keyframes hmItemIn{
+  from{opacity:0;transform:translateY(16px) scale(.985)}
+  to{opacity:1;transform:none}
+}
+#homeMenu.show .hm-eyebrow{animation:hmFadeUp .32s cubic-bezier(.16,1,.3,1) .02s backwards}
+#homeMenu.show .hm-wordmark{animation:hmFadeUp .32s cubic-bezier(.16,1,.3,1) .22s backwards}
+@keyframes hmFadeUp{
+  from{opacity:0;transform:translate(-50%,10px)}
+  to{opacity:1;transform:translate(-50%,0)}
+}
+/* 菜单按钮原位留一块透明热区：再点一下就收回（视觉上不添任何图标） */
+#homeMenu .hm-close-zone{
+  position:absolute;left:var(--hm-x,calc(100% - 44px));top:var(--hm-y,40px);
+  width:52px;height:52px;margin:0;padding:0;border:0;border-radius:50%;
+  background:transparent;z-index:2;pointer-events:auto;
+  transform:translate(-50%,-50%)
+}
+#homeMenu .hm-close-zone:hover,#homeMenu .hm-close-zone:active{
+  background:transparent;transform:translate(-50%,-50%)
+}
+/* 触屏 / 窄屏：模糊收一档省显存，眉标与页脚贴紧一点。
+   ⚠️ 只改 --hm-blur 这个变量，别只压 .show 态 —— 那样开关瞬间 blur 会跳一档。 */
+@media (pointer:coarse),(max-width:640px){
+  #homeMenu.addmenu{--hm-blur:20px}
+  #homeMenu .hm-eyebrow{bottom:calc(100% + clamp(24px,4vh,38px))}
+  #homeMenu .hm-wordmark{bottom:calc(env(safe-area-inset-bottom) + 18px)}
+}
+@media (prefers-reduced-motion:reduce){
+  #homeMenu.addmenu,#homeMenu.addmenu.show{transition-duration:.01ms}
+  #homeMenu.show .hm-item,#homeMenu.show .hm-eyebrow,#homeMenu.show .hm-wordmark{animation:none}
+  #homeMenu:not(.show) .hm-item,
+  #homeMenu:not(.show) .hm-eyebrow,
+  #homeMenu:not(.show) .hm-wordmark,
+  #homeMenu .hm-item::after{transition-duration:.01ms}
+}
+

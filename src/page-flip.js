@@ -62,6 +62,8 @@ function endFlip() {
   leaf.classList.remove('show', 'turning');
   leaf.style.transition = 'none';
   leaf.style.transform = 'none';
+  leaf.style.removeProperty('--turn');          // 翻完把受光变量收干净，别留在下一次翻页
+  leaf.style.removeProperty('--lift');
   clearBookShift();                            // 清掉「翻开 / 合上」时的临时位移
   renderReader();
 }
@@ -96,7 +98,12 @@ function stepFlip(now) {
   const deg = flipA.from + (flipA.to - flipA.from) * e;
   // 翻到中途把纸轻轻"抬"起来一点，避免转动看起来是纯 2D 压扁
   const lift = Math.sin(p * Math.PI) * 30;
-  $('#leaf').style.transform = `translateZ(${lift.toFixed(1)}px) rotateY(${deg.toFixed(3)}deg)`;
+  const leaf = $('#leaf');
+  leaf.style.transform = `translateZ(${lift.toFixed(1)}px) rotateY(${deg.toFixed(3)}deg)`;
+  /* 11-17 第十二轮：把翻起程度 / 抬升写成 CSS 变量，叶片的压暗、纸面高光与投影跟着变。
+     ⚠️ 纯内联属性写入，绝不读 rect / clientWidth —— 这里每帧都在写 transform，读布局会强制重排。 */
+  leaf.style.setProperty('--turn', Math.min(1, Math.abs(deg) / 180).toFixed(3));
+  leaf.style.setProperty('--lift', (lift / 30).toFixed(3));
   /* 封面 ↔ 第一跨页：书同时「摊开 / 合拢」——整本横移半页宽，
      前 42% 就把位移补齐，剩下的动作跟普通翻页一模一样 */
   if (flipA.slide) {
@@ -188,7 +195,12 @@ function flip(dir) {
        不会先以封面态的白底露一段、落地后才变成内页。 */
     if (slide) {
       const bk = $('#book');
-      $('#slotL').innerHTML = '';
+      /* ⚠️ 非活页没有 .book-under 那层封面内侧，左槽留空会在摊开 / 合拢的
+         交接处露出整块白纸。按**落地后第一跨**补上左页：合拢方向左槽可见时
+         能直接看到纸，落地 renderReader() 填的是同一页，不会跳变；打开方向
+         .cover-opening 会把左槽 visibility:hidden，那半边仍由封面叶片覆盖。
+         活页仍走 .book-under，左槽保持空，别重复铺。 */
+      $('#slotL').innerHTML = st.rings ? '' : pageHTML(spreadIndices(0)[0], 'left');
       bk.classList.add('cover-flip');
       if (dir > 0) {
         state.spread = 0;

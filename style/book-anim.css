@@ -22,16 +22,17 @@
 }
 .cover-ghost .cover{
   width:100% !important;height:100% !important;aspect-ratio:auto !important;
-  border-radius:0;box-shadow:0 30px 60px -22px rgba(10,12,26,.7)
+  border-radius:0;box-shadow:0 22px 44px -20px rgba(10,12,26,.42)
 }
-/* 只在最后 1/4 收一下：ghost 全程清晰，落点和书完全重合后才悄悄退场。
-   ⚠️ 这里**不能再动画 border-radius**：CSS 动画的层级高于内联样式，会把 JS 给细长书脊
-      设的 1.5px 小圆角顶掉，起点那根窄条会被糊上封面的 13px 大圆角。圆角交给 flyCover 过渡 */
-@keyframes ghostOut{
-  0%{opacity:1;box-shadow:0 30px 60px -22px rgba(10,12,26,.7)}
-  70%{opacity:1;box-shadow:0 20px 40px -20px rgba(10,12,26,.62)}
-  100%{opacity:0;box-shadow:0 12px 26px -18px rgba(10,12,26,.5)}
-}
+/* ⚠️ 11-17 定稿：**飞行封面与阅读器里的书绝不交叉淡化**。
+   两段式开合书（先抬出玻璃、再放大）让 ghost 到 75% 进度才接近落点，而旧版
+   bookIn 从 46% 就淡入、ghostOut 从 70% 才淡出 —— 放大途中两张尺寸 / 位置都
+   不同的封面同时可见，就是「封面重影」（实测 420ms：ghost 372×527 @285,89
+   叠着书 396×563 @302,97）。现在 ghost 全程不透明、书全程透明，落地那一帧
+   由 JS 在**同一次任务**里 ghost.remove() + 摘 .book-in 完成交接；两张皮严格
+   同源同尺寸同位置，零跳变。
+   ⚠️ 别再给 ghost 设 animation / 给书加淡入：CSS 动画优先级高于内联 transition，
+      而且任何「飞行途中」的交叉都会重新引出重影。 */
 #home{transition:transform .5s cubic-bezier(.32,.86,.3,1),opacity .42s ease,filter .42s ease}
 #home.book-opening{transform:scale(.93);opacity:0;filter:blur(7px);pointer-events:none}
 #home.noanim{transition:none !important}
@@ -42,13 +43,10 @@
 #reader.book-opening{opacity:1;transition:none}
 #reader.book-opening .rtop,#reader.book-opening .rbot{opacity:0;transition:opacity .3s ease .2s}
 #reader.book-opening.show .rtop,#reader.book-opening.show .rbot{opacity:1}
-/* 由 ghost 负责「变大」，书只做淡入，两者尺寸始终一致，不会出现错位 */
-.book.book-in{animation:bookIn .58s ease both;will-change:opacity}
-@keyframes bookIn{
-  0%,46%{opacity:0}
-  76%{opacity:1}
-  100%{opacity:1}
-}
+/* 由 ghost 负责「变大」，书在飞行期间整本透明；落地那一帧 JS 摘掉 .book-in 直接显形。
+   ⚠️ 用普通 opacity 而不是 animation：animation 的 fill-mode 会把 opacity 锁在 0，
+      交接帧摘 class 前后容易出现一帧空窗 / 延迟显形。 */
+.book.book-in{opacity:0}
 .book.book-out{animation:bookOut .3s ease-out both}
 @keyframes bookOut{from{opacity:1}to{opacity:0}}
 /* 封面单独一页：书仍是跨页的骨架，整本左移半页宽、左页收起来，

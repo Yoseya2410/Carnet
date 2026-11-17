@@ -38,8 +38,16 @@
 .topright{display:flex;align-items:center;gap:10px;position:relative}
 /* 顶栏浮起来了，标题自己往下让出它的高度，不然名字会压在按钮底下 */
 .home-head{text-align:center;margin-top:calc(var(--topbar-h) + 1.5vh);pointer-events:none}
+/* 左右滑动模式顶部的书名。
+   ⚠️ line-height 必须写死成数值：默认的 normal 会按**字体自身的 ascent/descent** 撑开行盒，
+      中文走系统黑体（约 1.33em）、纯英文走 Martian Mono（约 1.21em），1440px 宽实测
+      h1 一个 44px 一个 40px，.home-head 整个块 70px / 66px —— 它是 #home 这条 flex 列里
+      占高度的一块，头一变矮，下面 flex:1 的 .carousel-wrap 就往上挪，居中对齐的书跟着
+      「英文高一点、中文低一点」（封面 top 343.62 / 352.36）。写死行高后盒子只由 font-size
+      决定，与字族无关，两种语言的书永远落在同一条水平线上。
+      1.33 是照着中文原来的 normal 行盒取的，中文这一档的观感一点不变。 */
 .home-head h1{
-  margin:0;font-size:clamp(21px,3.1vw,33px);font-weight:700;letter-spacing:.06em;
+  margin:0;font-size:clamp(21px,3.1vw,33px);line-height:1.33;font-weight:700;letter-spacing:.06em;
   text-shadow:0 2px 14px rgba(0,0,0,.18);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 12px
 }
 /* 左右滑动模式：纯英文书名用 Martian 窄体等宽；中文 / 中英混排保持默认。
