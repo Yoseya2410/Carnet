@@ -25,6 +25,11 @@ const carousel = (() => {
      原来是边写 el.style.transform 边读 el.offsetWidth —— 写一次就强制重排一次，
      n 本书就是每帧 n 次重排，拖起来发涩全花在这上面。 */
   let mets = [], wrapW = 0, lastK = [], lastF = [];
+  /* 拖动 / 惯性期间冻结 filter：saturate+brightness 每改一次都要把整本书
+     （封面图案、纹理、box-shadow 全在里面）重新栅格化一次，滑动时会出现
+     一闪一闪的深色残影。明暗只差 14% 饱和 / 6% 亮度，跟手过程中保持不变
+     肉眼几乎看不出；松手 snap() 解除冻结，由 filter transition 平滑补齐。 */
+  let freezeFilter = false;
   /* 只有「节点换了」或「视口变了」才重新量布局。
      拖动松手 / 滚轮换本都会调 snap()，以前每次都把 n 本书的 offsetLeft / offsetWidth
      读一遍 —— CSS transform 刚写完就同步读布局，是一次强制重排，落在松手那一下最明显。
@@ -50,25 +55,32 @@ const carousel = (() => {
       const m = mets[i], prev = lastK[i];
       const span = Math.max(m.w * 1.25, 1);
       const dist = Math.abs(m.c - view);
-      /* 屏幕外、且上次就已经是熄灭态：连除法都不必算。
-         中心点 / 宽度是布局值，transform 不影响它们，measure() 后一直有效。 */
-      if (dist > edge + span && prev === 0) continue;
       const k = dist >= span ? 0 : 1 - dist / span;
-      /* 只写真正变了的书：拖动时绝大多数书 k 恒为 0，中心附近 1~2 本在变。
-         ⚠️ 阈值 .0002 是照着 scale 的 toFixed(4) 精度算的 —— 小于它时
-         scale 串不会变，跳过写 DOM 不会有任何像素差异。
-         filter 另有一套更粗的 1/16 档阈值，见下面那段。 */
-      if (Number.isFinite(prev) && Math.abs(k - prev) < .0002) continue;
-      lastK[i] = k;
-      const el = items[i];
-      el.style.transform = `scale(${(1 + 0.055 * k).toFixed(4)})`;
       /* ⚠️ filter 每帧改值会让浏览器重新栅格化整本书（封面图案 / 纹理 /
          阴影全在里面），是拖动时最贵的一笔，也是「左右滑动发涩」的主因。
          把明暗强度量化到 1/16 档：scale 仍然每帧连续跟手，filter 只在跨档时
-         写一次 CSSOM，重栅格次数降一个数量级，16 档的阶梯肉眼看不出来。
-         松手吸附后 JS 不再写 filter，由 ease() 里的 filter transition 平滑收尾。 */
+         写一次 CSSOM，重栅格次数降一个数量级，16 档的阶梯肉眼看不出来；
+         拖动 / 惯性期间 freezeFilter 直接不写，松手 snap() 解除后由
+         ease() 里的 filter transition 平滑补齐。 */
       const fq = Math.round(k * 16) / 16;
-      if (lastF[i] !== fq) {
+      const needF = !freezeFilter && lastF[i] !== fq;
+      /* 屏幕外、上次就已经熄灭、滤镜也已是熄灭态：连除法都不必算。
+         ⚠️ 必须把 needF 一起判断 —— 冻结期间 lastF 可能还停在亮的那档，
+            松手后这一本要靠这次写入补回熄灭态，不能被 continue 跳过。
+         中心点 / 宽度是布局值，transform 不影响它们，measure() 后一直有效。 */
+      if (dist > edge + span && prev === 0 && !needF) continue;
+      /* 只写真正变了的书：拖动时绝大多数书 k 恒为 0，中心附近 1~2 本在变。
+         ⚠️ 阈值 .0002 是照着 scale 的 toFixed(4) 精度算的 —— 小于它时
+         scale 串不会变，跳过写 DOM 不会有任何像素差异。
+         但这个 continue 只管 transform：滤镜要单独判，否则冻结结束后
+         「k 没变的那本」会永远停在拖动前的明暗上。 */
+      const kChanged = !(Number.isFinite(prev) && Math.abs(k - prev) < .0002);
+      const el = items[i];
+      if (kChanged) {
+        lastK[i] = k;
+        el.style.transform = `scale(${(1 + 0.055 * k).toFixed(4)})`;
+      }
+      if (needF) {
         lastF[i] = fq;
         el.style.filter = `saturate(${(0.86 + 0.14 * fq).toFixed(3)}) brightness(${(0.94 + 0.06 * fq).toFixed(3)})`;
       }
@@ -143,6 +155,7 @@ const carousel = (() => {
   }
   function snap(i, animate) {
     stopInertia();                       // 外部换本 / 滚轮 / 重排都要先掐掉惯性
+    freezeFilter = false;               // 落位这一帧补回拖动期间冻结的明暗
     measure();
     if (!items.length) { track.style.transform = 'translate3d(0,0,0)'; return; }
     const idx = clamp(i, 0, items.length - 1);
@@ -251,6 +264,8 @@ const carousel = (() => {
     s.els.forEach(e => { e.style.transform = ''; });
     if (s.dragged) { suppressClick = true; setTimeout(() => suppressClick = false, 340); }
     const { from, to } = s;
+    /* 没挪位置就归位。移动端长按已在 holdTimer 里直接进了多选，
+       不会走到这里；桌面端仍是原来「长按原地松手 = 归位」的行为。 */
     if (to === from) { snap(state.sel, true); return; }
     const arr = state.journals;
     arr.splice(to, 0, arr.splice(from, 1)[0]);
@@ -278,14 +293,20 @@ const carousel = (() => {
     /* 手指按住不动才算长按；一旦开始横向滑就把长按作废，让位给滚动 */
     clearTimeout(holdTimer);
     pendingEl = e.target.closest('.book-item'); pendingX = e.clientX; pendingY = e.clientY;
-    holdTimer = setTimeout(() => { if (pendingEl) beginSort(pendingEl, pendingX, pendingY); }, HOLD_MS);
+    holdTimer = setTimeout(() => {
+      if (!pendingEl) return;
+      /* 左右滑动模式长按 = **直接拖动排序**，绝不跳去多层书架进多选。
+         一进多选就会 setView('shelf') 整块重绘，触摸手势锁死的目标节点被换掉，
+         同一根手指再也拖不动。桌面端与移动端在这里走同一条 beginSort。 */
+      beginSort(pendingEl, pendingX, pendingY);
+    }, HOLD_MS);
   });
   window.addEventListener('pointermove', e => {
     if (sorting) { moveSort(e.clientX, e.clientY); return; }
     if (!dragging) return;
     const x = e.clientX, now = performance.now();
     const dx = x - startX;
-    if (Math.abs(dx) > 5) { moved = true; clearTimeout(holdTimer); pendingEl = null; }
+    if (Math.abs(dx) > 5) { moved = true; freezeFilter = true; clearTimeout(holdTimer); pendingEl = null; }
     const dt = now - lastT;
     if (dt > 6) { vel = vel * 0.7 + ((x - lastX) / dt) * 0.3 * 16.7; lastX = x; lastT = now; }
     let t = startOff + dx;

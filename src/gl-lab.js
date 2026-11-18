@@ -601,16 +601,26 @@
       11, [1, 1, 1, 1], [glow, flyAnim.reverse ? 1 : 0, 0, 0]);
     if (p >= 1) flyAnim = null;
   }
+  let carVW = 0, carVH = 0;
   function drawCarousel() {
     const st = ensureAnimStage('carousel');
-    fit(st);
+    /* ⚠️ 拖动期间绝不读布局：carousel.js 每帧都在写 transform，fit() 里的
+       clientWidth / getBoundingClientRect 会撞成强制同步重排；画布尺寸每帧重算
+       还会让合成层闪一下。视口没变就一直沿用第一次 fit 出来的尺寸。 */
+    const vw = window.innerWidth, vh = window.innerHeight;
+    if (!st.fitted || vw !== carVW || vh !== carVH) {
+      fit(st); st.fitted = true; carVW = vw; carVH = vh;
+    }
     st.gl.clear(st.gl.COLOR_BUFFER_BIT);
     const w = st.w, h = st.h;
     const phase = ((carAnim.off * 0.0012) % 1 + 1) % 1;
     const spd = clamp(Math.abs(carAnim.vel) / 36, 0, 1);
+    /* 只画很淡的暖白流光带（kind 12）。
+       ⚠️ 原来这里还画了一个 kind 9 深灰椭圆「运动影」：画布 z-index 56 压在书之上，
+          椭圆正好盖住封面下半部，位置随 vel 左右跳、alpha 随速度快慢变 ——
+          这就是左右滑动时封面附近那块「闪烁的黑色阴影」，已移除。
+          书的落地影由 .cover 的 box-shadow 负责，不需要 GPU 层再补一层。 */
     quad(st, { x: 0, y: 0, w: w, h: h }, 12, [1, 1, 1, 1], [phase, spd, 0, 0]);
-    quad(st, { x: w * .5 - w * .30 + carAnim.vel * .8, y: h * .62, w: w * .60, h: h * .30 },
-      9, [0.20, 0.21, 0.28, 0.09 + 0.06 * spd], [0, 0, 0, 0]);
   }
   function animTick(now) {
     animRaf = 0;
@@ -654,7 +664,10 @@
   }
   function glCarouselFrame(off, vel) {
     if (!enabled) return;
-    carAnim.off = off; carAnim.vel = vel || 0;
+    carAnim.off = off;
+    /* 低通滤波：pointermove 算出来的 vel 抖动很大，直接拿去调流光亮度会一帧亮一帧暗，
+       看着就是闪。松手传进来的 0 也走同一条平滑衰减，不会突然全灭。 */
+    carAnim.vel = carAnim.vel * .72 + (vel || 0) * .28;
     carAnim.last = performance.now(); carAnim.active = true;
     startAnim();
   }
@@ -677,8 +690,10 @@
   function setStageVisible(st, on) {
     if (!st) return;
     /* ⚠️ 非活跃视图必须 display:none：一块覆盖全屏的透明 WebGL canvas
-       只要还留在合成树里，轮播每帧合成就要多算一层，实测掉到 ~24fps。 */
-    st.cv.style.display = on ? '' : 'none';
+       只要还留在合成树里，轮播每帧合成就要多算一层，实测掉到 ~24fps。
+       只在真的翻转时才写 style —— 逐帧写同一个值会让合成层反复失效（闪一下）。 */
+    const d = on ? '' : 'none';
+    if (st.cv.style.display !== d) st.cv.style.display = d;
   }
   function clearStage(st) {
     if (st) st.gl.clear(st.gl.COLOR_BUFFER_BIT);

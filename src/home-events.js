@@ -87,7 +87,9 @@ document.addEventListener('mouseleave', () => {
 });
 /* 书架模式：点一下直接翻开；长按进入拖动排序，
    长按后原地不动就松手则只是把编辑按钮唤出来 */
-const shelfHold = { timer: 0, el: null, x: 0, y: 0, cx: 0, cy: 0, touch: false, moved: false, fired: false };
+const shelfHold = { timer: 0, el: null, x: 0, y: 0, cx: 0, cy: 0, touch: false, moved: false, fired: false,
+  /* 长按进多选后、手指还没松：这一下若继续移动，就地起排序（不重绘、不丢手势） */
+  pendingSort: null };
 let shelfSort = null;
 function shelfClearTouched(except) {
   $$('#shelfWrap .book-item.touched').forEach(el => { if (el !== except) el.classList.remove('touched'); });
@@ -307,10 +309,13 @@ function shelfEndSort() {
   if (s.flipRaf) cancelAnimationFrame(s.flipRaf);
   $('#shelfWrap').classList.remove('sorting');
   if (s.el && s.el.isConnected) s.el.classList.remove('lifted');
-  if (!s.moved) {                        // 长按后原地松手：只唤出编辑按钮，不重排
+  if (!s.moved) {
+    /* 长按后原地松手：移动端常态的长按已经在计时到那一瞬直接进了多选，
+       这里只剩「多选态里再长按又原地松手」——什么都不做，别重复进一次。
+       桌面端照旧唤出编辑按钮；拖动过则走下面的落位重排。 */
     s.ghost.remove();
-    shelfTouched(s.at);
     shelfHold.fired = true;
+    if (!(window.MHome && window.MHome.isMobile())) shelfTouched(s.at);
     return;
   }
   /* 落位动画：副本先滑回它要去的那一格，滑到了再把书架按新顺序重画一遍，
@@ -334,25 +339,64 @@ function shelfEndSort() {
 
 $('#shelfWrap').addEventListener('pointerdown', e => {
   clearTimeout(shelfHold.timer);
-  if (state.picking) { shelfHold.el = null; return; }   // 多选时只勾选，不长按排序
+  /* ⚠️ 多选态不再一刀切地 return：短按仍走 click 里的 togglePick，
+     长按则照常起排序（多选模式下也能拖着手帐本换位）。 */
   const item = e.target.closest('.book-item');
   shelfHold.el = (item && !e.target.closest('[data-gear]')) ? item : null;
   shelfHold.x = e.clientX; shelfHold.y = e.clientY;
   shelfHold.cx = e.clientX; shelfHold.cy = e.clientY;   // 最新的手指位置，拿起时用它对齐
   shelfHold.touch = e.pointerType === 'touch';
   shelfHold.moved = false; shelfHold.fired = false;
+  shelfHold.pendingSort = null;
   if (!shelfHold.el) return;
   shelfHold.timer = setTimeout(() => {
     if (shelfHold.moved || !shelfHold.el || !shelfHold.el.isConnected) return;
     shelfHold.fired = true;              // 这次抬手不翻开（拖动或唤出按钮）
-    const i = +shelfHold.el.dataset.i;
-    if (!shelfBeginSort(shelfHold.el, shelfHold.cx, shelfHold.cy) && Number.isFinite(i)) shelfTouched(i);
+    const el = shelfHold.el, x = shelfHold.cx, y = shelfHold.cy;
+    /* 移动端常态：长按计时一到就**直接**进多选，不先把书「拎起来」等松手。
+       封面左上角的勾选框、整架晃动、左上分享、右上「删除+完成」胶囊一起露出来。 */
+    if (window.MHome && window.MHome.isMobile() && !state.picking) {
+      const idx = +el.dataset.i;
+      /* ⚠️ 这里只进多选、绝不重绘 DOM：enterPickMode 在 shelf 视图下只改 class，
+         #shelfWrap 里的 .book-item 节点全部还活着，同一根手指继续移动才能接上排序。
+         排序不在这一刻起，交给下面 pointermove 的 pendingSort 延迟到「手指真动了」再起，
+         否则长按后原地松手也会被当成一次排序、书会被凭空拎起来。 */
+      enterPickMode('del');
+      /* 被长按的那本默认勾上，跟「长按进入编辑态」的常见手感一致 */
+      if (Number.isFinite(idx)) togglePick(idx);
+      shelfHold.pendingSort = { el, x, y };
+      return;
+    }
+    /* 移动端已处于多选态：同样延迟到「手指真动了」再起排序，
+       这样多选态里长按一本书、原地松手也不会把它凭空拎起来。 */
+    if (window.MHome && window.MHome.isMobile()) {
+      shelfHold.pendingSort = { el, x, y };
+      return;
+    }
+    /* 桌面端：沿用原来的长按直接起排序 */
+    if (!shelfBeginSort(el, x, y)) {
+      const i = +el.dataset.i;
+      if (Number.isFinite(i)) shelfTouched(i);
+    }
   }, 380);
 });
 $('#shelfWrap').addEventListener('pointermove', e => {
   if (shelfSort) { shelfHold.cx = e.clientX; shelfHold.cy = e.clientY; return; }
   if (!shelfHold.el) return;
   shelfHold.cx = e.clientX; shelfHold.cy = e.clientY;
+  /* 长按已进多选、手指还没松：这里就地起排序，让「长按 → 多选 → 继续拖」是同一个手势。
+     ⚠️ 全程不调用 renderHome()：触摸手势从 touchstart 起就锁死了目标节点，
+        一旦被 innerHTML 换掉，后面的 touchmove / touchend 会被浏览器整条丢掉。 */
+  const ps = shelfHold.pendingSort;
+  if (ps) {
+    if (Math.hypot(e.clientX - ps.x, e.clientY - ps.y) < 7) return;
+    shelfHold.pendingSort = null;
+    if (shelfBeginSort(ps.el, e.clientX, e.clientY)) {
+      shelfHold.moved = true;
+      shelfSortPointer(e.clientX, e.clientY);   // 把这一下的位移立刻喂进去
+    }
+    return;
+  }
   /* 手指没鼠标稳，触摸时放宽一点，免得轻轻一抖就把长按作废 */
   const slop = shelfHold.touch ? 13 : 8;
   if (Math.abs(e.clientX - shelfHold.x) > slop || Math.abs(e.clientY - shelfHold.y) > slop) {
@@ -362,11 +406,14 @@ $('#shelfWrap').addEventListener('pointermove', e => {
 }, { passive: true });
 $('#shelfWrap').addEventListener('pointerup', () => {
   clearTimeout(shelfHold.timer);
+  shelfHold.pendingSort = null;
   /* 松手就得把这一次按压忘掉：不清的话鼠标只要点过一本书，
      mouseover 里那条 shelfHold.el 判断会一直拦着，悬停选中就再也不灵了 */
   shelfHold.el = null;
 });
-$('#shelfWrap').addEventListener('pointercancel', () => { clearTimeout(shelfHold.timer); shelfHold.el = null; });
+$('#shelfWrap').addEventListener('pointercancel', () => {
+  clearTimeout(shelfHold.timer); shelfHold.pendingSort = null; shelfHold.el = null;
+});
 window.addEventListener('pointermove', e => {
   if (spineSort) {                       // 单层书架：拖动时别让书排跟着滚
     e.preventDefault();                  // 拦滚动必须同步做，位置更新才交给逐帧队列
@@ -400,6 +447,8 @@ $('#shelfWrap').addEventListener('contextmenu', e => {
 });
 $('#shelfWrap').addEventListener('click', e => {
   if (state.picking) {                       // 多选时点封面 = 切换勾选，不翻开
+    /* 多选态里长按拖动排序的抬手也会来一下 click：吞掉，别顺手把那本勾上 */
+    if (shelfHold.fired) { shelfHold.fired = false; return; }
     const it = e.target.closest('.book-item');
     if (it) { const i = +it.dataset.i; if (Number.isFinite(i)) togglePick(i); }
     return;
@@ -1052,8 +1101,10 @@ function toggleMenu(el) {
 $$('#homeMenu button[data-menuact]').forEach(b => b.onclick = () => {
   closeMenus();
   const a = b.dataset.menuact;
-  if (a === 'importPage') openImportPage();
-  else if (a === 'bg') openBgPanel();
+  /* 旧「设置 / 导入」二级页已停用：功能全并进菜单页本身，
+     data-menuact 这两个历史值只作兜底 —— 老缓存点了就回到同一张菜单页，
+     不会再打开已被 hidden 的 #bgMask / #importPanel。 */
+  if (a === 'importPage' || a === 'bg') openHomeMenu();
   else if (a === 'help') openHelpMail();
   /* 旧三项已搬走，这里只留兜底：老缓存 / 外部脚本里若还带着这几个 act，
      点了照样干活，不会出现「菜单点了没反应」。 */
@@ -1107,9 +1158,8 @@ $$('#shareMenu button').forEach(b => b.onclick = async () => {
 });
 /* 点空白处收起菜单 */
 document.addEventListener('pointerdown', e => {
-  /* 全屏菜单铺满整屏，点它的空白（.hm-list 不吃点击，target 直接是 #homeMenu）就收回 */
-  const hm = $('#homeMenu');
-  if (hm && hm.classList.contains('show') && e.target === hm) { closeMenus(); return; }
+  /* 菜单页是整屏页，点空白不关闭：用左上返回按钮或 Esc 收起。
+     页面内所有元素都在 #homeMenu.addmenu 里，下面的 closest 会直接 return。 */
   if (e.target.closest('.addmenu') || e.target.closest('#menuBtn') || e.target.closest('.share-wrap')) return;
   /* 阅读器的「+」菜单：点页面是「切换加到哪一页」，不能在这一步关掉它 */
   const am = $('#addMenu');

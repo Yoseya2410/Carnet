@@ -1,0 +1,723 @@
+/* =====================================================================
+ * Carnet · 移动端主页 / 新建 Bottom Sheet / 菜单页   （样式 20）
+ * ---------------------------------------------------------------------
+ * 本文件必须排在其它样式表之后：它要盖掉旧 #homeMenu 的全屏毛玻璃菜单、
+ * 旧 .modal 的居中弹窗形态，但**只在竖屏 ≤1024px** 改主页与编辑器，
+ * 桌面端原样保留。
+ *
+ * ① 移动端主页浮层 .mbar：左上分享 / 右上菜单+删除 / 左下模式切换 / 右下新建
+ * ② #mask 两步式 Bottom Sheet：选装帧 → 抬到 90% 高度填基本设置
+ * ③ #homeMenu 卡片式菜单页：设置与导入的功能合并到一页
+ * ===================================================================== */
+
+/* =====================================================================
+ * ① 移动端主页浮层
+ * ===================================================================== */
+.mbar{display:none}
+/* 多选胶囊：右上角一整条白色圆角，左垃圾桶 + 右「完成」，中间不加分隔线 */
+.m-pickbar{display:none}
+/* 多选分享：底部升起的 Bottom Sheet（标题「分享」），不是居中小卡片。
+   独立面板，复用不了藏在被收起的 #pickMenu 里的那一份。 */
+.m-exp-mask{display:none;position:absolute;inset:0;z-index:40;background:rgba(18,20,32,.38)}
+.m-exp-mask.show{display:block}
+.m-exp-menu{
+  display:none;position:absolute;left:0;right:0;bottom:0;z-index:41;
+  flex-direction:column;gap:2px;padding:0 20px calc(20px + env(safe-area-inset-bottom));
+  border-radius:24px 24px 0 0;background:#fff;
+  box-shadow:0 -16px 44px -20px rgba(20,24,40,.42);
+  animation:nsUp .3s cubic-bezier(.22,.9,.28,1)
+}
+.m-exp-menu.show{display:flex}
+.m-exp-grab{width:38px;height:4px;border-radius:99px;background:rgba(17,19,24,.2);margin:12px auto 8px}
+.m-exp-menu b{
+  padding:6px 0 14px;font-size:17px;font-weight:700;color:#20232c;
+  text-align:center;letter-spacing:.06em
+}
+.m-exp-menu button{
+  padding:14px 14px;margin-bottom:2px;border-radius:13px;background:#f6f7f9;
+  text-align:left;font-size:14.5px;color:#20232c
+}
+.m-exp-menu button:active{background:#eceef2}
+.m-exp-menu .m-exp-cancel{
+  margin-top:10px;text-align:center;font-weight:600;color:#6b7080;background:transparent
+}
+
+@media (orientation:portrait) and (max-width:1024px){
+  /* 旧的三态切换 / 顶栏 / 底栏 / 多选条整条让位给新浮层。
+     ⚠️ 只是 display:none，DOM 与上面的事件绑定全留着：
+        syncViewToggle / enterPickMode / exitPickMode 仍会照常读写它们。 */
+  #home > .topbar,
+  #home > .actionbar,
+  #home > .pickbar{display:none !important}
+  /* 轮播模式顶部书名跟着新顶栏走：不再用旧顶栏的高度避让 */
+  .home-head{margin-top:calc(74px + env(safe-area-inset-top))}
+  .home-head h1{font-size:23px;color:#1c1f27;text-shadow:none}
+  .home-head .pages{color:#6b7080;opacity:1}
+  /* 左右滑动模式：顶部书名让位，书名 / 页数 / 进度条改挂在封面下方。
+     ⚠️ 隐藏 .home-head 后 .carousel-wrap 从 #home 顶到底吃满整屏，封面正好垂直居中于 50%，
+        所以下面用「50% + 半封面高」就能把信息钉在封面下沿，换屏幕比例也不用 JS 量布局。
+     ⚠️ --mc-cover-w 是这一屏唯一的封面宽度基准：.cover 与信息区的定位都引用它，
+        要改封面大小只动这一处，书名不会跟封面错开。移动端单独放大封面、拉开书间距。 */
+  #home.m-carousel{
+    /* 44vw → 52vw → 58vw：封面再放大一档，同时把书间距从 18px 一路拉到 ~53px，
+       两边只露出邻书窄窄一角，不再挤在一起。矮屏仍由 46vh 收住，别顶到信息区。 */
+    --mc-cover-w:clamp(196px,min(58vw,46vh),320px);
+    --mc-gap:clamp(44px,13.5vw,100px)
+  }
+  #home.m-carousel .carousel{gap:var(--mc-gap)}
+  #home.m-carousel .carousel .cover{--cover-w:var(--mc-cover-w)}
+  #home.m-carousel .home-head{display:none !important}
+  #mCarouselMeta{display:none}
+  #home.m-carousel #mCarouselMeta{
+    display:block;position:absolute;left:0;right:0;z-index:6;pointer-events:none;
+    /* 26px → 46px：原来书名几乎贴着封面下沿，照参考图留出一截呼吸空间 */
+    top:calc(50% + var(--mc-cover-w) * .71 + 46px);
+    text-align:center;color:#1c1f27
+  }
+  .mc-name{
+    font-size:19px;font-weight:700;letter-spacing:.05em;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    margin:0 auto;max-width:82vw;text-shadow:0 1px 8px rgba(255,255,255,.6)
+  }
+  .mc-name.en{font-family:'CarnetMartianMono','Consolas','Courier New',monospace}
+  .mc-meta{margin-top:6px;font-size:12.5px;color:#8a8e99;letter-spacing:.04em}
+  /* 与「选择装帧」的 .ns-dots 同款：7px 圆点 / 22px 黑色长条 / 4px 小点。
+     ⚠️ 11-19 修「第 5 本起 page control 抖动」：点本身**不再参与布局** ——
+        以前 <i> 就是 flex item，width 7→22px 过渡时整排内容宽度跟着变，
+        justify-content:center 每帧把整排左右推；第 5 本起窗口每本推进，
+        再叠一层 mc-roll 的 translateX(14px) 横移，于是每滑一本都晃一下。
+        现在每个 <i> 是**恒定 14px 的 grid 槽位**，圆点/长条/小点全画在 ::before 上，
+        width 过渡只发生在伪元素里，grid 宽度恒定 → 整排绝不重排、绝不位移。
+        窗口推进的过场也改成「只让首尾两颗淡入」，中间全部静止。 */
+  .mc-dots{
+    display:grid;grid-template-columns:repeat(5,14px);gap:7px;
+    justify-content:center;width:max-content;margin:18px auto 0
+  }
+  .mc-dots i{position:relative;width:14px;height:7px}
+  .mc-dots i::before{
+    content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:7px;height:7px;border-radius:99px;background:#c9ccd3;
+    transition:width .26s ease,height .26s ease,background .26s ease
+  }
+  .mc-dots i.on::before{width:22px;background:#171a21}
+  .mc-dots i.mini::before{width:4px;height:4px}
+  /* 窗口推进一格：只让最左 / 最右那颗淡入（新补进来的点），
+     中间的圆点与黑条全部保持原位，靠 ::before 的 width 过渡接力。
+     ⚠️ 别再加 translateX —— 整排横移就是抖动的主因。 */
+  @keyframes mcFade{from{opacity:0}to{opacity:1}}
+  .mc-dots.mc-roll > i:first-child,
+  .mc-dots.mc-roll > i:last-child{animation:mcFade .26s ease}
+
+  .mbar{
+    display:block;position:absolute;inset:0;z-index:22;pointer-events:none
+  }
+  .mbar > *{pointer-events:auto}
+  /* 顶部两角的白色圆钮：44px 圆 + 很淡的影。
+     搜索 / 菜单 / 多选分享共用这一颗，背景统一 45% 透明白（11-19 定稿）。 */
+  .m-round{
+    position:absolute;top:calc(20px + env(safe-area-inset-top));
+    width:44px;height:44px;border-radius:50%;display:grid;place-items:center;
+    background:rgba(255,255,255,.45);color:#20232c;
+    box-shadow:0 4px 16px -6px rgba(20,24,40,.2),0 1px 3px rgba(20,24,40,.05);
+    border:1px solid rgba(255,255,255,.55)
+  }
+  .m-round:active{transform:scale(.94)}
+  .m-round svg{display:block}
+  #mSearch{right:74px}
+  #mMenu{right:20px}
+  /* 多选态左上那颗分享：主页常态完全不显示 */
+  .m-pick-share{display:none;left:20px}
+  /* 多层书架顶部的「我的书架」：轮播模式不显示（那里顶部是书名） */
+  #mTitle{
+    position:absolute;top:calc(22px + env(safe-area-inset-top));left:0;right:0;
+    text-align:center;font-size:19px;font-weight:700;letter-spacing:.08em;
+    color:#1c1f27;display:none
+  }
+  #home.m-shelf #mTitle{display:block}
+
+  /* 左下：三格模式切换胶囊（多层 / 单层 / 轮播），白色圆钮滑到当前那一格。
+     ⚠️ 位置唯一真源是 --ms-x（0 / 48 / 96），thumb 与折射视窗共用同一个 transform：
+        拖动时只改这一个 CSS 变量，浏览器只重算合成层的 transform，零布局读写。 */
+  .m-switch{
+    --ms-x:0px; --ms-sx:1; --ms-sy:1; --ms-spin:200deg;
+    --ms-kx0:1; --ms-ky0:1; --ms-kx3:1; --ms-ky3:1;
+    position:absolute;left:6vw;bottom:calc(24px + env(safe-area-inset-bottom));
+    display:flex;gap:2px;padding:5px;border-radius:999px;
+    background:rgba(120,124,136,.14);
+    box-shadow:inset 0 1px 2px rgba(20,24,40,.05);
+    touch-action:none;user-select:none;-webkit-user-select:none
+  }
+  .m-switch[data-v="spine"]{--ms-x:48px}
+  .m-switch[data-v="carousel"]{--ms-x:96px}
+  .ms-thumb,.ms-lens-view{
+    position:absolute;left:5px;top:5px;width:46px;height:46px;border-radius:50%;
+    transform:translateX(var(--ms-x)) scale(var(--ms-sx),var(--ms-sy));
+    transform-origin:center center;
+    transition:transform .3s cubic-bezier(.34,1.3,.5,1)
+  }
+  .ms-thumb{
+    /* ⚠️ 必须低于 button 的 z-index:1：真实图标要露在玻璃珠上面才清晰，
+       透镜只负责折射它「边缘」的那一圈（.ms-lens-view 才是 z-index:3）。 */
+    z-index:0;background:#fff;box-shadow:0 2px 10px -3px rgba(20,24,40,.3);
+    pointer-events:none
+  }
+  .m-switch button{
+    position:relative;z-index:1;width:46px;height:46px;border-radius:50%;
+    display:grid;place-items:center;color:#8b8f9b;transition:color .22s
+  }
+  .m-switch button.on{color:#171a21}
+  .m-switch button svg{display:block}
+
+  /* ---- 长按 = 液态玻璃透镜 ----------------------------------------------
+     参考图：按住后圆钮涨成一枚比胶囊还高的超椭圆玻璃珠，可左右拖；
+     珠内是放大的球面折射，边缘一圈暖黄 / 冷蓝色散，图标经过边缘被拉出彩边。
+     ① .ms-thumb      = 玻璃本体 + 内高光 + 彩虹折射环 + 柔光晕
+     ② .ms-lens-view  = 与 thumb 完全同形的折射视窗，只裁出透镜边缘的重影
+        （中心用 mask 挖空，让真实图标保持清晰，不加三重叠影）
+     ③ .ms-snap       = 三颗图标的副本（JS clone 真实 svg），先抵消父级 scale
+        再定自己的 zoom：k=zoom/sx、ky=zoom/sy，transform-origin 落在透镜
+        中心 (28+ms-x, 28)。a 层 zoom=1（与真实图标严丝合缝，只加橙蓝彩边），
+        b 层 zoom≈1.5 横向拉长（球面把边缘的图标拽变形）。 */
+  .m-switch.liquid{
+    /* 静止 = 参考图那枚圆角方形玻璃块：宽高比 ~1.2、只比胶囊高出 14%。
+       ⚠️ 别做成正圆或高椭圆 —— 参考图的四边有一小段平直边、四角才是大圆角。 */
+    --ms-sx:1.65; --ms-sy:1.39;
+    --ms-kx0:.606; --ms-ky0:.719; --ms-kx3:.861; --ms-ky3:.827;
+    background:rgba(255,255,255,.3);
+    box-shadow:0 0 0 1px rgba(255,255,255,.45),0 14px 38px -16px rgba(20,24,40,.3)
+  }
+  /* 拖动时玻璃珠被横向拉长一点，像液滴被拽着走 */
+  .m-switch.liquid.dragging{
+    --ms-sx:2.1; --ms-sy:1.48;
+    --ms-kx0:.476; --ms-ky0:.676; --ms-kx3:.676; --ms-ky3:.777
+  }
+  .m-switch.liquid .ms-thumb,.m-switch.liquid .ms-lens-view{
+    /* ⚠️ 液态玻璃是「圆角方形 / 超椭圆」：四边要留一小段平直边、
+       四角是连续圆角。用固定 px 而不是 50% —— 百分比圆角配各向异性
+       scale 只会得到一个歪歪扭扭的蛋形椭圆（第一版踩过）。 */
+    border-radius:16px / 19px;
+    transition:transform .34s cubic-bezier(.2,1.26,.36,1)
+  }
+  .m-switch.liquid.dragging .ms-thumb,
+  .m-switch.liquid.dragging .ms-lens-view{transition:none}
+  .m-switch.liquid .ms-thumb{
+    /* ⚠️ 高透明度玻璃，不是毛玻璃：绝对不要 blur()。
+       内部只用一层几乎看不见的白色高光 + 1px 亮边勾轮廓，
+       背后的胶囊 / 页面要能清清楚楚透出来。 */
+    background:linear-gradient(158deg,
+      rgba(255,255,255,.18) 0%,rgba(255,255,255,.035) 42%,
+      rgba(255,255,255,0) 70%,rgba(255,255,255,.03) 100%);
+    -webkit-backdrop-filter:saturate(1.12) brightness(1.02);
+    backdrop-filter:saturate(1.12) brightness(1.02);
+    box-shadow:
+      inset 0 1px 1px rgba(255,255,255,.5),
+      inset 0 -1px 1px rgba(255,255,255,.16),
+      inset 0 0 0 1px rgba(255,255,255,.26),
+      0 14px 30px -10px rgba(20,24,40,.18)
+  }
+  /* 两圈光晕常态就存在（只是透明），这样长按放大时是淡入而不是凭空出现 */
+  .ms-thumb::before,.ms-thumb::after{
+    content:"";position:absolute;border-radius:inherit;pointer-events:none;
+    opacity:0;transition:opacity .3s ease
+  }
+  /* 外圈：一层几乎无色的白雾 + 极淡的暖冷光，不是彩色光晕 */
+  .ms-thumb::before{
+    inset:-3px;
+    background:conic-gradient(from calc(var(--ms-spin) + 35deg),
+      rgba(255,214,170,.16),rgba(255,255,255,.03),rgba(170,205,255,.16),
+      rgba(255,255,255,.03),rgba(205,190,255,.12),rgba(255,214,170,.16));
+    filter:blur(5px)
+  }
+  /* 最外沿那 1px 才允许有一丝色散：玻璃边本身是透明的，
+     靠白色亮线勾轮廓，彩色只是白光被拆开的一点点痕迹。 */
+  .ms-thumb::after{
+    inset:0;
+    background:conic-gradient(from var(--ms-spin),
+      rgba(255,205,140,.22),rgba(255,255,255,.02),rgba(150,190,255,.22),
+      rgba(255,255,255,.02),rgba(200,180,255,.16),rgba(255,205,140,.22));
+    -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 5px),
+      rgba(0,0,0,.35) calc(100% - 3px),#000 calc(100% - 1.4px));
+    mask:radial-gradient(farthest-side,transparent calc(100% - 5px),
+      rgba(0,0,0,.35) calc(100% - 3px),#000 calc(100% - 1.4px));
+    filter:blur(1.5px)
+  }
+  .m-switch.liquid .ms-thumb::before{opacity:.3}
+  .m-switch.liquid .ms-thumb::after{opacity:.42}
+  /* 折射视窗：与 thumb 同形同位，中心挖空让真实图标保持清晰，只在边缘露重影 */
+  .ms-lens-view{
+    z-index:3;overflow:hidden;pointer-events:none;opacity:0;
+    transition:transform .3s cubic-bezier(.34,1.3,.5,1),opacity .18s ease;
+    -webkit-mask-image:radial-gradient(ellipse at center,
+      transparent 0 32%,rgba(0,0,0,.28) 50%,#000 74%);
+    mask-image:radial-gradient(ellipse at center,
+      transparent 0 32%,rgba(0,0,0,.28) 50%,#000 74%)
+  }
+  .m-switch.liquid .ms-lens-view{opacity:1}
+  /* 贴着透镜边缘的两段局部弧光：左暖黄 / 右冷蓝，正是球面折射把白光
+     拆成色散的地方（整圈均匀彩虹会显得像塑料圈，所以只留这两段） */
+  .ms-lens-view::before{
+    content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+    background:conic-gradient(from var(--ms-spin),
+      transparent 0 10%,rgba(255,205,150,.14) 19%,transparent 31%,
+      transparent 52%,rgba(150,190,255,.15) 66%,transparent 80%);
+    -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 10px),#000 calc(100% - 7px));
+    mask:radial-gradient(farthest-side,transparent calc(100% - 10px),#000 calc(100% - 7px));
+    filter:blur(3px)
+  }
+  /* 球面边缘的一点点压暗 / 收光 */
+  .ms-lens-view::after{
+    content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+    background:radial-gradient(ellipse at center,transparent 52%,
+      rgba(64,88,150,.07) 76%,rgba(255,255,255,.28) 96%)
+  }
+  .ms-lens-view .ms-snap{
+    position:absolute;left:calc(-5px - var(--ms-x));top:-5px;
+    width:152px;height:56px;
+    transform-origin:calc(28px + var(--ms-x)) 28px;
+    transform:scale(var(--ms-kx0),var(--ms-ky0))
+  }
+  /* 主折射层 zoom=1：与真实图标严丝合缝，只在透镜边缘留一丝橙 / 蓝散边 */
+  .ms-lens-view .ms-snap-a{
+    filter:drop-shadow(1px 0 0 rgba(255,190,130,.3))
+           drop-shadow(-1px 0 0 rgba(130,170,255,.3))
+  }
+  /* 第二层 zoomX≈1.42 / zoomY≈1.15：图标被球面轻轻拽出的淡重影，不喧宾夺主 */
+  .ms-lens-view .ms-snap-b{
+    transform:scale(var(--ms-kx3),var(--ms-ky3));
+    filter:blur(.8px);opacity:.2
+  }
+  .ms-lens-view .ms-g{
+    position:absolute;top:5px;width:46px;height:46px;
+    display:grid;place-items:center;color:#3a3f4b
+  }
+  .ms-lens-view .ms-g svg{display:block}
+  .ms-lens-view .ms-snap-b .ms-g{color:#59627a}
+  .ms-lens-view .ms-g.on{color:#12151c}
+
+  /* ---- WebGL 接管（src/liquid-glass.js）--------------------------------
+     canvas 只画玻璃与折射，CSS 那层退到只剩落地阴影，避免两份玻璃叠白。
+     ⚠️ 没加上 .gl-on 就说明 WebGL 不可用，上面整套 CSS 版原样兜底。 */
+  .ms-gl-canvas{
+    display:none;position:absolute;left:-28px;top:-24px;
+    width:208px;height:104px;pointer-events:none;z-index:4
+  }
+  .m-switch.gl-on .ms-thumb{
+    background:none;
+    -webkit-backdrop-filter:none;backdrop-filter:none;
+    box-shadow:0 14px 30px -10px rgba(20,24,40,.16)
+  }
+  .m-switch.gl-on .ms-thumb::before,
+  .m-switch.gl-on .ms-thumb::after,
+  .m-switch.gl-on .ms-lens-view{opacity:0 !important}
+  @media (prefers-reduced-motion:reduce){
+    .ms-thumb,.ms-lens-view{transition:none}
+    .m-switch.liquid .ms-thumb,.m-switch.liquid .ms-lens-view{transition:none}
+  }
+
+  /* 右下：黑色大圆钮 +，跟参考图一致 */
+  .m-add{
+    position:absolute;right:6vw;bottom:calc(21px + env(safe-area-inset-bottom));
+    width:62px;height:62px;border-radius:50%;display:grid;place-items:center;
+    background:#111318;color:#fff;
+    box-shadow:0 10px 24px -8px rgba(17,19,24,.55),0 2px 6px rgba(17,19,24,.18)
+  }
+  .m-add:active{transform:scale(.95)}
+  .m-add svg{display:block}
+
+  /* 多选模式：搜索 / 菜单 / 切换 / 新建收起来，"我的书架"标题仍在（胶囊缩小后不冲突）；
+     左上独立分享圆钮，右上一条更窄的「垃圾桶 + 完成」胶囊，照参考图的比例。 */
+  #home.m-picking #mSearch,
+  #home.m-picking #mMenu,
+  #home.m-picking .m-switch,
+  #home.m-picking .m-add{display:none}
+  #home.m-picking .m-pick-share{display:grid}
+  #home.m-picking .m-pickbar{
+    display:flex;align-items:center;justify-content:center;gap:6px;
+    position:absolute;right:20px;top:calc(18px + env(safe-area-inset-top));
+    /* 胶囊从 132 收到 112，两格不再各占一半居中 —— 那是「垃圾桶和完成离得远」的根因。
+       现在整组内容一起居中，中间只留 6px。 */
+    width:112px;height:44px;padding:0 6px;box-sizing:border-box;
+    /* 删除 + 完成共用这条胶囊，背景同样是 45% 透明白 */
+    border-radius:999px;background:rgba(255,255,255,.45);
+    border:1px solid rgba(255,255,255,.55);
+    box-shadow:0 6px 20px -10px rgba(20,24,40,.18),0 1px 3px rgba(20,24,40,.05)
+  }
+  .m-pickbar button{
+    height:40px;flex:0 0 auto;border-radius:999px;display:flex;align-items:center;justify-content:center;
+    color:#20232c;font-size:15px;letter-spacing:.02em
+  }
+  .m-pickbar .mp-del{width:34px}
+  /* 多选胶囊里的垃圾桶：19 → 23px，34px 的圆里左右各留 5.5px，仍是几何居中 */
+  .m-pickbar .mp-del svg{width:23px;height:23px}
+  .m-pickbar .mp-done{font-weight:600}
+  .m-pickbar button:active{background:rgba(20,24,40,.05)}
+
+  /* 勾选框回到原来的**圆形**半透明圈（menus.css 的 .pick 就是这套：白边 + 选中深色渐变），
+     这里只把它钉到封面左上角、略微放大，不再覆写 border-radius / 底色。 */
+  .shelf-wrap.picking .pick{left:9px;top:9px;width:24px;height:24px}
+
+  /* 多选 = 可拖动排序的编辑态：整架手帐本轻轻晃动，像 iOS 桌面图标抖动。
+     ⚠️ 动画挂在 .cover 上，不是 .book-item —— 排序的 FLIP 让位写的是 .book-item
+        的 inline transform，两个 transform 不抢同一个元素。错开 delay 才不会齐刷刷同步。 */
+  @keyframes mWiggle{
+    from{transform:rotate(-.85deg) translateY(-1px)}
+    to{transform:rotate(.85deg) translateY(1px)}
+  }
+  .shelf-wrap.picking .book-item > .cover{animation:mWiggle .26s ease-in-out infinite alternate}
+  .shelf-wrap.picking .book-item:nth-child(2n) > .cover{animation-delay:-.13s}
+  .shelf-wrap.picking .book-item:nth-child(3n) > .cover{animation-delay:-.19s}
+  /* 真在拖动时收掉晃动，免得跟让位动画叠在一起看着乱；松手回多选态又继续晃 */
+  .shelf-wrap.picking.sorting .book-item > .cover{animation:none}
+  @media (prefers-reduced-motion:reduce){
+    .shelf-wrap.picking .book-item > .cover{animation:none}
+  }
+}
+
+/* =====================================================================
+ * ② 新建 / 编辑手帐本：两步式 Bottom Sheet
+ *    #edPick  = 第一步四张装帧卡（横滑）
+ *    #edForm  = 第二步所有设置项（预览吸顶）
+ * ===================================================================== */
+#edPick{display:none}
+/* .ns-head 不分平台：桌面端它就是普通标题行，返回按钮只在移动端露面 */
+.ns-head{display:flex;align-items:center;justify-content:center;position:relative;min-height:32px}
+.ns-head h2{margin:0;font-size:16px;font-weight:600;letter-spacing:.06em}
+/* 返回按钮：用 SVG 箭头而不是 ‹ 字符 —— 字符受字体 ascent/descent 影响，
+   在圆里永远偏上一点；再显式清掉 button 的 UA 默认 padding，才能真居中。
+   尺寸 / SVG 大小两个平台共用，各媒体查询只改定位与底色。 */
+.ns-back{
+  display:none;place-items:center;
+  width:36px;height:36px;padding:0;border:0;border-radius:50%;
+  background:transparent;color:inherit
+}
+.ns-back svg{display:block;width:22px;height:22px}
+/* 桌面端完全不出现第一步（两步流程只服务移动端，见 m-home.js） */
+@media (orientation:portrait) and (max-width:1024px){
+  #mask.modal-mask{
+    align-items:end;padding:0;
+    background:rgba(18,20,32,.4)
+  }
+  #mask .modal{
+    width:100%;max-width:none;height:90dvh;max-height:90dvh;
+    border-radius:24px 24px 0 0;padding:0 18px;
+    /* 抬高 / 收起是同一个盒子的 height 过渡，中间没有两张面板交叉淡化 */
+    transition:height .42s cubic-bezier(.22,.9,.28,1),max-height .42s cubic-bezier(.22,.9,.28,1);
+    animation:nsUp .34s cubic-bezier(.22,.9,.28,1);
+    /* Bottom Sheet 用不透明实底：原来的白玻璃在手机上会把后面的书架糊成一层灰，
+       四张装帧卡和文字都压不住。深/浅两套由 --ns-* 变量统一供给下面的子块。 */
+    --ns-paper:#232840;--ns-fg:#f4f6fb;
+    --ns-card:rgba(255,255,255,.09);--ns-bd:rgba(255,255,255,.18);
+    --ns-on:rgba(255,255,255,.18);--ns-grab:rgba(255,255,255,.34);
+    --ns-line:rgba(255,255,255,.14);
+    background:var(--ns-paper);color:var(--ns-fg);border-color:transparent;
+    -webkit-backdrop-filter:none;backdrop-filter:none
+  }
+  .bg-light #mask .modal{
+    --ns-paper:#fff;--ns-fg:#2b2f3d;
+    --ns-card:rgba(17,19,24,.045);--ns-bd:rgba(17,19,24,.1);
+    --ns-on:rgba(17,19,24,.1);--ns-grab:rgba(17,19,24,.22);
+    --ns-line:rgba(17,19,24,.1);
+    background:var(--ns-paper);color:var(--ns-fg);
+    border-color:rgba(255,255,255,.9)
+  }
+  @keyframes nsUp{from{transform:translateY(34px);opacity:.4}to{transform:none;opacity:1}}
+  /* 拖动把手下拉关闭：拖的时候关掉入场动画与 height 过渡，只让 transform 跟手；
+     松手过阈值才补一段下滑过渡再交回 closeEditor()。 */
+  #mask .modal.ns-dragging{animation:none;transition:none}
+  #mask .modal.ns-closing{animation:none;transition:transform .22s ease-in}
+  #mask .modal.ns-snapback{animation:none;transition:transform .2s cubic-bezier(.22,.9,.28,1)}
+  #mask.ns-pick .modal{height:46dvh;max-height:46dvh}
+  #mask.ns-pick #edForm{display:none}
+  #mask.ns-pick #edPick{display:block}
+  #mask.ns-pick #edPickBack{display:none}
+
+  /* 拉取把手：Bottom Sheet 的形，不能省 */
+  /* 把手只在 sheet 顶端，不 sticky：下面的预览图才是要一直钉住的那一块，
+     两个都 sticky 到 top:0 会在滚动时叠在一起 */
+  .ns-grab{
+    position:relative;z-index:9;height:30px;display:grid;place-items:center;
+    margin:0 -18px;background:transparent;
+    pointer-events:auto;touch-action:none;cursor:grab;
+    user-select:none;-webkit-user-select:none
+  }
+  .ns-grab::before{
+    content:"";width:38px;height:4px;border-radius:99px;background:var(--ns-grab)
+  }
+  .ns-head{height:34px;margin:0 0 10px}
+  .ns-back{
+    display:grid;position:absolute;left:0;top:50%;transform:translateY(-50%);
+    width:34px;height:34px;opacity:.85
+  }
+  /* 第一步（照参考图）：大标题「选择装帧」+ 灰副标题（当前款名）+ 居中大卡片横滑，
+     左右各露出相邻卡片一角，底部一排分页点。款式名称不再印在卡片里。 */
+  #edPick .ns-head h2{font-size:22px;font-weight:700;letter-spacing:.06em}
+  .ns-sub{
+    margin:2px 0 18px;text-align:center;font-size:14px;
+    color:#8a8e99;letter-spacing:.04em
+  }
+  .ns-cards{
+    display:flex;gap:14px;overflow-x:auto;overscroll-behavior-x:contain;
+    scroll-snap-type:x mandatory;
+    /* 左右各留 (100vw - 62vw)/2：第一/最后一张也能停在正中，旁边还能露出邻卡 */
+    padding:0 calc((100vw - 62vw) / 2) 8px;
+    scrollbar-width:none;-webkit-overflow-scrolling:touch
+  }
+  .ns-cards::-webkit-scrollbar{display:none}
+  .ns-card{
+    flex:0 0 62vw;width:62vw;height:250px;box-sizing:border-box;
+    scroll-snap-align:center;display:flex;align-items:center;justify-content:center;
+    padding:0;border-radius:22px;
+    color:inherit;background:var(--ns-card);border:1px solid var(--ns-bd);
+    transition:background .18s,border-color .18s,transform .18s
+  }
+  .ns-card:active{transform:scale(.98)}
+  .ns-card.on{background:var(--ns-on);border-color:rgba(127,132,150,.5)}
+  .ns-pv{display:flex;align-items:center;justify-content:center;pointer-events:none}
+  .ns-pv .cover{--cover-w:132px;--cr-scale:.54;box-shadow:0 18px 32px -16px rgba(0,0,0,.5)}
+  .ns-card b,.ns-card small,.ns-tip{display:none}
+  .ns-dots{display:flex;justify-content:center;gap:7px;margin:14px 0 0}
+  .ns-dots i{
+    width:7px;height:7px;border-radius:99px;background:#c9ccd3;
+    transition:width .26s ease,background .26s ease
+  }
+  .ns-dots i.on{width:22px;background:#171a21}
+
+  /* 第二步：预览图永远钉在最上面（跟着内容滚但不出屏） */
+  #mask .editor-preview{
+    position:sticky;top:0;z-index:6;display:flex;justify-content:center;
+    margin:0 -18px 8px;padding:8px 18px 14px;
+    background:var(--ns-paper);
+    /* 底下不要阴影，只留一条极浅的分隔线 */
+    box-shadow:none;border-bottom:1px solid var(--ns-line)
+  }
+  #mask .editor-preview .cover{--cover-w:118px}
+  /* 底部「取消 / 完成」也吸底，长表单滚到哪里都能提交。
+     ⚠️ 必须是不透明实底：原来那条半透明渐变会把滚到下面的表单文字透出来 */
+  #mask .modal-actions{
+    position:sticky;bottom:0;z-index:7;margin:16px -18px 0;
+    padding:14px 18px calc(16px + env(safe-area-inset-bottom));
+    background:var(--ns-paper);
+    box-shadow:0 -10px 18px -14px rgba(17,19,24,.6)
+  }
+  /* 装帧已经在第一步选好，第二步不再重复这一栏 */
+  #mask.ns-setup #edSecStyle{display:none}
+  /* 第二步所有小节常展开：用户要的是一条连续的设置清单，不是折叠面板。
+     ⚠️ .gone（编辑已有本时的「页数」、非笔记本的「彩带」）由整块隐藏控制，
+        这里只解掉 .folded 那一层，不会把它们放回来。 */
+  #mask.ns-setup .fold-sec.folded .fold-body{display:block}
+  #mask.ns-setup .fold-caret{display:none}
+  #mask.ns-setup .fold-hint{display:none}
+  #mask.ns-setup .fold-head{margin:18px 0 10px;font-size:13px;opacity:.85}
+  /* 封面图案 / 内页模板：一行横滑，各自带 scroll-snap */
+  #mask.ns-setup .pat-grid,
+  #mask.ns-setup .tpl-grid{
+    display:flex;grid-template-columns:none;gap:10px;
+    overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;
+    padding:2px 2px 10px;scrollbar-width:none
+  }
+  #mask.ns-setup .pat-grid::-webkit-scrollbar,
+  #mask.ns-setup .tpl-grid::-webkit-scrollbar{display:none}
+  #mask.ns-setup .pat-grid > *,
+  #mask.ns-setup .tpl-grid > *{flex:0 0 76px;scroll-snap-align:start}
+  #mask.ns-setup .swatches{flex-wrap:nowrap;overflow-x:auto;padding:2px 2px 8px;scrollbar-width:none}
+  #mask.ns-setup .swatches::-webkit-scrollbar{display:none}
+  #mask.ns-setup .swatch{flex:0 0 34px}
+  #mask.ns-setup .cus-tip{flex:0 0 auto}
+}
+
+/* =====================================================================
+ * ③ 菜单页（#homeMenu）：浅灰底 + 白色圆角卡片分组
+ *    保留 .addmenu / .show 这套 class 与 id —— closeMenus() / Esc / 历史脚本都认。
+ *    下面整组规则盖掉 menus.css 里旧「全屏毛玻璃圆形揭示」那一套。
+ * ===================================================================== */
+#homeMenu.addmenu,
+#homeMenu.addmenu.show{
+  position:absolute;inset:0;
+  z-index:135;min-width:0;
+  /* 桌面 = 居中圆角弹窗：inset:0 + 固定宽高 + margin:auto 自动居中。
+     ⚠️ 不能用 transform 居中 —— 下面 transform:none 是给旧毛玻璃菜单擦屁股的，会把它抹掉。 */
+  width:min(430px,calc(100vw - 40px));height:min(76vh,660px);
+  margin:auto;padding:0;
+  border:1px solid rgba(255,255,255,.7);border-radius:24px;overflow:hidden;
+  box-shadow:0 30px 70px -22px rgba(20,24,40,.55);
+  display:block;flex-direction:unset;gap:0;
+  clip-path:none !important;will-change:auto;
+  transform:none;
+  background:#f5f6f8;
+  -webkit-backdrop-filter:none;backdrop-filter:none;
+  transition:opacity .24s ease,visibility 0s linear .24s
+}
+#homeMenu.addmenu{opacity:0;visibility:hidden;pointer-events:none}
+#homeMenu.addmenu.show{
+  opacity:1;visibility:visible;pointer-events:auto;
+  transition:opacity .24s ease,visibility 0s
+}
+/* 旧菜单的装饰节点：DOM 留着（home-events.js 顶层还绑着 #homeMenuClose），
+   但既不显示也不吃点击 */
+#homeMenu .hm-close-zone,
+#homeMenu .hm-wordmark,
+#homeMenu .hm-list{display:none !important}
+/* 菜单里的按钮不吃 .addmenu button 那套白字 / 毛玻璃。
+   ⚠️ 只改颜色和字族，别在这里写 padding / border-radius：text.css 的
+      `.addmenu button` 带 9px 10px 内边距，会盖掉下面 .mn-row 的 14px 18px，
+      这些行都要靠 #homeMenu.addmenu 这个前缀把特异性提上去。 */
+#homeMenu.addmenu button{
+  color:#20232c;background:transparent;font-size:15px;letter-spacing:.01em;
+  white-space:normal
+}
+#homeMenu.addmenu button:hover,
+#homeMenu.addmenu button:active{background:transparent}
+/* menus.css 里旧菜单有一条 `#homeMenu button svg{display:none}`（原来三项只留纯文字），
+   新菜单页左上返回按钮要用图标，这里必须显式放回来 */
+#homeMenu.addmenu button svg{display:block;flex:none;opacity:1;transform:none}
+#homeMenu.addmenu .mn-row{padding:14px 18px;border-radius:0}
+#homeMenu.addmenu .mn-back{padding:0;border-radius:50%}
+.mn-scroll{
+  height:100%;overflow-y:auto;overscroll-behavior:contain;
+  max-width:520px;margin:0 auto;padding:0 22px calc(40px + env(safe-area-inset-bottom));
+  color:#20232c;
+  /* 菜单页滚动条隐藏，滚动照旧（桌面弹窗与移动整屏页共用这一处） */
+  scrollbar-width:none;-ms-overflow-style:none
+}
+.mn-scroll::-webkit-scrollbar{display:none}
+.mn-top{padding:calc(18px + env(safe-area-inset-top)) 0 14px}
+#homeMenu.addmenu .mn-back{
+  width:42px;height:42px;border-radius:50%;display:grid;place-items:center;
+  background:#fff;box-shadow:0 3px 12px -5px rgba(20,24,40,.2)
+}
+.mn-back:active{transform:scale(.94)}
+/* 右上关闭 ✕：移动端菜单是整屏页，只用左上返回；桌面弹窗才切到它（见下方媒体查询） */
+#homeMenu.addmenu .mn-x{display:none}
+/* 品牌卡：黄色圆头像 + 名称 + 一段说明，照参考图的第一张白卡 */
+.mn-brand{
+  display:flex;align-items:center;gap:14px;padding:18px 18px 16px;
+  border-radius:20px;background:#fff;box-shadow:0 6px 22px -16px rgba(20,24,40,.4)
+}
+.mn-avatar{
+  flex:0 0 54px;height:54px;border-radius:50%;display:grid;place-items:center;
+  background:#ffe14d;color:#171a21;font-family:Georgia,serif;font-size:26px;font-weight:700
+}
+.mn-brand-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+.mn-brand-tx b{font-size:17px;letter-spacing:.02em}
+.mn-brand-tx small{font-size:12px;color:#8a8e99}
+.mn-chev{font-size:22px;color:#c3c6ce;line-height:1}
+.mn-intro{
+  margin:0;padding:0 4px 0;color:#8a8e99;font-size:12.5px;line-height:1.85
+}
+.mn-brand-wrap{padding:4px 0 20px}
+.mn-brand-wrap .mn-intro{margin-top:12px}
+/* 分组标题 */
+.mn-cap{margin:20px 4px 10px;font-size:12px;color:#9a9ea9;letter-spacing:.08em}
+/* 卡片：同一组的行连成一张白卡，行间用一条极淡的分隔线 */
+.mn-card{
+  border-radius:18px;background:#fff;overflow:hidden;
+  box-shadow:0 6px 22px -16px rgba(20,24,40,.4)
+}
+.mn-row{
+  position:relative;display:flex;align-items:center;gap:12px;
+  width:100%;min-height:54px;padding:14px 18px;text-align:left;color:#20232c
+}
+.mn-card .mn-row + .mn-row::before{
+  content:"";position:absolute;left:18px;right:18px;top:0;height:1px;
+  background:rgba(20,24,40,.06)
+}
+.mn-row:active{background:#fafafb !important}
+.mn-row b{flex:1;min-width:0;font-size:15px;font-weight:500;letter-spacing:.01em}
+.mn-row .mn-val{font-size:13.5px;color:#9a9ea9;white-space:nowrap}
+.mn-row .mn-arr{font-size:20px;color:#c3c6ce;line-height:1}
+.mn-row.mn-col{flex-direction:column;align-items:stretch;gap:12px}
+/* 横滑色板 / 开关 / 小按钮都直接嵌在卡片里，不再跳二级页面 */
+/* 鼠标按住左右拖 = 横滑（手势在 m-home.js bindHDrag）；触屏仍走原生 overflow-x:auto */
+.mn-sw{
+  display:flex;gap:9px;overflow-x:auto;padding:2px 0 6px;scrollbar-width:none;
+  cursor:grab;user-select:none;-webkit-user-select:none
+}
+.mn-sw.h-drag{cursor:grabbing}
+.mn-sw::-webkit-scrollbar{display:none}
+.mn-sw i{
+  flex:0 0 32px;height:32px;border-radius:10px;display:block;cursor:pointer;
+  border:2px solid rgba(20,24,40,.1);transition:transform .15s
+}
+.mn-sw i:active{transform:scale(.92)}
+.mn-sw i.on{box-shadow:0 0 0 2px #fff,0 0 0 3.5px #111318}
+.mn-sw i.mn-custom{
+  background:conic-gradient(from 210deg,#f4a9b8,#f3c98b,#cfe3c9,#9fc9b6,#bcd4f0,#c9b8ec,#f4a9b8);
+  display:grid;place-items:center;color:#fff;font-style:normal;font-size:15px;font-weight:700
+}
+.mn-inline{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.mn-mini{
+  padding:7px 12px;border-radius:10px;background:rgba(20,24,40,.05) !important;
+  font-size:12.5px !important;color:#40444f !important;white-space:nowrap
+}
+.mn-mini[disabled]{opacity:.4}
+.mn-switch{position:relative;flex:0 0 44px;width:44px;height:26px;border-radius:99px;background:#d9dbe1;transition:background .2s}
+.mn-switch::after{
+  content:"";position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:transform .2s
+}
+.mn-switch.on{background:#111318}
+.mn-switch.on::after{transform:translateX(18px)}
+.mn-switch input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer;z-index:1}
+.mn-note{margin:8px 4px 0;font-size:11.5px;line-height:1.7;color:#9a9ea9}
+.mn-foot{margin:26px 0 0;text-align:center;font-size:11px;color:#c0c3cb;letter-spacing:.06em}
+/* 卡片里可折叠的说明（隐私说明），点行展开一段文字 */
+.mn-detail{display:none;padding:0 18px 16px;font-size:12.5px;line-height:1.85;color:#737783}
+.mn-detail.show{display:block}
+
+/* =====================================================================
+ * ④ 桌面端：新建 / 编辑手帐本弹窗头部 —— 左上角返回按钮，标题紧跟其后
+ *    （移动端是 Bottom Sheet，头部仍是居中标题 + 返回第一步的箭头，样式在上面）
+ *    取反的媒体查询 = 非「竖屏且宽 ≤1024」：宽 >1024 或横屏。
+ * ===================================================================== */
+@media (min-width:1025px), (orientation:landscape){
+  /* 桌面菜单是弹窗：用一圈超大扩散阴影当遮罩把主页压暗，不用再添一层 DOM，
+     也不会和 .show 那版 transform:none / opacity 过渡打架。 */
+  #homeMenu.addmenu.show{
+    box-shadow:0 30px 70px -22px rgba(20,24,40,.55),
+               0 0 0 100vmax rgba(20,24,40,.3);
+    transition:opacity .24s ease,visibility 0s,box-shadow .24s ease
+  }
+  /* 弹窗顶边正好切到主页顶部书名，留下半截字很难看；开菜单时把书名藏起来。
+     :has() 不被支持时这条自动忽略，遮罩仍然生效，不影响功能。 */
+  #app:has(#homeMenu.addmenu.show) .home-head{opacity:0}
+  /* 桌面菜单是弹窗：收掉移动端的左上返回，右上角放 ✕ 关闭 */
+  #homeMenu.addmenu .mn-top{display:flex;justify-content:flex-end}
+  #homeMenu.addmenu .mn-top .mn-back{display:none}
+  #homeMenu.addmenu .mn-top .mn-x{
+    display:grid;place-items:center;width:42px;height:42px;border-radius:50%;
+    background:#fff;box-shadow:0 3px 12px -5px rgba(20,24,40,.2);
+    font-size:17px;line-height:1;color:#20232c
+  }
+  #homeMenu.addmenu .mn-top .mn-x:hover{background:#f4f5f7}
+  .ns-head{justify-content:flex-start;gap:11px;min-height:36px;margin:0 0 14px}
+  .ns-head h2{font-size:17px;font-weight:600}
+  .ns-back{
+    display:grid;position:static;transform:none;
+    opacity:1;background:rgba(127,132,150,.16)
+  }
+  /* 桌面鼠标没有触摸横滑：菜单背景色板 / 取色器常用色露出一条细滚动条，
+     既能直接拖滚动条，也提示「这里还能往右滑」。移动端仍保持隐藏。 */
+  .mn-sw,#cpSwatches{scrollbar-width:thin;scrollbar-color:#cdd0d7 transparent}
+  .mn-sw::-webkit-scrollbar,#cpSwatches::-webkit-scrollbar{display:block;height:5px}
+  .mn-sw::-webkit-scrollbar-thumb,#cpSwatches::-webkit-scrollbar-thumb{
+    background:#cdd0d7;border-radius:99px
+  }
+  .mn-sw::-webkit-scrollbar-track,#cpSwatches::-webkit-scrollbar-track{background:transparent}
+  .bg-light .ns-back{background:rgba(17,19,24,.07);color:#2b2f3d}
+  /* 图标在圆里精确居中、与标题同一条中线；hover 给一点反馈 */
+  .bg-light .ns-back:hover{background:rgba(17,19,24,.12)}
+}
+
+/* =====================================================================
+ * ⑤ 移动端菜单页复位：必须写在 ③ 之后 —— ③ 的居中弹窗宽高与这里特异性相同，
+ *    若放在它前面会被盖掉，竖屏就变成了小弹窗而不是整屏页。
+ * ===================================================================== */
+@media (orientation:portrait) and (max-width:1024px){
+  #homeMenu.addmenu,#homeMenu.addmenu.show{
+    width:auto;height:auto;margin:0;
+    border:0;border-radius:0;box-shadow:none;overflow:visible
+  }
+  /* 整屏页只用左上返回；右上 ✕ 是桌面弹窗的关闭键 */
+  #homeMenu.addmenu .mn-top{display:block}
+  #homeMenu.addmenu .mn-x{display:none}
+}

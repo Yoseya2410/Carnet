@@ -34,6 +34,8 @@
   <link rel="stylesheet" href="style/background.css">
   <link rel="stylesheet" href="style/diy-cover.css">
   <link rel="stylesheet" href="style/lock.css">
+  <!-- 移动端主页 / 新建 Bottom Sheet / 卡片式菜单：必须排在最后，它要盖掉旧 #homeMenu 与 .modal 的形态 -->
+  <link rel="stylesheet" href="style/m-home.css">
 </head>
 <body data-page-node-id="fyhITFSae6zxcmzB16cSQh">
 <div data-page-node-id="FaGVY50w6eg6p918jzsNIa" id="app">
@@ -117,8 +119,74 @@
         <svg data-page-node-id="Or13RcJh8coNC3NmemE9TD" fill="none" height="22" stroke="currentColor" stroke-linecap="round" stroke-width="2" viewBox="0 0 24 24" width="22"><path data-page-node-id="kmk1Yz6gmnPQsBoGOBJ969" d="M12 5v14M5 12h14"/></svg>
       </button>
       <button data-page-node-id="F8B7W1c0gr3Z02ip7wkPk6" class="icon-btn danger" data-act="del" title="删除">
-        <svg data-page-node-id="78F3dUv48uxTrjt3Q4Pv1w" fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="20"><path data-page-node-id="MXr7t5JgOGG8oBdRPUBEib" d="M4 6.5h16"/><path data-page-node-id="KcrwDlL0QNuVAmFeEzaR8g" d="M9.2 6.5V4.4h5.6v2.1"/><path data-page-node-id="f8q2Df283TmahgItCfHCQm" d="M6.4 6.5l.95 13.1h9.3l.95-13.1"/><path data-page-node-id="YvWgigUyIKHFyHK009gc8A" d="M10 10v6.4M14 10v6.4"/></svg>
+        <svg data-page-node-id="78F3dUv48uxTrjt3Q4Pv1w" fill="none" height="22" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="22"><path data-page-node-id="MXr7t5JgOGG8oBdRPUBEib" d="M4 6.5h16"/><path data-page-node-id="KcrwDlL0QNuVAmFeEzaR8g" d="M9.2 6.5V4.4h5.6v2.1"/><path data-page-node-id="f8q2Df283TmahgItCfHCQm" d="M6.4 6.5l.95 13.1h9.3l.95-13.1"/><path data-page-node-id="YvWgigUyIKHFyHK009gc8A" d="M10 10v6.4M14 10v6.4"/></svg>
       </button>
+    </div>
+
+    <!-- ============ 移动端主页浮层（只在竖屏 ≤1024px 显示，见 style/m-home.css） ============
+         桌面端仍是上面那条 .topbar / .actionbar；两套 DOM 并存，事件互不干扰。
+         ⚠️ 不放在 .topbar 里：那条是 z-index:5 层叠上下文，书架滚动时还会整块淡出。 -->
+    <div class="mbar" id="mHomeBar">
+
+      <!-- 常态只留搜索 + 菜单两颗：分享 / 删除默认都不显示。
+           搜索按钮短按开搜索、长按直接进多选。 -->
+      <button class="m-round" id="mSearch" title="搜索（长按进入多选）" aria-label="搜索">
+        <svg fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="20"><circle cx="11" cy="11" r="7"/><path d="M16.6 16.6L21 21"/></svg>
+      </button>
+      <button class="m-round" id="mMenu" title="菜单" aria-label="菜单">
+        <svg fill="none" height="21" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" viewBox="0 0 24 24" width="21"><path d="M12 2.8l7.6 4.4v9.6L12 21.2l-7.6-4.4V7.2z"/><circle cx="12" cy="12" r="2.6"/></svg>
+      </button>
+
+      <!-- 多选态左上：独立的分享圆钮（常态隐藏） -->
+      <button class="m-round m-pick-share" id="mPickShare" title="分享选中的手帐本" aria-label="分享">
+        <svg fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="20"><path d="M12 15.5V4"/><path d="M8 7.6L12 3.5l4 4.1"/><path d="M4.6 13v6.4a1.1 1.1 0 001.1 1.1h12.6a1.1 1.1 0 001.1-1.1V13"/></svg>
+      </button>
+
+      <!-- 左下：三格模式切换（多层书架 / 单层书架 / 左右滑动），白色圆钮滑到当前那格 -->
+      <div class="m-switch" id="mSwitch" data-v="shelf" role="group" aria-label="书架展示模式">
+        <span class="ms-thumb"></span>
+        <button data-mv="shelf" title="多层书架模式" aria-label="多层书架">
+          <svg fill="none" height="21" stroke="currentColor" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24" width="21"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></svg>
+        </button>
+        <button data-mv="spine" title="单层书架模式" aria-label="单层书架">
+          <svg fill="none" height="21" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24" width="21"><path d="M4 20V9h4v11M8 20V5h4v15M12 20V8h4v12M16 20v-9h4v9M3 20h18"/><path d="M9.5 8h1M13 12h2"/></svg>
+        </button>
+        <button data-mv="carousel" title="左右滑动模式" aria-label="左右滑动">
+          <svg fill="none" height="21" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24" width="21"><rect x="6" y="3" width="12" height="18" rx="2.2"/><path d="M9.5 17.5h5"/></svg>
+        </button>
+      </div>
+
+      <button class="m-add" id="mAdd" title="新建手帐本" aria-label="新建手帐本">
+        <svg fill="none" height="26" stroke="currentColor" stroke-linecap="round" stroke-width="1.9" viewBox="0 0 24 24" width="26"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+
+      <!-- 多选态右上：删除 + 完成 连在一块的白色胶囊（参考图），
+           中间不加分隔线，是一整条胶囊而不是两颗按钮 -->
+      <div class="m-pickbar" id="mPickBar">
+        <button class="mp-del" id="mPickDel" title="删除选中的手帐本" aria-label="删除">
+          <svg fill="none" height="22" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="22"><path d="M4.5 6.5h15"/><path d="M9.5 6.5V4.4h5v2.1"/><path d="M6.5 6.5l.9 13h9.2l.9-13"/><path d="M10 10v6.5M14 10v6.5"/></svg>
+        </button>
+        <button class="mp-done" id="mPickDone">完成</button>
+      </div>
+
+      <!-- 多选分享：底部升起的 Bottom Sheet（标题「分享」），三个导出格式。
+           独立面板，不复用藏在移动端被收起的 #pickMenu。 -->
+      <div class="m-exp-mask" id="mExpMask"></div>
+      <div class="m-exp-menu" id="mExpMenu">
+        <div class="m-exp-grab"></div>
+        <b>分享</b>
+        <button data-expkind="json">导出源文件</button>
+        <button data-expkind="pdf">导出 PDF</button>
+        <button data-expkind="svg">导出 SVG（矢量）</button>
+        <button class="m-exp-cancel" id="mExpCancel">取消</button>
+      </div>
+
+      <!-- 左右滑动模式：书名 / 页数 / 点状进度条，摆在封面下方（顶部标题让位） -->
+      <div id="mCarouselMeta">
+        <div class="mc-name" id="mcName">—</div>
+        <div class="mc-meta" id="mcMeta">0 页</div>
+        <div class="mc-dots" id="mcDots"></div>
+      </div>
     </div>
   </section>
 
@@ -339,7 +407,24 @@
   <!--pnid:0H0HYKmDGkCsZ7kxvFMMke--><!-- ============ 编辑器 ============ -->
   <div data-page-node-id="O3ct3TV88gAqb9Zl42wBo8" class="modal-mask" id="mask">
     <div data-page-node-id="frEYSjaX15k5y47WWFLtZc" class="modal" id="modal">
-      <h2 data-page-node-id="qmjFdEl6XczWKBmYsyTTgJ" id="edTitle"><!--pnid:v3j6MhSxsVTJy29K5mzXca-->新建手帐本</h2>
+      <div class="ns-grab"></div>
+
+      <!-- 第一步（仅移动端）：大卡片横滑选装帧，标题 + 当前款名 + 底部分页点。
+           选中后本 sheet 抬到 90% 进设置页。 -->
+      <div id="edPick">
+        <div class="ns-head"><h2>选择装帧</h2></div>
+        <p class="ns-sub" id="edPickSub">笔记本</p>
+        <div class="ns-cards" id="edPickCards"></div>
+        <div class="ns-dots" id="edPickDots"></div>
+      </div>
+
+      <div id="edForm">
+      <div class="ns-head">
+        <button class="ns-back" id="nsBack" title="返回" aria-label="返回">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5.5L8 12l6.5 6.5"/></svg>
+        </button>
+        <h2 data-page-node-id="qmjFdEl6XczWKBmYsyTTgJ" id="edTitle"><!--pnid:v3j6MhSxsVTJy29K5mzXca-->新建手帐本</h2>
+      </div>
       <div data-page-node-id="W4RPhMOhVGikiEytiitJEZ" class="editor-preview"><div data-page-node-id="O6e5G2cEKDXWB25eVrlEdu" id="edPreview"></div></div>
 
       <!--pnid:NameSec--><!-- 每一项设置都是一块可折叠的小节：点标题收起 / 展开，收起时标题后跟一句当前取值 -->
@@ -482,6 +567,7 @@
         <button data-page-node-id="HWmRiddccVrxoJcx6hThXe" class="btn ghost" id="edCancel"><!--pnid:dDvX3WsY26FUZplJqAUpBz-->取消</button>
         <button data-page-node-id="bJByzmb0qSgWYRR5KOLzCu" class="btn primary" id="edSave"><!--pnid:34q5mdSq0t7cHAOArLc74d-->完成</button>
       </div>
+      </div><!-- /#edForm -->
     </div>
   </div>
 
@@ -570,25 +656,63 @@
     <div data-page-node-id="SRpanelResults" class="search-results" id="searchResults"></div>
   </div>
 
-  <!--pnid:HomeMenuOverlay--><!-- 主页「菜单」= 全屏毛玻璃：从右上角菜单按钮圆形扩散到整屏。
+  <!--pnid:HomeMenuOverlay--><!-- 主页「菜单」= 整屏卡片列表页（2026-11-18 重做，样式在 m-home.css）。
        ⚠️ 与 #home 平级挂在 #app 下，别放回 .topright —— .topbar 是 z-index:5 的层叠上下文，
           书架滚动时还会被 #home.bars-away 整条淡出，留在里面 fixed 也逃不出去。
-       功能只留文本（无图标）；圆心 --hm-x/--hm-y 与半径 --hm-r 由 home-events.js 量按钮写进来。 -->
+       旧的全屏毛玻璃圆形揭示已停用；menus.css 里那套 #homeMenu 规则由 m-home.css 覆盖。 -->
+  <!-- ============ 菜单页（浅灰底 + 白色圆角卡片分组） ============
+       设置与导入的功能全部收进这一页，旧 #bgMask 设置页 / #importPanel 导入页停用。
+       ⚠️ 保留 .addmenu / .show / #homeMenuClose：closeMenus() 与 Esc 关闭都认这套。 -->
   <div data-page-node-id="HMnKq7Zx2mN4vLbRt8WpYs" class="addmenu" id="homeMenu">
     <button class="hm-close-zone" id="homeMenuClose" type="button" aria-label="关闭菜单"></button>
-    <!--pnid:HMwordmark--><!-- 纯文本版面装饰（aria-hidden）：眉标浮在列表上方不占流，页脚字标钉在屏底，三项功能名仍精确居中 -->
-    <span class="hm-wordmark" aria-hidden="true">CARNET</span>
-    <nav class="hm-list" aria-label="功能菜单">
-      <span class="hm-eyebrow" aria-hidden="true">MENU</span>
-      <!--pnid:HMimpPage--><!-- 11-17：一键成书 / 导入手账本源文件 / 导入 PDF 收进同一个「导入」页 -->
-      <button data-page-node-id="HMbgTx1" class="hm-item" data-menuact="bg" title="设置">设置</button>
-      <button data-page-node-id="HMimpTx1" class="hm-item" data-menuact="importPage" title="导入">导入</button>
-      <button data-page-node-id="HMhpGt5wL9nQ3cVb7Ym2Jd" class="hm-item" data-menuact="help" title="帮助与反馈">帮助与反馈</button>
-    </nav>
+    <div class="mn-scroll">
+      <div class="mn-top">
+        <!-- 左上返回：移动端整屏页用；桌面弹窗里隐藏，改用右上 ✕ -->
+        <button class="mn-back" id="mnBack" title="返回" aria-label="返回">
+          <svg fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="20"><path d="M14.5 5.5L8 12l6.5 6.5"/></svg>
+        </button>
+        <button class="mn-x" id="mnX" type="button" title="关闭" aria-label="关闭菜单">✕</button>
+      </div>
+
+      <div class="mn-brand-wrap">
+        <div class="mn-brand">
+          <span class="mn-avatar">C</span>
+          <span class="mn-brand-tx"><b>Carnet</b><small>把日子装订成册</small></span>
+          <span class="mn-chev">›</span>
+        </div>
+      </div>
+
+      <div class="mn-cap">导入</div>
+      <div class="mn-card">
+        <button class="mn-row" data-mnact="book"><b>一键成书</b><span class="mn-val">选一组图片生成一本</span><span class="mn-arr">›</span></button>
+        <button class="mn-row" data-mnact="source"><b>导入手账本</b><span class="mn-arr">›</span></button>
+        <button class="mn-row" data-mnact="pdf"><b>导入PDF</b><span class="mn-arr">›</span></button>
+      </div>
+
+      <div class="mn-cap">外观设置</div>
+      <div class="mn-card">
+        <div class="mn-row mn-col"><b>背景颜色</b><div class="mn-sw" id="mnBgColors"></div></div>
+        <div class="mn-row"><b>背景图片</b><span class="mn-inline"><button class="mn-mini" id="mnBgUpload">选择图片</button><button class="mn-mini" id="mnBgClear" disabled>移除</button></span></div>
+        <button class="mn-row" data-mnact="bgReset"><b>恢复默认背景</b><span class="mn-arr">›</span></button>
+        <label class="mn-row"><b>单层书架台面</b><span class="mn-switch" id="mnPlinthSwitch"><input type="checkbox" id="mnPlinth" aria-label="显示单层书架台面"></span></label>
+      </div>
+
+      <div class="mn-cap">实验性功能</div>
+      <div class="mn-card">
+        <label class="mn-row"><b>使用 WebGL 渲染</b><span class="mn-switch" id="mnGlSwitch"><input type="checkbox" id="mnGl" aria-label="使用 WebGL 渲染"></span></label>
+      </div>
+      <p class="mn-note" id="mnGlNote"></p>
+
+      <div class="mn-cap">更多</div>
+      <div class="mn-card">
+        <button class="mn-row" data-mnact="help"><b>帮助和反馈</b><span class="mn-arr">›</span></button>
+      </div>
+    </div>
   </div>
 
-  <!--pnid:ImportPanel--><!-- 「导入」页：原本散在菜单里的一键成书 / 导入手账本源文件 /
-       导入 PDF 三个入口收在这里，菜单只留一个「导入」按钮。与 #home 同级、整屏覆盖。 -->
+  <!--pnid:ImportPanel--><!-- 旧「导入」页：已停用（hidden）。2026-11-18 起，一键成书 /
+       导入手账本源文件 / 导入 PDF 三行直接放进新菜单页 #homeMenu。
+       ⚠️ DOM 与 #impXxx id 保留：home-events.js 顶层还绑着这些节点，删了会抛 TypeError。 -->
   <section class="imp-panel" id="importPanel" hidden>
     <!-- .imp-box：竖屏是透明整屏页，横屏收成居中圆角弹窗（menus.css 末尾媒体查询） -->
     <div class="imp-box">
@@ -675,7 +799,10 @@
 
   <!-- 设置页：沿用历史 id #bgMask / #bgXxx（取色器层级、历史验证脚本都认这套 id，别改名）。
        原来的「主页设置」内容作为「外观」部分保留，下面新增「实验性功能」分区。 -->
-  <div data-page-node-id="BGmask" class="cp-mask" id="bgMask">
+  <!-- 旧「设置」页：功能已整体并入新菜单页 #homeMenu，此面板停用。
+       ⚠️ DOM 与 #bgMask / #bgXxx 整套 id 保留：取色器层级、widgets.js 的绑定与历史验证脚本都认，
+          只是永远不再被打开。 -->
+  <div data-page-node-id="BGmask" class="cp-mask" id="bgMask" hidden>
     <div data-page-node-id="BGpanel" class="cp-panel">
       <!-- ⚠️ .cp-head 是「38px | 1fr | 38px」三列网格。左槽现在是「返回」按钮
            （移动端整屏页显示），右槽是「✕」（电脑端弹窗显示），功能完全一样。
@@ -834,5 +961,7 @@
   <script src="src/main.js" defer></script>
   <!-- WebGL 实验层（POC，默认关闭）：删掉这一行 + src/gl-lab.js 即可整块摘除，无残留 -->
   <script src="src/gl-lab.js" defer></script>
+  <!-- 移动端主页 / 两步式新建 sheet / 卡片菜单页：必须排在最后（要包装前面模块的全局函数） -->
+  <script src="src/m-home.js" defer></script>
 </body>
 </html>
