@@ -17,6 +17,16 @@
      数值 = 栏的上下 padding + 里面最高的那颗按钮 */
   --topbar-h:calc(76px + env(safe-area-inset-top));
   --botbar-h:calc(90px + env(safe-area-inset-bottom));
+  /* 轮播封面的唯一尺寸基准（11-19 统一稿）：标题定位与 .carousel .cover 都引用它。
+     ⚠️ 高度约束 40vh → 28vh：594×794 这类「宽而矮」的视口原来封面顶到 44vh，
+        把上方的书名挤没了；现在封面最高只占 ~40vh，给标题留出固定的呼吸空间。
+        media 里 44vw 仍保证窄屏按宽度走，28vh 只在矮宽屏起作用，
+        419×920 / 390×844 / 1440×900 的封面尺寸一格不动。 */
+  --cv-w:clamp(158px,min(44vw,28vh),246px);
+  /* 封面整体下移量（只在宽屏桌面被改成非 0）：给 .carousel 加 2× 的 margin-top，
+     flex:align-items:center 会把封面往下挪恰好 1× --cv-shift。标题的 bottom 同步减掉
+     这一项，才不会跟着封面一起下移 —— 见下方 .home-head 的注释。 */
+  --cv-shift:0px;
 }
 /* ---- 顶栏 / 底栏：整块浮在内容上面，不再占布局高度 ---- */
 /* 主页没有顶栏底栏这两条栏了：它们只是浮在页面上的一层按钮。
@@ -36,8 +46,39 @@
 }
 .topbar{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;padding-top:calc(16px + env(safe-area-inset-top))}
 .topright{display:flex;align-items:center;gap:10px;position:relative}
-/* 顶栏浮起来了，标题自己往下让出它的高度，不然名字会压在按钮底下 */
+/* 轮播书名（电脑端 / 移动端旧 UI 通用，11-19 统一稿）
+   ① 矮屏（高度 <600px，含手机横屏）：封面若垂直居中于 50%，上方根本塞不下标题，
+      沿用原来的流式布局 —— 标题在顶栏下方，封面在剩余空间里居中。 */
 .home-head{text-align:center;margin-top:calc(var(--topbar-h) + 1.5vh);pointer-events:none}
+/* ② 高度够的所有视口（桌面 + 手机竖屏，不再分平台写两套补丁）：
+      head 绝对定位、不再占 flex 列的高度 → .carousel-wrap 吃满整屏，封面正好垂直
+      居中于 50%（与移动端新 UI 完全一致）。标题块「底边」用 bottom 钉在封面上沿之上
+      --head-gap，与 m-home.css 的 #mCarouselMeta（封面下方，top:50% + 封面半高 + 38px）
+      是同一套几何，只差方向：封面半高 = --cv-w × 210/148 / 2 = --cv-w × .71。
+   ⚠️ 别改回 margin-top / translateY(vh)：那是按视口高度比例走，而封面按宽度+高度
+      clamp，594×794 这种矮宽屏就会出现「书名贴着封面」（用户实测），
+      换任何屏比例都不会再错位；用 bottom 定位还不受标题块自身高度变化影响。
+   ⚠️ head.hidden（书架 / 单层）与 #home.m-carousel 的 display:none 照旧生效。 */
+@media (min-height:600px){
+  .home-head{
+    position:absolute;left:0;right:0;z-index:6;
+    margin:0;text-align:center;
+    --head-gap:clamp(24px,4vh,40px);
+    /* 减掉 --cv-shift：封面下移后标题不跟着走，改成「封面下移 + 标题上移」双向拉开 */
+    bottom:calc(50% - var(--cv-shift) + var(--cv-w) * .71 + var(--head-gap));
+  }
+}
+/* 电脑端宽屏（11-20 用户反馈：书名与封面太近）：封面往下、书名往上，各让一点。
+   ⚠️ 只盖 ≥1025px 宽（移动端新 UI 只在竖屏 ≤1024px 生效，两边不会打架）；
+      手机竖屏 / 594×794 / 平板竖屏保持上一轮已确认的间距。
+   ⚠️ --cv-shift 同时驱动 .carousel 的 margin-top 与标题的 bottom 补偿，
+      别只改一个，否则封面与标题会一起往下跑。 */
+@media (min-width:1025px) and (min-height:600px){
+  /* ⚠️ 只作用于「关掉新视觉风格」的电脑端旧 UI：开关 ON 时电脑端轮播改吃
+     移动端那套（封面 / 间距 / 书名在封面下方，见 m-home.css），不该再被推移。 */
+  html.mui-off #home{--cv-shift:26px}
+  html.mui-off .home-head{--head-gap:76px}
+}
 /* 左右滑动模式顶部的书名。
    ⚠️ line-height 必须写死成数值：默认的 normal 会按**字体自身的 ascent/descent** 撑开行盒，
       中文走系统黑体（约 1.33em）、纯英文走 Martian Mono（约 1.21em），1440px 宽实测
@@ -46,8 +87,10 @@
       「英文高一点、中文低一点」（封面 top 343.62 / 352.36）。写死行高后盒子只由 font-size
       决定，与字族无关，两种语言的书永远落在同一条水平线上。
       1.33 是照着中文原来的 normal 行盒取的，中文这一档的观感一点不变。 */
+/* 字号也统一：原来是 clamp(21px,3.1vw,33px)，594px 宽正好卡在 21px 下限，
+   相对 246px 的封面显得太小；现在所有中小屏至少 24px，宽屏仍收在 33px。 */
 .home-head h1{
-  margin:0;font-size:clamp(21px,3.1vw,33px);line-height:1.33;font-weight:700;letter-spacing:.06em;
+  margin:0;font-size:clamp(24px,4.2vw,33px);line-height:1.33;font-weight:700;letter-spacing:.06em;
   text-shadow:0 2px 14px rgba(0,0,0,.18);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 12px
 }
 /* 左右滑动模式：纯英文书名用 Martian 窄体等宽；中文 / 中英混排保持默认。
@@ -59,7 +102,23 @@
 }
 .carousel-wrap{flex:1;display:flex;align-items:center;overflow:hidden;cursor:grab;touch-action:pan-y}
 .carousel-wrap:active{cursor:grabbing}
-.carousel{display:flex;align-items:center;gap:clamp(18px,3vw,46px);padding:0 42vw;will-change:transform}
+.carousel{display:flex;align-items:center;gap:clamp(18px,3vw,46px);padding:0 42vw;will-change:transform;
+  /* --cv-shift 非 0 时封面整体下移：flex:align-items:center 会把 margin-top 的一半
+     折算成内容位移，所以写 2×。transform 由 carousel.js 独占（translateX），别碰。 */
+  margin-top:calc(var(--cv-shift) * 2)}
+/* 11-19 窄竖屏书间距（书名位置已统一到上面的 .home-head 几何定位，
+   ⚠️ 别再在这里写 --head-drop / translateY(vh)：按视口高度比例走会在
+      594×794 这类矮宽屏把书名怼到封面上，用户实测已否决）。
+   轮播里相邻封面原来只有 18px，太挤；窄屏抬到 ~43~56px。
+   ⚠️ 必须排在 .carousel 基础规则之后：同为 (0,1,0)，写前面会被 gap 盖回去。
+      只盖窄竖屏：宽屏 3vw 本来就有 40px+，桌面一排三本的观感不变；
+      移动端新 UI 由 m-home.css 的 #home.m-carousel .carousel{gap:var(--mc-gap)}
+      以更高优先级接管，这条不会干扰它。
+   ⚠️ 这段写在 home.css（不是 m-home.css）：关掉移动端新 UI 时 m-home.css 的
+      竖屏 @media 会被整段改成 not all，写在那儿不会生效。 */
+@media (orientation:portrait) and (max-width:640px){
+  .carousel{gap:clamp(34px,11vw,56px)}
+}
 .book-item{flex:0 0 auto;transition:transform .5s cubic-bezier(.25,.8,.3,1),filter .5s;filter:saturate(.86) brightness(.94);position:relative}
 .book-item.active{transform:scale(1.05);filter:none}
 .book-item.active .gear{opacity:1;pointer-events:auto}
@@ -98,6 +157,11 @@
              inset 0 0 0 1px rgba(255,255,255,.14);
   background:#ddd;
 }
+/* 轮播封面改吃 #home 的统一基准 --cv-w，和标题定位同源（一处改尺寸，两边同步）。
+   ⚠️ 只锁 .carousel 里的封面：书架 / 阅读器 / 搜索 / 编辑器预览仍各自覆盖 --cover-w；
+      移动端新 UI 的 #home.m-carousel .carousel .cover{--cover-w:var(--mc-cover-w)}
+      特异性更高，照旧接管，不受影响。 */
+#home .carousel .cover{--cover-w:var(--cv-w)}
 .cover .pattern{position:absolute;inset:0;opacity:.95;pointer-events:none}
 /* 封面材质（无纹理 / 纸纹 / 布纹）：一层半透明的平铺贴片，只铺在底色上、
    装饰图案之下。有封面图片时这一层不生成（图片盖住底色，纹理不压到照片 / 文字上）。

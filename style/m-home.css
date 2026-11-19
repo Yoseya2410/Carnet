@@ -42,6 +42,82 @@
   margin-top:10px;text-align:center;font-weight:600;color:#6b7080;background:transparent
 }
 
+/* =====================================================================
+ * ⓪ 左右滑动（轮播）新视觉风格 —— 11-20 定稿：**只认开关，不认视口**
+ *    用户要求「新视觉风格下电脑端左右滑动的封面 / 标题等与移动端一致」。
+ *    以前这组规则写在下面 ① 的竖屏 media 里，电脑端（宽屏 / 横屏）拿不到；
+ *    现在整组挪到 base，统一用 html:not(.mui-off) 兜住开关状态：
+ *      开 = 手机竖屏 + 电脑端都吃这一套；关 = 电脑端旧 UI 原样回来。
+ *    ⚠️ html.mui-off 由 index.html 首帧脚本 + src/m-home.js 两处同步写，别只改一处。
+ *    ⚠️ 顶栏 / 底栏 / 菜单 / Sheet 仍只在竖屏 ≤1024 生效（①），电脑端只借走轮播这一块。
+ * ===================================================================== */
+#home.m-carousel{
+  /* 封面宽度 / 书间距的唯一真源：封面与信息区定位都引用 --mc-cover-w，
+     要改尺寸只动这里，电脑端与移动端不会分家。矮屏由 40vh 收住。 */
+  --mc-cover-w:clamp(176px,min(50vw,40vh),280px);
+  --mc-gap:clamp(38px,12vw,88px)
+}
+html:not(.mui-off) #home.m-carousel .carousel{gap:var(--mc-gap)}
+html:not(.mui-off) #home.m-carousel .carousel .cover{--cover-w:var(--mc-cover-w)}
+html:not(.mui-off) #home.m-carousel .home-head{display:none !important}
+#mCarouselMeta{display:none}
+html:not(.mui-off) #home.m-carousel #mCarouselMeta{
+  display:block;position:absolute;left:0;right:0;z-index:6;pointer-events:none;
+  /* 隐藏 .home-head 后 .carousel-wrap 吃满整屏，封面垂直居中于 50%，
+     于是「50% + 半封面高」把书名 / 页数 / 分页点钉在封面下沿，不靠 JS 量布局 */
+  top:calc(50% + var(--mc-cover-w) * .71 + 38px);
+  text-align:center;color:#1c1f27
+}
+.mc-name{
+  font-size:19px;font-weight:700;letter-spacing:.05em;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  margin:0 auto;max-width:82vw;text-shadow:0 1px 8px rgba(255,255,255,.6)
+}
+.mc-name.en{font-family:'CarnetMartianMono','Consolas','Courier New',monospace}
+.mc-meta{margin-top:6px;font-size:12.5px;color:#8a8e99;letter-spacing:.04em}
+/* 分页点：每个 <i> 恒为 14px grid 槽位，圆点 / 长条 / 小点全画在 ::before，
+   width 过渡不参与布局，第 5 本起窗口推进也不会整排抖动。 */
+.mc-dots{
+  display:grid;grid-template-columns:repeat(5,14px);gap:7px;
+  justify-content:center;width:max-content;margin:18px auto 0
+}
+.mc-dots i{position:relative;width:14px;height:7px}
+.mc-dots i::before{
+  content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:7px;height:7px;border-radius:99px;background:#c9ccd3;
+  transition:width .26s ease,height .26s ease,background .26s ease
+}
+.mc-dots i.on::before{width:22px;background:#171a21}
+.mc-dots i.mini::before{width:4px;height:4px}
+@keyframes mcFade{from{opacity:0}to{opacity:1}}
+.mc-dots.mc-roll > i:first-child,
+.mc-dots.mc-roll > i:last-child{animation:mcFade .26s ease}
+/* 电脑端：#mCarouselMeta 挂在 .mbar 里，桌面 .mbar 默认 display:none，
+   这里只把容器放出来、其它移动端浮层按钮继续藏；计数胶囊与分页点重复，一并收掉。
+   ⚠️ 这条 media 含 1025px：muiCss() 开时保持桌面条件、关时变 all，
+      但 html:not(.mui-off) 会兜住，关开关时电脑端旧 UI 一行不受影响。 */
+@media (min-width:1025px), (orientation:landscape){
+  html:not(.mui-off) #home.m-carousel .mbar{
+    display:block;position:absolute;inset:0;z-index:22;pointer-events:none
+  }
+  html:not(.mui-off) #home.m-carousel .mbar > *:not(#mCarouselMeta){display:none !important}
+  html:not(.mui-off) #home.m-carousel #countPill{display:none}
+}
+/* 矮横屏（手机横过来 / 很矮的桌面窗口）：封面居中后，下方那截「书名 + 页数 +
+   分页点」在物理上塞不下（920×419 实测会被裁掉半截）。这些视口回退电脑端旧 UI
+   的轮播：顶部书名 + 原封面尺寸 / 间距，与 home.css 的 min-height:600px 回退同源。
+   ⚠️ 条件里不写 1025px / portrait+1024px —— muiCss() 只改这两类 media，
+      写进去会被整段拨成 all / not all（用 64em 也行，这里干脆靠 orientation）。
+   ⚠️ 只盖横屏：矮的竖屏手机仍走 ① 的整套移动端新 UI，别把它的浮层按钮弄没。 */
+@media (max-height:599px) and (orientation:landscape){
+  html:not(.mui-off) #home.m-carousel .home-head{display:block !important}
+  html:not(.mui-off) #home.m-carousel #mCarouselMeta{display:none !important}
+  html:not(.mui-off) #home.m-carousel .mbar{display:none !important}
+  html:not(.mui-off) #home.m-carousel #countPill{display:block !important}
+  html:not(.mui-off) #home.m-carousel .carousel{gap:clamp(18px,3vw,46px) !important}
+  html:not(.mui-off) #home.m-carousel .carousel .cover{--cover-w:var(--cv-w) !important}
+}
+
 @media (orientation:portrait) and (max-width:1024px){
   /* 旧的三态切换 / 顶栏 / 底栏 / 多选条整条让位给新浮层。
      ⚠️ 只是 display:none，DOM 与上面的事件绑定全留着：
@@ -53,61 +129,8 @@
   .home-head{margin-top:calc(74px + env(safe-area-inset-top))}
   .home-head h1{font-size:23px;color:#1c1f27;text-shadow:none}
   .home-head .pages{color:#6b7080;opacity:1}
-  /* 左右滑动模式：顶部书名让位，书名 / 页数 / 进度条改挂在封面下方。
-     ⚠️ 隐藏 .home-head 后 .carousel-wrap 从 #home 顶到底吃满整屏，封面正好垂直居中于 50%，
-        所以下面用「50% + 半封面高」就能把信息钉在封面下沿，换屏幕比例也不用 JS 量布局。
-     ⚠️ --mc-cover-w 是这一屏唯一的封面宽度基准：.cover 与信息区的定位都引用它，
-        要改封面大小只动这一处，书名不会跟封面错开。移动端单独放大封面、拉开书间距。 */
-  #home.m-carousel{
-    /* 44vw → 52vw → 58vw：封面再放大一档，同时把书间距从 18px 一路拉到 ~53px，
-       两边只露出邻书窄窄一角，不再挤在一起。矮屏仍由 46vh 收住，别顶到信息区。 */
-    --mc-cover-w:clamp(196px,min(58vw,46vh),320px);
-    --mc-gap:clamp(44px,13.5vw,100px)
-  }
-  #home.m-carousel .carousel{gap:var(--mc-gap)}
-  #home.m-carousel .carousel .cover{--cover-w:var(--mc-cover-w)}
-  #home.m-carousel .home-head{display:none !important}
-  #mCarouselMeta{display:none}
-  #home.m-carousel #mCarouselMeta{
-    display:block;position:absolute;left:0;right:0;z-index:6;pointer-events:none;
-    /* 26px → 46px：原来书名几乎贴着封面下沿，照参考图留出一截呼吸空间 */
-    top:calc(50% + var(--mc-cover-w) * .71 + 46px);
-    text-align:center;color:#1c1f27
-  }
-  .mc-name{
-    font-size:19px;font-weight:700;letter-spacing:.05em;
-    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-    margin:0 auto;max-width:82vw;text-shadow:0 1px 8px rgba(255,255,255,.6)
-  }
-  .mc-name.en{font-family:'CarnetMartianMono','Consolas','Courier New',monospace}
-  .mc-meta{margin-top:6px;font-size:12.5px;color:#8a8e99;letter-spacing:.04em}
-  /* 与「选择装帧」的 .ns-dots 同款：7px 圆点 / 22px 黑色长条 / 4px 小点。
-     ⚠️ 11-19 修「第 5 本起 page control 抖动」：点本身**不再参与布局** ——
-        以前 <i> 就是 flex item，width 7→22px 过渡时整排内容宽度跟着变，
-        justify-content:center 每帧把整排左右推；第 5 本起窗口每本推进，
-        再叠一层 mc-roll 的 translateX(14px) 横移，于是每滑一本都晃一下。
-        现在每个 <i> 是**恒定 14px 的 grid 槽位**，圆点/长条/小点全画在 ::before 上，
-        width 过渡只发生在伪元素里，grid 宽度恒定 → 整排绝不重排、绝不位移。
-        窗口推进的过场也改成「只让首尾两颗淡入」，中间全部静止。 */
-  .mc-dots{
-    display:grid;grid-template-columns:repeat(5,14px);gap:7px;
-    justify-content:center;width:max-content;margin:18px auto 0
-  }
-  .mc-dots i{position:relative;width:14px;height:7px}
-  .mc-dots i::before{
-    content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
-    width:7px;height:7px;border-radius:99px;background:#c9ccd3;
-    transition:width .26s ease,height .26s ease,background .26s ease
-  }
-  .mc-dots i.on::before{width:22px;background:#171a21}
-  .mc-dots i.mini::before{width:4px;height:4px}
-  /* 窗口推进一格：只让最左 / 最右那颗淡入（新补进来的点），
-     中间的圆点与黑条全部保持原位，靠 ::before 的 width 过渡接力。
-     ⚠️ 别再加 translateX —— 整排横移就是抖动的主因。 */
-  @keyframes mcFade{from{opacity:0}to{opacity:1}}
-  .mc-dots.mc-roll > i:first-child,
-  .mc-dots.mc-roll > i:last-child{animation:mcFade .26s ease}
-
+  /* 轮播的封面 / 间距 / 书名信息区已整组移到文件开头 ⓪（只认开关、不认视口），
+     让电脑端在「新视觉风格」开时也能吃同一套；这里不再重复定义。 */
   .mbar{
     display:block;position:absolute;inset:0;z-index:22;pointer-events:none
   }
@@ -141,6 +164,12 @@
   .m-switch{
     --ms-x:0px; --ms-sx:1; --ms-sy:1; --ms-spin:200deg;
     --ms-kx0:1; --ms-ky0:1; --ms-kx3:1; --ms-ky3:1;
+    /* 11-19 按设计标准图整体收小：只对整块胶囊做视觉缩放，
+       内部 46px 圆钮 / STEP=48 / 液态玻璃 / WebGL 纹理的几何一律不动，
+       免得把昨天定稿的透镜几何全改一遍。⚠️ 手势拿到的 clientX 是缩放后的
+       屏幕像素，m-home.js 里按 --ms-zoom 换算回控件坐标（点第三格不会判成第二格）。 */
+    --ms-zoom:.86;
+    transform:scale(var(--ms-zoom));transform-origin:left bottom;
     position:absolute;left:6vw;bottom:calc(24px + env(safe-area-inset-bottom));
     display:flex;gap:2px;padding:5px;border-radius:999px;
     background:rgba(120,124,136,.14);
@@ -314,10 +343,11 @@
     .m-switch.liquid .ms-thumb,.m-switch.liquid .ms-lens-view{transition:none}
   }
 
-  /* 右下：黑色大圆钮 +，跟参考图一致 */
+  /* 右下：黑色大圆钮 +，跟参考图一致。11-19 按标准图从 62px 收到 52px
+     （实拍占屏宽 ~17%，标准图 ~13%），图标同步 26 → 22px。 */
   .m-add{
     position:absolute;right:6vw;bottom:calc(21px + env(safe-area-inset-bottom));
-    width:62px;height:62px;border-radius:50%;display:grid;place-items:center;
+    width:52px;height:52px;border-radius:50%;display:grid;place-items:center;
     background:#111318;color:#fff;
     box-shadow:0 10px 24px -8px rgba(17,19,24,.55),0 2px 6px rgba(17,19,24,.18)
   }
@@ -431,60 +461,80 @@
   #mask.ns-pick #edPick{display:block}
   #mask.ns-pick #edPickBack{display:none}
 
-  /* 拉取把手：Bottom Sheet 的形，不能省 */
-  /* 把手只在 sheet 顶端，不 sticky：下面的预览图才是要一直钉住的那一块，
-     两个都 sticky 到 top:0 会在滚动时叠在一起 */
+  /* 11-19 定稿：拖动把手 / 标题（含返回按钮）/ 预览图三段一起吸顶，
+     长表单滚到哪儿都看得见，不再只有预览图留着。
+     ⚠️ 三者 top 按高度依次错开（0 / 30 / 64），都盖住同一个滚动容器 #modal，
+        且一律用不透明实底 —— 否则滚上来的表单文字会从缝里透出来。
+     ⚠️ 别把三个都写 top:0，那会叠在一起互相盖住。 */
   .ns-grab{
-    position:relative;z-index:9;height:30px;display:grid;place-items:center;
-    margin:0 -18px;background:transparent;
+    position:sticky;top:0;z-index:10;height:30px;display:grid;place-items:center;
+    margin:0 -18px;background:var(--ns-paper);
     pointer-events:auto;touch-action:none;cursor:grab;
     user-select:none;-webkit-user-select:none
   }
   .ns-grab::before{
     content:"";width:38px;height:4px;border-radius:99px;background:var(--ns-grab)
   }
-  .ns-head{height:34px;margin:0 0 10px}
+  .ns-head{
+    position:sticky;top:30px;z-index:9;height:34px;margin:0 0 10px;
+    background:var(--ns-paper)
+  }
+  /* 第一步把手高 26px，标题跟着对齐（第一步不滚动，只是别留 4px 缝） */
+  #mask.ns-pick .ns-head{top:26px}
   .ns-back{
     display:grid;position:absolute;left:0;top:50%;transform:translateY(-50%);
     width:34px;height:34px;opacity:.85
   }
-  /* 第一步（照参考图）：大标题「选择装帧」+ 灰副标题（当前款名）+ 居中大卡片横滑，
-     左右各露出相邻卡片一角，底部一排分页点。款式名称不再印在卡片里。 */
+  /* 第一步（照参考图）：大标题「选择装帧」+ 灰副标题（当前款名）+ 居中卡片横滑，
+     左右各露出相邻卡片一角，底部一排分页点。款式名称不再印在卡片里。
+     ⚠️ 11-19 比例修正：原来 62vw×250px 卡片 + 132px 封面把整块内容撑到 ~394px，
+        而 sheet 只有 46dvh（≈423px），再扣掉底部安全区，分页点正好被遮住。
+        整组等比收一档：卡片 54vw×196px、封面 108px，头部/间距一起压紧，
+        总高约 320px，标题 / 卡片 / 分页点在安全区之上全部可见。 */
+  #mask.ns-pick .ns-grab{height:26px}
+  #mask.ns-pick .ns-head{margin:0 0 8px}
+  /* 收小后内容比 46dvh 矮一截，让整组在 sheet 里垂直居中，
+     上下留白均匀，不会出现「卡片贴着标题、底下空一大片」。 */
+  #mask.ns-pick #edPick{
+    display:flex;flex-direction:column;justify-content:center;
+    min-height:calc(46dvh - 26px)
+  }
   #edPick .ns-head h2{font-size:22px;font-weight:700;letter-spacing:.06em}
   .ns-sub{
-    margin:2px 0 18px;text-align:center;font-size:14px;
+    margin:2px 0 10px;text-align:center;font-size:14px;
     color:#8a8e99;letter-spacing:.04em
   }
   .ns-cards{
     display:flex;gap:14px;overflow-x:auto;overscroll-behavior-x:contain;
     scroll-snap-type:x mandatory;
-    /* 左右各留 (100vw - 62vw)/2：第一/最后一张也能停在正中，旁边还能露出邻卡 */
-    padding:0 calc((100vw - 62vw) / 2) 8px;
+    /* 左右各留 (100vw - 54vw)/2：第一/最后一张也能停在正中，旁边还能露出邻卡 */
+    padding:0 calc((100vw - 54vw) / 2) 6px;
     scrollbar-width:none;-webkit-overflow-scrolling:touch
   }
   .ns-cards::-webkit-scrollbar{display:none}
   .ns-card{
-    flex:0 0 62vw;width:62vw;height:250px;box-sizing:border-box;
+    flex:0 0 54vw;width:54vw;height:196px;box-sizing:border-box;
     scroll-snap-align:center;display:flex;align-items:center;justify-content:center;
-    padding:0;border-radius:22px;
+    padding:0;border-radius:20px;
     color:inherit;background:var(--ns-card);border:1px solid var(--ns-bd);
     transition:background .18s,border-color .18s,transform .18s
   }
   .ns-card:active{transform:scale(.98)}
   .ns-card.on{background:var(--ns-on);border-color:rgba(127,132,150,.5)}
   .ns-pv{display:flex;align-items:center;justify-content:center;pointer-events:none}
-  .ns-pv .cover{--cover-w:132px;--cr-scale:.54;box-shadow:0 18px 32px -16px rgba(0,0,0,.5)}
+  /* --cr-scale 必须跟着封面宽同比折算（108 / 主页 246 ≈ .44），否则圆角会偏大 */
+  .ns-pv .cover{--cover-w:108px;--cr-scale:.44;box-shadow:0 14px 26px -14px rgba(0,0,0,.5)}
   .ns-card b,.ns-card small,.ns-tip{display:none}
-  .ns-dots{display:flex;justify-content:center;gap:7px;margin:14px 0 0}
+  .ns-dots{display:flex;justify-content:center;gap:7px;margin:10px 0 0}
   .ns-dots i{
     width:7px;height:7px;border-radius:99px;background:#c9ccd3;
     transition:width .26s ease,background .26s ease
   }
   .ns-dots i.on{width:22px;background:#171a21}
 
-  /* 第二步：预览图永远钉在最上面（跟着内容滚但不出屏） */
+  /* 第二步：预览图钉在「把手 30 + 标题 34」下面，跟前两段拼成一条吸顶栏 */
   #mask .editor-preview{
-    position:sticky;top:0;z-index:6;display:flex;justify-content:center;
+    position:sticky;top:64px;z-index:6;display:flex;justify-content:center;
     margin:0 -18px 8px;padding:8px 18px 14px;
     background:var(--ns-paper);
     /* 底下不要阴影，只留一条极浅的分隔线 */
@@ -658,7 +708,11 @@
 .mn-switch.on{background:#111318}
 .mn-switch.on::after{transform:translateX(18px)}
 .mn-switch input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer;z-index:1}
-.mn-note{margin:8px 4px 0;font-size:11.5px;line-height:1.7;color:#9a9ea9}
+/* 11-19 用户要求去掉「实验性功能」下面那两行状态说明（MUI / WebGL 的
+   「已开启 · …」文字）。⚠️ 这两行由 m-home.js ensureMuiSwitch() 自愈创建，
+   本地编辑器也常把 index.html 里那两个 <p> 整行还原回来，所以别只删 HTML / JS：
+   整类直接隐藏，无论节点是 HTML 自带的还是 JS 补的都不显示。 */
+.mn-note{display:none;margin:8px 4px 0;font-size:11.5px;line-height:1.7;color:#9a9ea9}
 .mn-foot{margin:26px 0 0;text-align:center;font-size:11px;color:#c0c3cb;letter-spacing:.06em}
 /* 卡片里可折叠的说明（隐私说明），点行展开一段文字 */
 .mn-detail{display:none;padding:0 18px 16px;font-size:12.5px;line-height:1.85;color:#737783}
@@ -709,15 +763,29 @@
 }
 
 /* =====================================================================
- * ⑤ 移动端菜单页复位：必须写在 ③ 之后 —— ③ 的居中弹窗宽高与这里特异性相同，
- *    若放在它前面会被盖掉，竖屏就变成了小弹窗而不是整屏页。
+ * ⑤ 移动端菜单页复位（整屏页）—— 11-19 定稿：只跟视口走，不跟开关走
+ *    · 必须写在 ③ 之后：③ 的居中弹窗宽高与这里特异性相同，放前面会被盖掉。
+ *    · ⚠️ 条件写 64em 而不是 1024px：index.html 首帧脚本 / m-home.js 的
+ *      muiCss() 会把 m-home.css 里所有含「1024px」的竖屏 media 在「关掉移动端
+ *      新视觉风格」时改成 not all、含「1025px」的桌面 ④ 改成 all。用户明确要求：
+ *      移动端不论开关开没开，设置/菜单页都是一整个页面；只有电脑端才是弹窗。
+ *      media query 里 em 按初始 16px 计算，64em === 1024px，但字符串不含被脚本
+ *      匹配的那两个数字 —— 这一条永远只认视口，开关怎么拨都不受影响。
+ *    · ⚠️ 关开关时 ④ 会整段放开成 all：它里面 .mn-top .mn-back / .mn-x 是三级
+ *      选择器，特异性高于 ③/⑤ 的二级版本，必须用同款三级选择器压回去，
+ *      否则整屏页右上角会冒出 ✕、左上返回反被藏掉。
  * ===================================================================== */
-@media (orientation:portrait) and (max-width:1024px){
+@media (orientation:portrait) and (max-width:64em){
   #homeMenu.addmenu,#homeMenu.addmenu.show{
     width:auto;height:auto;margin:0;
     border:0;border-radius:0;box-shadow:none;overflow:visible
   }
   /* 整屏页只用左上返回；右上 ✕ 是桌面弹窗的关闭键 */
   #homeMenu.addmenu .mn-top{display:block}
+  #homeMenu.addmenu .mn-top .mn-back{display:grid}
+  #homeMenu.addmenu .mn-top .mn-x,
   #homeMenu.addmenu .mn-x{display:none}
+  /* ④ 给桌面鼠标留的细滚动条：竖屏整屏页仍保持隐藏 */
+  .mn-sw::-webkit-scrollbar{display:none}
+  .mn-sw{scrollbar-width:none}
 }

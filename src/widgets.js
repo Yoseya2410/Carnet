@@ -641,6 +641,22 @@ function syncGlSetting() {
   note.hidden = false;
   note.textContent = msg;
 }
+/* 实验性「新视觉风格」：状态与切换由 m-home.js 的 window.MobileUI 管，
+   这里只负责旧设置页（#bgMask）里那颗开关的读写。m-home.js（脚本 30）比本文件
+   晚加载，但只在「打开设置 / 拨开关」的运行时访问，不会撞 TDZ。 */
+function muiApi() { return window.MobileUI || null; }
+function syncMuiBgSetting() {
+  const cb = $('#muiEnabled'), note = $('#muiNote');
+  if (!cb) return;                       // index.html 被还原时静默跳过
+  const api = muiApi();
+  cb.checked = api ? !!api.on : true;
+  cb.disabled = !api;
+  if (!note) return;
+  note.hidden = false;
+  note.textContent = !api ? '移动端界面模块未加载'
+    : cb.checked ? '已开启 · 手机竖屏使用独立主页与底部面板；电脑端不受影响'
+                 : '已关闭 · 手机竖屏界面与电脑端一致';
+}
 const BG_PRESETS = ['#5b6182', '#445070', '#3a4358', '#232840', '#6e5a66', '#7a5c49', '#4f6b5d', '#3d5a66', '#8a8fa8', '#b8a98f'];
 function bgCur() { return state.prefs.bg || { mode: 'default', value: '', img: null }; }
 function syncBgPanel() {
@@ -670,6 +686,7 @@ function syncBgPanel() {
 function openBgPanel() {
   syncBgPanel();
   syncGlSetting();
+  syncMuiBgSetting();
   $('#bgMask').classList.add('show');
 }
 /* 头部两颗按钮功能完全一样：移动端显示左上「返回」，电脑端显示右上「✕」。
@@ -695,6 +712,15 @@ $('#glEnabled').addEventListener('change', e => {
   if (!ok) e.target.checked = false;
   syncGlSetting();
   toast(e.target.checked ? '已开启 WebGL 渲染' : '已关闭 WebGL 渲染');
+});
+/* 新视觉风格：与菜单页那颗开关共用一个状态，拨完两边即时同步 */
+const muiBgCb = $('#muiEnabled');
+if (muiBgCb) muiBgCb.addEventListener('change', e => {
+  const api = muiApi();
+  if (!api) { e.target.checked = true; return; }
+  api.set(e.target.checked);
+  syncMuiBgSetting();
+  toast(e.target.checked ? '已开启新视觉风格' : '已切换为电脑端界面');
 });
 $('#bgReset').onclick = () => { setBg({ mode: 'default', value: '', img: null }); syncBgPanel(); toast('已恢复默认背景'); };
 $('#bgClearImg').onclick = () => { setBg({ mode: 'default', value: '', img: null }); syncBgPanel(); };

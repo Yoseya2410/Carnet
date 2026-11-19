@@ -14,8 +14,64 @@
   'use strict';
 
   const MQ = '(orientation:portrait) and (max-width:1024px)';
-  const isMobile = () => !!(window.matchMedia && window.matchMedia(MQ).matches);
+  /* ------------------------------------------------------------------
+   * ⓪ 实验性「新视觉风格」（默认开，设置 → 实验性功能）
+   *    开 = 手机竖屏用本文件 + m-home.css 那套独立主页 / Bottom Sheet / 整屏菜单；
+   *    关 = 整体停用 m-home.css 的竖屏 @media、把桌面 @media 放开成 all，
+   *        并让 isMobile() 恒为 false —— 两步 Sheet、轮播书名、浮层按钮等
+   *        所有业务分支全部走电脑端那套原逻辑，移动端 UI 与电脑端一致。
+   *    ⚠️ 状态只存 localStorage，不进 state.prefs、不跟 .json 导出走（同 GLLab）。
+   *    ⚠️ index.html 的内联脚本会在首帧先切一次 CSS；这里保留同款兜底，
+   *       HTML 被本地编辑器还原后功能依然在（只是首帧可能闪一下）。
+   *    ⚠️ 不逐条盖 CSS：m-home.css 的竖屏规则有上百条，靠改写 CSSMediaRule
+   *       的 mediaText 整段开关，桌面那条（④）同时放开，形态才真的一致。
+   * ------------------------------------------------------------------ */
+  const LS_MUI = 'carnet_mobile_ui_v1';
+  let muiOn = true;
+  try { muiOn = localStorage.getItem(LS_MUI) !== 'off'; } catch (_) {}
+  const MQ_MOBILE = '(orientation:portrait) and (max-width:1024px)';
+  const MQ_DESKTOP = '(min-width:1025px), (orientation:landscape)';
+  function muiCss(on) {
+    /* 自己也跑一遍：index.html 那段只负责首帧，且可能被还原；
+       同一批 CSSMediaRule 会复用 __muiOrig，重复设置是幂等的。 */
+    try {
+      [...document.styleSheets].forEach(sh => {
+        if (!String(sh.href || '').includes('m-home.css')) return;
+        [...sh.cssRules].forEach(r => {
+          if (r.type !== 4) return;                     // CSSMediaRule
+          if (r.__muiOrig === undefined) r.__muiOrig = r.conditionText || '';
+          const t = r.__muiOrig;
+          if (t.includes('orientation: portrait') && t.includes('1024px'))
+            r.media.mediaText = on ? MQ_MOBILE : 'not all';
+          else if (t.includes('1025px'))
+            r.media.mediaText = on ? MQ_DESKTOP : 'all';
+        });
+      });
+    } catch (_) {}
+  }
+  muiCss(muiOn);
+  document.documentElement.classList.toggle('mui-off', !muiOn);
+
+  const isMobile = () => muiOn && !!(window.matchMedia && window.matchMedia(MQ).matches);
   window.MHome = { isMobile };
+  window.MobileUI = {
+    get on() { return muiOn; },
+    status: () => ({ on: muiOn, mobile: !!(window.matchMedia && window.matchMedia(MQ).matches) }),
+    set(on) {
+      const v = !!on;
+      if (v === muiOn) return true;
+      muiOn = v;
+      try { localStorage.setItem(LS_MUI, v ? 'on' : 'off'); } catch (_) {}
+      document.documentElement.classList.toggle('mui-off', !v);
+      muiCss(v);
+      /* 两套 UI 的 DOM 与事件绑定一直都在，只是显示形态变了：重绘一次主页，
+         让桌面顶栏 / 三态切换 / 轮播间距立刻回到正确状态。 */
+      try { if (typeof renderHome === 'function') renderHome(); } catch (_) {}
+      try { if (typeof syncViewToggle === 'function') syncViewToggle(); } catch (_) {}
+      mSync();
+      return true;
+    }
+  };
 
   /* ------------------------------------------------------------------
    * ① 主页浮层
@@ -51,7 +107,10 @@
         所以用 MutationObserver 盯这几个节点，滑动换本时才跟得上；回调合帧，别一帧重画几次。 */
   let mcLastFrom = -1, mcRollRaf = 0;
   function mSyncMeta() {
-    if (!isMobile()) return;
+    /* 11-20：轮播信息区现在「只认开关、不认视口」—— 电脑端（isMobile() 为 false）
+       只要新视觉风格开着，也要更新封面下方的书名 / 页数 / 分页点。
+       ⚠️ 别改回 !isMobile() return，否则电脑端会一直显示 HTML 里的「— / 0 页」占位。 */
+    if (!muiOn) return;
     const name = $('#mcName'), meta = $('#mcMeta'), dots = $('#mcDots');
     if (!name || !meta || !dots) return;
     const j = cur();
@@ -149,6 +208,11 @@
       sw.appendChild(lens);
     }
     const VIEWS = ['shelf', 'spine', 'carousel'], STEP = 48, HOLD = 150;
+    /* 11-19：胶囊按 --ms-zoom 做了整体视觉缩放，内部几何（STEP / 46px 圆钮 /
+       液态玻璃 / WebGL 纹理）一律不变，只有 pointer 的 clientX 是缩放后的屏幕像素。
+       初始化时读一次 zoom（绝不在拖动中读样式），把手势换回控件坐标系，
+       否则点第三格会被算成第二格、拖动也会比手指慢一截。 */
+    const ZOOM = parseFloat(getComputedStyle(sw).getPropertyValue('--ms-zoom')) || 1;
     const btns = [...sw.querySelectorAll('button[data-mv]')];
     /* 折射副本直接 clone 真实图标：以后改图标不用再维护第二份 SVG。
        两层 = 主折射（橙 / 蓝色散彩边）+ 更远更淡的球面拉伸重影。 */
@@ -244,7 +308,7 @@
         id: e.pointerId, x: e.clientX, left: r.left,
         base, pos: base, moved: false, liquid: false, cancelled: false,
         /* 点击按落点算格子（46px 按钮 + 2px gap = 48px 一档），不依赖 target */
-        clickIdx: clamp(Math.floor((e.clientX - r.left - 5) / STEP), 0, VIEWS.length - 1)
+        clickIdx: clamp(Math.floor(((e.clientX - r.left) / ZOOM - 5) / STEP), 0, VIEWS.length - 1)
       };
       const pid = e.pointerId;
       holdT = setTimeout(() => {
@@ -255,7 +319,7 @@
     });
     sw.addEventListener('pointermove', e => {
       if (!st || e.pointerId !== st.id) return;
-      const dx = e.clientX - st.x;
+      const dx = (e.clientX - st.x) / ZOOM;
       if (!st.liquid) {
         /* 长按还没到就甩出去 = 普通点按 / 快速滑动，别把液态态误触发 */
         if (!st.moved && Math.abs(dx) > 10) {
@@ -282,7 +346,7 @@
       const idx = s.liquid && s.moved
         ? clamp(Math.round(s.pos / STEP), 0, VIEWS.length - 1)
         : !s.liquid && s.moved
-          ? clamp(Math.floor((e.clientX - s.left - 5) / STEP), 0, VIEWS.length - 1)
+          ? clamp(Math.floor(((e.clientX - s.left) / ZOOM - 5) / STEP), 0, VIEWS.length - 1)
           : s.clickIdx;
       /* 先清 inline 变量交回 CSS，再切视图：data-v 带着 .3s 缓动把玻璃珠
          吸附到目标格，同时 scale 收回 46px 圆钮，不会瞬移。 */
@@ -572,7 +636,60 @@
   bindHDrag($('#mnBgColors'));
   bindHDrag($('#cpSwatches'));
 
+  /* 「新视觉风格」开关：index.html 被本地编辑器还原时这一行可能不在，
+     和 .ms-lens-view 一样做自愈补建，保证实验性功能里永远有这个入口。 */
+  function ensureMuiSwitch() {
+    let card = null;
+    [...document.querySelectorAll('#homeMenu .mn-cap')].some(n => {
+      if (n.textContent.trim() !== '实验性功能') return false;
+      card = n.nextElementSibling; return true;
+    });
+    if (!card || !card.classList.contains('mn-card')) return !!$('#mnMui');
+    if (!$('#mnMui')) {
+      const row = document.createElement('label');
+      row.className = 'mn-row';
+      row.innerHTML = '<b>新视觉风格</b><span class="mn-switch" id="mnMuiSwitch"><input type="checkbox" id="mnMui" aria-label="新视觉风格"></span>';
+      card.insertBefore(row, card.firstChild);
+    }
+    /* ⚠️ <p class="mn-note"> 这两行最容易被本地编辑器整行还原掉，
+       连 WebGL 原来的说明一起补回来。都插到同一个 anchor 前 = 数组顺序即显示顺序，
+       必须 MUI 在前、GL 在后，跟卡片里两行的上下顺序一致。 */
+    const anchor = card.nextSibling;
+    ['mnMuiNote', 'mnGlNote'].forEach(id => {
+      if (document.getElementById(id)) return;
+      const n = document.createElement('p');
+      n.className = 'mn-note'; n.id = id;
+      card.parentNode.insertBefore(n, anchor);
+    });
+    return !!$('#mnMui');
+  }
+  function bindMuiSwitch() {
+    const cb = $('#mnMui');
+    if (!cb || cb.dataset.bound) return;
+    cb.dataset.bound = '1';
+    cb.addEventListener('change', e => {
+      const api = window.MobileUI;
+      if (!api) { e.target.checked = true; return; }
+      api.set(e.target.checked);
+      mnSync();
+      toast(e.target.checked ? '已开启新视觉风格' : '已切换为电脑端界面');
+    });
+  }
+  function syncMuiSetting() {
+    if (!ensureMuiSwitch()) return;
+    bindMuiSwitch();
+    const cb = $('#mnMui'), box = $('#mnMuiSwitch'), note = $('#mnMuiNote');
+    const st = window.MobileUI ? window.MobileUI.status() : { on: true, mobile: false };
+    cb.checked = !!st.on;
+    if (box) box.classList.toggle('on', !!st.on);
+    if (note) note.textContent = st.on
+      ? (st.mobile ? '已开启 · 手机竖屏使用独立主页与底部面板'
+                   : '已开启 · 当前为电脑端界面，本开关只影响手机竖屏')
+      : '已关闭 · 手机竖屏界面与电脑端一致';
+  }
+
   function mnSync() {
+    syncMuiSetting();
     const b = bgNow();
     /* 背景色板：预置色 + 末尾「＋」自定义取色 */
     const box = $('#mnBgColors');
@@ -614,6 +731,16 @@
           : cb.checked ? '已开启 · 多层书架与阅读器由 GPU 绘制；左右滑动 / 单层书架为保持流畅不启用'
             : '已关闭 · 当前使用标准渲染';
     }
+  }
+  /* 其它入口（历史脚本 / 搜索页）直接调 openHomeMenu 时，实验性开关的状态
+     也要刷新，否则打开菜单会看到一颗没同步的开关。包一层，mnSync 幂等。 */
+  const origOpenHomeMenu = window.openHomeMenu;
+  if (typeof origOpenHomeMenu === 'function') {
+    window.openHomeMenu = function () {
+      const r = origOpenHomeMenu.apply(this, arguments);
+      mnSync();
+      return r;
+    };
   }
   function mOpenMenu() { mnSync(); openHomeMenu(); }
   const mMenu = $('#mMenu');

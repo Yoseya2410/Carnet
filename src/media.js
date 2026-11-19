@@ -140,7 +140,7 @@ function applyBox(w, im) {
    只拉到上限，剩下的留白透出纸色 —— 硬拉满会把人拉扁，那不是「一定程度」。
    盒子比例 ≠ 图片比例，所以 .pimg 必须 object-fit: fill（拉满盒子），见 image-tools.css。
    ratio 是「高 ÷ 宽」（跟 imgRatio 一致），返回的全是占页比例。
-   ⚠️ 纸张比例用 PAGE_RATIO 常量而不是量 DOM：一键成书时阅读器还没打开、量不到 .paper，
+   ⚠️ 纸张比例用 PAGE_RATIO 常量而不是量 DOM：将图片导入为手账本时阅读器还没打开、量不到 .paper，
       量出来的值还可能被最小页高顶偏；纸的模样按装帧走（默认 A5），跟导出也是同一套 */
 const FILL_STRETCH = .3;      // 最多拉 30%（往填满的那一维拉）。想更满调大，想更保真调小
 const FILL_GEOM_V = 2;        // 几何版本号：fillGeom 的算法一改就 +1，老数据按新规矩重算一次
@@ -209,7 +209,7 @@ function ensureImageHeights() {
 /* 背景图没必要存原图：超过 maxSide 就等比缩一下再压成 JPEG，
    几 MB 的截图压完通常只有几百 KB，存 IndexedDB 不心疼。
    opt = { q, bg }：q 是 JPEG 质量（默认 .82）、bg 是打底色（默认不打底）。
-   「一键成书」那一路用更高质量，并先铺一层纸白 —— 透明 PNG 转 JPEG 会发黑 */
+   「将图片导入为手账本」那一路用更高质量，并先铺一层纸白 —— 透明 PNG 转 JPEG 会发黑 */
 async function shrinkImageFile(input, maxSide, opt) {
   const q = (opt && opt.q) || .82;
   const bg = (opt && opt.bg) || '';

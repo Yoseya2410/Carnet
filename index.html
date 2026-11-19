@@ -36,6 +36,38 @@
   <link rel="stylesheet" href="style/lock.css">
   <!-- 移动端主页 / 新建 Bottom Sheet / 卡片式菜单：必须排在最后，它要盖掉旧 #homeMenu 与 .modal 的形态 -->
   <link rel="stylesheet" href="style/m-home.css">
+  <script>
+  /* 实验性「新视觉风格」：默认开。关闭时要在首帧就把 m-home.css 的
+     竖屏专属 @media 整段停掉、把桌面段整段放开，否则会先闪一帧移动版 UI。
+     这里只负责「按已存状态切 CSS」，开关与状态管理在 src/m-home.js。
+     ⚠️ 每条 media 的原始条件存在 r.__muiOrig，重复拨开关才能来回还原。 */
+  (function(){
+    function css(on){
+      try{
+        for(const sh of document.styleSheets){
+          if(!(sh.href||'').includes('m-home.css')) continue;
+          for(const r of sh.cssRules){
+            if(r.type!==4) continue;                       // CSSMediaRule
+            if(r.__muiOrig===undefined) r.__muiOrig=r.conditionText||'';
+            const t=r.__muiOrig;
+            if(t.includes('orientation: portrait')&&t.includes('1024px'))
+              r.media.mediaText=on?'(orientation:portrait) and (max-width:1024px)':'not all';
+            else if(t.includes('1025px'))
+              r.media.mediaText=on?'(min-width:1025px), (orientation:landscape)':'all';
+          }
+        }
+      }catch(e){}
+    }
+    window.__muiCss=css;
+    try{
+      const off=localStorage.getItem('carnet_mobile_ui_v1')==='off';
+      css(!off);
+      /* 首帧就把开关状态写成 html.mui-off：CSS 里「只在开新视觉风格时生效」的
+         规则用 html:not(.mui-off) 兜住，别等 m-home.js 加载完才切，避免闪一帧。 */
+      document.documentElement.classList.toggle('mui-off',off);
+    }catch(e){}
+  })();
+  </script>
 </head>
 <body data-page-node-id="fyhITFSae6zxcmzB16cSQh">
 <div data-page-node-id="FaGVY50w6eg6p918jzsNIa" id="app">
@@ -94,14 +126,14 @@
         <div data-page-node-id="PickMenu" class="addmenu share-pop" id="pickMenu">
           <button data-page-node-id="PMjson" data-pickact="json"><svg data-page-node-id="PMjsonIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><path data-page-node-id="PMjsonP1" d="M12 4v11"/><path data-page-node-id="PMjsonP2" d="M8 11l4 4 4-4"/><path data-page-node-id="PMjsonP3" d="M4.6 15.2v4.3a1.1 1.1 0 001.1 1.1h12.6a1.1 1.1 0 001.1-1.1v-4.3"/></svg>导出源文件</button>
           <button data-page-node-id="PMpdf" data-pickact="pdf"><svg data-page-node-id="PMpdfIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><path data-page-node-id="PMpdfP1" d="M7 4.5h7l4 4V19a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 7 19V5a.5.5 0 0 1 0-.5z"/><path data-page-node-id="PMpdfP2" d="M14 4.5V8.5h4"/><path data-page-node-id="PMpdfP3" d="M10 15h4"/></svg>导出 PDF</button>
-          <button data-page-node-id="PMsvg" data-pickact="svg"><svg data-page-node-id="PMsvgIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><path data-page-node-id="PMsvgP1" d="M9 6.5L4 12l5 5.5"/><path data-page-node-id="PMsvgP2" d="M15 6.5L20 12l-5 5.5"/><circle data-page-node-id="PMsvgC1" cx="12" cy="12" r="1.5"/></svg>导出 SVG（矢量）</button>
+          <button data-page-node-id="PMsvg" data-pickact="svg"><svg data-page-node-id="PMsvgIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><path data-page-node-id="PMsvgP1" d="M9 6.5L4 12l5 5.5"/><path data-page-node-id="PMsvgP2" d="M15 6.5L20 12l-5 5.5"/><circle data-page-node-id="PMsvgC1" cx="12" cy="12" r="1.5"/></svg>导出 SVG</button>
         </div>
       </div>
       <button data-page-node-id="PickDel" class="pick-btn danger" id="pickDelete">删除</button>
       <button data-page-node-id="PickCancel" class="pick-btn" id="pickCancel">取消</button>
     </div>
     <div data-page-node-id="b54lkYScSSWUVIbtcPYhAv" class="actionbar">
-      <!--pnid:MOnote--><!-- 原来的「更多」三点按钮已撤掉：一键成书 / 导入 PDF / 设置
+      <!--pnid:MOnote--><!-- 原来的「更多」三点按钮已撤掉：将图片导入为手账本 / 导入 PDF / 设置
            三项并进右上角「菜单」（#homeMenu）—— 它们都不依赖「当前选中的那一本」，
            放在常开的菜单里比放在会因无本而置灰的底栏上更合适 -->
       <div data-page-node-id="SWrap" class="share-wrap">
@@ -111,7 +143,7 @@
         <div data-page-node-id="ShMenu" class="addmenu share-pop" id="shareMenu">
           <button data-page-node-id="SHjson" data-shareact="json"><svg data-page-node-id="SHjsonIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><path data-page-node-id="SHjsonP1" d="M12 4v11"/><path data-page-node-id="SHjsonP2" d="M8 11l4 4 4-4"/><path data-page-node-id="SHjsonP3" d="M4.6 15.2v4.3a1.1 1.1 0 001.1 1.1h12.6a1.1 1.1 0 001.1-1.1v-4.3"/></svg>导出源文件</button>
           <button data-page-node-id="SHpdf" data-shareact="pdf"><svg data-page-node-id="SHpdfIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><path data-page-node-id="SHpdfP1" d="M7 4.5h7l4 4V19a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 7 19V5a.5.5 0 0 1 0-.5z"/><path data-page-node-id="SHpdfP2" d="M14 4.5V8.5h4"/><path data-page-node-id="SHpdfP3" d="M10 15h4"/></svg>导出 PDF</button>
-          <button data-page-node-id="SHsvg" data-shareact="svg"><svg data-page-node-id="SHsvgIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><path data-page-node-id="SHsvgP1" d="M9 6.5L4 12l5 5.5"/><path data-page-node-id="SHsvgP2" d="M15 6.5L20 12l-5 5.5"/><circle data-page-node-id="SHsvgC1" cx="12" cy="12" r="1.5"/></svg>导出 SVG（矢量）</button>
+          <button data-page-node-id="SHsvg" data-shareact="svg"><svg data-page-node-id="SHsvgIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><path data-page-node-id="SHsvgP1" d="M9 6.5L4 12l5 5.5"/><path data-page-node-id="SHsvgP2" d="M15 6.5L20 12l-5 5.5"/><circle data-page-node-id="SHsvgC1" cx="12" cy="12" r="1.5"/></svg>导出 SVG</button>
         </div>
       </div>
       <!--pnid:ActNew--><!-- 底栏顺序：分享 · 新建（居中） · 删除。新建是最高频的动作，摆中间顺手 -->
@@ -157,7 +189,7 @@
       </div>
 
       <button class="m-add" id="mAdd" title="新建手帐本" aria-label="新建手帐本">
-        <svg fill="none" height="26" stroke="currentColor" stroke-linecap="round" stroke-width="1.9" viewBox="0 0 24 24" width="26"><path d="M12 5v14M5 12h14"/></svg>
+        <svg fill="none" height="22" stroke="currentColor" stroke-linecap="round" stroke-width="1.9" viewBox="0 0 24 24" width="22"><path d="M12 5v14M5 12h14"/></svg>
       </button>
 
       <!-- 多选态右上：删除 + 完成 连在一块的白色胶囊（参考图），
@@ -177,7 +209,7 @@
         <b>分享</b>
         <button data-expkind="json">导出源文件</button>
         <button data-expkind="pdf">导出 PDF</button>
-        <button data-expkind="svg">导出 SVG（矢量）</button>
+        <button data-expkind="svg">导出 SVG</button>
         <button class="m-exp-cancel" id="mExpCancel">取消</button>
       </div>
 
@@ -642,7 +674,7 @@
     </div>
   </div>
 
-  <!--pnid:MKbusy--><!-- 一键成书的进度胶囊：toast 只进控制台，几秒的活儿得有个看得见的进度 -->
+  <!--pnid:MKbusy--><!-- 将图片导入为手账本的进度胶囊：toast 只进控制台，几秒的活儿得有个看得见的进度 -->
   <div data-page-node-id="MKbusyWrap" class="mkbusy" id="mkBusy" hidden>
     <span data-page-node-id="MKspin" class="mk-spin"></span>
     <span data-page-node-id="MKtx" class="mk-tx" id="mkTx"><!--pnid:MKtxTx-->正在成书…</span>
@@ -684,7 +716,7 @@
 
       <div class="mn-cap">导入</div>
       <div class="mn-card">
-        <button class="mn-row" data-mnact="book"><b>一键成书</b><span class="mn-val">选一组图片生成一本</span><span class="mn-arr">›</span></button>
+        <button class="mn-row" data-mnact="book"><b>将图片导入为手账本</b><span class="mn-arr">›</span></button>
         <button class="mn-row" data-mnact="source"><b>导入手账本</b><span class="mn-arr">›</span></button>
         <button class="mn-row" data-mnact="pdf"><b>导入PDF</b><span class="mn-arr">›</span></button>
       </div>
@@ -699,8 +731,10 @@
 
       <div class="mn-cap">实验性功能</div>
       <div class="mn-card">
+        <label class="mn-row"><b>新视觉风格</b><span class="mn-switch" id="mnMuiSwitch"><input type="checkbox" id="mnMui" aria-label="新视觉风格"></span></label>
         <label class="mn-row"><b>使用 WebGL 渲染</b><span class="mn-switch" id="mnGlSwitch"><input type="checkbox" id="mnGl" aria-label="使用 WebGL 渲染"></span></label>
       </div>
+      <p class="mn-note" id="mnMuiNote"></p>
       <p class="mn-note" id="mnGlNote"></p>
 
       <div class="mn-cap">更多</div>
@@ -710,7 +744,7 @@
     </div>
   </div>
 
-  <!--pnid:ImportPanel--><!-- 旧「导入」页：已停用（hidden）。2026-11-18 起，一键成书 /
+  <!--pnid:ImportPanel--><!-- 旧「导入」页：已停用（hidden）。2026-11-18 起，将图片导入为手账本 /
        导入手账本源文件 / 导入 PDF 三行直接放进新菜单页 #homeMenu。
        ⚠️ DOM 与 #impXxx id 保留：home-events.js 顶层还绑着这些节点，删了会抛 TypeError。 -->
   <section class="imp-panel" id="importPanel" hidden>
@@ -727,7 +761,7 @@
       <p class="imp-lead">把图片、源文件或 PDF 变成书架上的一本手帐</p>
       <button class="imp-card" data-impact="book">
         <span class="imp-ico"><svg fill="none" height="22" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" viewBox="0 0 24 24" width="22"><rect height="11" rx="1.6" width="14" x="3.5" y="7"/><path d="M3.5 15.4l3.4-3.3 2.7 2.7 2.2-2.2 5.7 5.6"/><circle cx="8.4" cy="10.4" r="1.1"/><path d="M19.4 2.6l.62 1.7 1.7.62-1.7.62-.62 1.7-.62-1.7-1.7-.62 1.7-.62z"/></svg></span>
-        <span class="imp-card-tx"><b>一键成书</b><small>选一组图片，一次生成一本新手帐</small></span>
+        <span class="imp-card-tx"><b>将图片导入为手账本</b><small>选一组图片，一次生成一本新手帐</small></span>
         <span class="imp-arrow">›</span>
       </button>
       <button class="imp-card" data-impact="source">
@@ -834,6 +868,11 @@
       <!-- 实验性功能：状态由 gl-lab.js 自己持久化，不进 state.prefs、不跟着导出文件走 -->
       <div class="set-sec" data-page-node-id="BGexp">
         <div class="bg-label">实验性功能</div>
+        <div class="bg-opt" id="muiRow">
+          <div class="bg-opt-tx"><b>新视觉风格</b><small>开启后手机竖屏使用独立主页与底部面板；关闭后与电脑端界面一致</small></div>
+          <label class="bg-switch" title="新视觉风格"><input type="checkbox" id="muiEnabled" aria-label="新视觉风格"><i></i></label>
+        </div>
+        <div class="bg-note" id="muiNote" hidden></div>
         <div class="bg-opt" id="glRow">
           <div class="bg-opt-tx"><b>使用 WebGL 渲染</b><small>用 GPU 绘制书架材质与翻页光影；关闭后回到标准渲染</small></div>
           <label class="bg-switch" title="使用 WebGL 渲染"><input type="checkbox" id="glEnabled" aria-label="使用 WebGL 渲染"><i></i></label>
