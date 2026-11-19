@@ -22,6 +22,18 @@ let scrubOn = false, scrubHideT = null;
 let scrubPos = 0;                // 浮点页位置，刻度带按它连续滚动
 let scrubDx = 0, scrubMaxX = 48; // 滑块相对中心的位移 / 可移动上限
 let scrubAutoRaf = 0, scrubAutoT = 0;
+/* autoTick 每帧都调 paintScrub()：原来每帧要 querySelector 三次、再读一次
+   track.clientWidth（写 transform 的同一帧读布局 = 强制同步重排）。
+   三个节点都是静态 DOM，轴宽在轴显示期间也不变，缓存下来；节点若被换掉
+   或视口变了就自动重查 / 重量，行为与原来一致。 */
+const scrubEls = { track: null, ticks: null, num: null };
+let scrubTrackW = 0;
+function scrubEl(key, id) {
+  let el = scrubEls[key];
+  if (!el || !el.isConnected) el = scrubEls[key] = $('#' + id);
+  return el;
+}
+window.addEventListener('resize', () => { scrubTrackW = 0; });
 /* ⚠️ 11-17 定稿：一根刻度 = **一页**（不是一跨页）。双页模式下 3 页就画 3 根，
      拖到第 N 页就跳到含第 N 页的那一跨。以前按 spreadCount 算，3 页只画 2 根，
      跟「刻度数与页数一一对应」对不上。 */
@@ -36,7 +48,7 @@ function scrubViewIndex() { return state.mode === 'spread' ? state.spread : stat
 function scrubLast() { return Math.max(scrubCount() - 1, 0); }
 /* 一根刻度 = 一页，页数变了就重建（只在打开页数轴时跑一次） */
 function buildScrub() {
-  const box = $('#scrubTicks'); if (!box) return;
+  const box = scrubEl('ticks', 'scrubTicks'); if (!box) return;
   const n = scrubCount();
   let html = '';
   for (let i = 0; i < n; i++) html += `<i style="left:${((i + .5) * SCRUB_GAP).toFixed(1)}px"></i>`;
@@ -45,19 +57,20 @@ function buildScrub() {
 /* 刻度清晰：全部实心黑，只按离中心的距离改变粗细 / 长短（中间粗两边细），
    最低不透明度 .72 —— 不做渐隐，两端也看得清。只刷可见的几根，页数再多也不卡。 */
 function paintScrub() {
-  const track = $('#scrubTrack'), box = $('#scrubTicks');
+  const track = scrubEl('track', 'scrubTrack'), box = scrubEl('ticks', 'scrubTicks');
   if (!track || !box) return;
   if (!scrubOn && Math.round(scrubPos) !== scrubIndex()) scrubPos = scrubIndex();  // 外部翻页后同步
-  const w = track.clientWidth, center = w / 2, last = scrubLast();
+  const w = scrubTrackW || (scrubTrackW = track.clientWidth), center = w / 2, last = scrubLast();
   scrubPos = clamp(scrubPos, 0, last);
   const shift = center - (scrubPos + .5) * SCRUB_GAP;
   box.style.transform = `translate3d(${shift.toFixed(2)}px,0,0)`;
   const idx = clamp(Math.round(scrubPos), 0, last);
-  const num = $('#scrubNum');
+  const num = scrubEl('num', 'scrubNum');
   /* 正中那根变宽的刻度里显示的就是这一页的页码（1 起） */
   if (num) {
-    num.textContent = String(idx + 1);
-    num.classList.toggle('wide', num.textContent.length > 2);
+    const ns = String(idx + 1);
+    if (num.textContent !== ns) num.textContent = ns;   // 页码没跨页就别写 DOM
+    num.classList.toggle('wide', ns.length > 2);
   }
   const kids = box.children;
   const lo = clamp(Math.floor(-shift / SCRUB_GAP) - 2, 0, last);
@@ -66,10 +79,15 @@ function paintScrub() {
     const el = kids[k]; if (!el) continue;
     const x = (k + .5) * SCRUB_GAP + shift;
     const t = Math.max(0, 1 - Math.abs(x - center) / Math.max(center, 1));
-    el.style.width = (3 + 2.5 * t).toFixed(1) + 'px';
-    el.style.height = (12 + 9 * t).toFixed(1) + 'px';
+    /* 只写真正变了的刻度：width / height 是布局属性，值没变还写一次
+       就会白触发一次重排。拖动时大部分刻度 toFixed(1) 后连续几帧都相同。 */
+    const ws = (3 + 2.5 * t).toFixed(1) + 'px';
+    const hs = (12 + 9 * t).toFixed(1) + 'px';
     /* 当前页那一根让位给正中变宽的页码刻度：留着会从数字底下穿出一条黑线 */
-    el.style.opacity = k === idx ? '0' : (.72 + .28 * t).toFixed(2);
+    const os = k === idx ? '0' : (.72 + .28 * t).toFixed(2);
+    if (el.style.width !== ws) el.style.width = ws;
+    if (el.style.height !== hs) el.style.height = hs;
+    if (el.style.opacity !== os) el.style.opacity = os;
   }
 }
 /* 拖动中跨页也要把纸面翻过去：手帐本跟着页数轴实时翻页。
@@ -121,9 +139,11 @@ function openScrub(clientX) {
   $('#scrub').classList.add('show', 'dragging');
   scrubOn = true;
   clearTimeout(scrubHideT);
-  const track = $('#scrubTrack');
-  /* 摇杆的可移动范围只按轴宽算：页码刻度固定在正中，不再读它的宽度 */
-  scrubMaxX = track ? Math.max(12, track.clientWidth / 2 - 12) : 48;
+  const track = scrubEl('track', 'scrubTrack');
+  /* 摇杆的可移动范围只按轴宽算：页码刻度固定在正中，不再读它的宽度。
+     顺手把轴宽存进 paintScrub 的缓存，省掉这一帧之后的每次 clientWidth。 */
+  scrubTrackW = track ? track.clientWidth : 0;
+  scrubMaxX = track ? Math.max(12, scrubTrackW / 2 - 12) : 48;
   paintScrub();
   stopAuto(); scrubAutoRaf = requestAnimationFrame(autoTick);
   const startX = clientX;

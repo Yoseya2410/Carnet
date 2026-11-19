@@ -104,8 +104,8 @@
     kbTimers = [60, 220, 460, 700].map(ms => setTimeout(fn, ms));
   };
   document.addEventListener('focusin', () => later(syncBars));
-  document.addEventListener('focusout', () => later(syncBars));
-  document.addEventListener('focusout', () => setTimeout(sync, 60));
+  /* 原来同一事件挂了两个监听器；合并成一个，执行顺序仍是先 later(syncBars) 再 sync */
+  document.addEventListener('focusout', () => { later(syncBars); setTimeout(sync, 60); });
 })();
 
 /* ==================== 工具 ==================== */

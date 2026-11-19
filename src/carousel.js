@@ -14,6 +14,12 @@
 const carousel = (() => {
   const wrap = $('#carouselWrap'), track = $('#carousel');
   const EASE = 'transform .46s cubic-bezier(.22,.92,.24,1)';
+  /* 惯性滑行中每次换本都要刷 1/N 计数，缓存节点免得逐帧 querySelector */
+  let countPillEl = null;
+  function countPill() {
+    if (!countPillEl || !countPillEl.isConnected) countPillEl = $('#countPill');
+    return countPillEl;
+  }
   let items = [], off = 0, minOff = 0, maxOff = 0;
   let dragging = false, moved = false, startX = 0, startOff = 0, lastX = 0, lastT = 0, vel = 0;
   let suppressClick = false, wheelLock = 0;
@@ -30,6 +36,9 @@ const carousel = (() => {
      一闪一闪的深色残影。明暗只差 14% 饱和 / 6% 亮度，跟手过程中保持不变
      肉眼几乎看不出；松手 snap() 解除冻结，由 filter transition 平滑补齐。 */
   let freezeFilter = false;
+  /* 记录上一回 ease() 写进去的档位与节点集合：CSSOM 读回 style.transition 会
+     被浏览器规范化（.46s → 0.46s 等），拿字符串直接 diff 会永远判成不等。 */
+  let lastEase = -1, easedItems = null;
   /* 只有「节点换了」或「视口变了」才重新量布局。
      拖动松手 / 滚轮换本都会调 snap()，以前每次都把 n 本书的 offsetLeft / offsetWidth
      读一遍 —— CSS transform 刚写完就同步读布局，是一次强制重排，落在松手那一下最明显。
@@ -102,8 +111,16 @@ const carousel = (() => {
   }
   function cancelPaint() { if (paintRaf) { cancelAnimationFrame(paintRaf); paintRaf = 0; } }
   function ease(animate) {
-    track.style.transition = animate ? EASE : 'none';
-    items.forEach(el => el.style.transition = animate ? EASE + ',filter .46s ease' : 'none');
+    /* 只写值变了的节点：ease(false) 在每次 pointerdown 都会调，
+       书没换时整排 transition 本来就是这个值，全量写是白写的 CSSOM 操作。
+       measure() 重建过 items（引用变了）时必须重新写一遍。 */
+    const k = animate ? 1 : 0;
+    if (lastEase !== k || easedItems !== items) {
+      lastEase = k; easedItems = items;
+      track.style.transition = animate ? EASE : 'none';
+      const et = animate ? EASE + ',filter .46s ease' : 'none';
+      for (let i = 0; i < items.length; i++) items[i].style.transition = et;
+    }
     /* 吸附是 CSS transition（中间帧没有 JS paint），让 GPU 光影层按同样时长继续画 */
     if (animate && window.GLLab && GLLab.on) GLLab.carouselHold(460);
   }
@@ -146,7 +163,8 @@ const carousel = (() => {
       if (near !== state.sel) {          // 滑行中选中态 / 计数跟着走，点开时 cur() 也是这一本
         state.sel = near;
         items.forEach((el, k) => el.classList.toggle('active', k === near));
-        $('#countPill').textContent = `${near + 1} / ${items.length}`;
+        const cp = countPill();
+        if (cp) cp.textContent = `${near + 1} / ${items.length}`;
       }
       if (Math.abs(inertVel) < .35) { settle(); return; }
       inertRaf = requestAnimationFrame(step);
@@ -166,7 +184,8 @@ const carousel = (() => {
       setHomeName(j.name);
       $('#homePages').innerHTML = `<span>▤</span><span>${j.pages.length} 页</span>`;
     }
-    $('#countPill').textContent = `${idx + 1} / ${items.length}`;
+    const cp = countPill();
+    if (cp) cp.textContent = `${idx + 1} / ${items.length}`;
     off = wrapW / 2 - mets[idx].c;
     ease(animate);
     paint();
@@ -181,8 +200,11 @@ const carousel = (() => {
     const from = els.indexOf(el);
     if (from < 0 || els.length < 2) return;
     const bases = els.map(e => e.offsetLeft);
+    /* 宽度也在起手量一次：排序重绘每帧都要用它算缩放，原来 mets 缺项时
+       会在 rAF 里读 e.offsetWidth（写 transform 的同一帧强制同步布局）。 */
+    const widths = els.map(e => e.offsetWidth);
     const step = Math.abs(bases[1] - bases[0]) || el.offsetWidth;
-    sorting = { el, els, bases, step, from, to: from, lastTo: from,
+    sorting = { el, els, bases, widths, step, from, to: from, lastTo: from,
                 startX: x, startY: y, x, y, dx: 0, dy: 0,
                 scroll: 0, auto: 0, raf: 0, lastT: 0, dragged: false,
                 wrapRect: wrap.getBoundingClientRect() };  // 拖动期间容器不动，边缘判定只量这一次
@@ -195,16 +217,15 @@ const carousel = (() => {
   }
   /* 手指拖不动了（到屏幕边）就用 scroll 接力：其余的书持续往反方向送，
      远处够不着的手帐本会一路被送到手边 */
-  function scrollRange(s) {
-    const lo = -s.from * s.step - s.dx, hi = (s.els.length - 1 - s.from) * s.step - s.dx;
-    return [Math.min(lo, hi), Math.max(lo, hi)];
-  }
   function autoTick(now) {
     const s = sorting;
     if (!s || !s.auto) { if (s) s.raf = 0; return; }
     const dt = Math.min(now - s.lastT, 60) / 1000;
     s.lastT = now;
-    const [lo, hi] = scrollRange(s);
+    /* 边界直接算成两个标量：原来 scrollRange() 每帧 new 一个数组再解构，
+       自动滚动时一秒 60 个短命数组，纯属白给 GC 添活。 */
+    const a = -s.from * s.step - s.dx, b = (s.els.length - 1 - s.from) * s.step - s.dx;
+    const lo = Math.min(a, b), hi = Math.max(a, b);
     const speed = s.step * (1.8 + 2.2 * (s.depth || 0));   // 手指越贴边，送得越快
     s.scroll = clamp(s.scroll + s.auto * speed * dt, lo, hi);
     applySortNow();                           // 自动滚动本身就在帧里，立刻画，不排队到下一帧
@@ -228,17 +249,22 @@ const carousel = (() => {
     if (s.to !== s.lastTo) { s.lastTo = s.to; buzz(8); }
     s.el.style.transform = `translate(${s.dx.toFixed(1)}px,${s.dy.toFixed(1)}px) scale(1.07) rotate(-1.5deg)`;
     const view = wrapW / 2 - off;
-    s.els.forEach((e, i) => {
-      if (e === s.el) return;
+    for (let i = 0; i < s.els.length; i++) {
+      const e = s.els[i];
+      if (e === s.el) continue;
       let shift = 0;
       if (s.to > s.from) { if (i > s.from && i <= s.to) shift = -s.step; }
       else if (s.to < s.from) { if (i >= s.to && i < s.from) shift = s.step; }
       shift -= s.scroll;
-      const m = mets[i] || { c: s.bases[i] + e.offsetWidth / 2, w: e.offsetWidth };
-      const d = Math.abs(m.c + shift - view) / Math.max(m.w * 1.25, 1);
+      /* 优先用 measure() 量好的中心 / 宽度，退化时用起手缓存的布局值，
+         两条路都不碰 DOM 布局读取；也不再每帧建 fallback 临时对象。 */
+      const m = mets[i];
+      const c = m ? m.c : s.bases[i] + s.widths[i] / 2;
+      const mw = m ? m.w : s.widths[i];
+      const d = Math.abs(c + shift - view) / Math.max(mw * 1.25, 1);
       const k = Math.max(0, 1 - d);
       e.style.transform = `translateX(${shift.toFixed(1)}px) scale(${(1 + 0.055 * k).toFixed(4)})`;
-    });
+    }
   }
   function moveSort(x, y) {
     const s = sorting;

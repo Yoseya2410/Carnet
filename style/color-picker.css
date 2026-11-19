@@ -313,5 +313,3 @@
 .upload-row .btn{flex:0 0 auto;padding:10px 16px;font-size:13px}
 .upload-thumb{width:44px;height:56px;border-radius:8px;background-size:cover;background-position:center;border:1px solid rgba(255,255,255,.2)}
 
-/* 提示浮层已废弃：信息统一走控制台（见 src/system.js 的 toast()），界面不再有浮层 */
-

@@ -572,6 +572,9 @@
     return { left: r.left, top: r.top, width: r.width, height: r.height };
   }
 
+  /* 飞入 / 轮播两块动画画布都铺在 #app 上，尺寸只跟视口走；
+     视口没变就沿用第一次 fit 的结果，别每帧 clientWidth + getBoundingClientRect。 */
+  let flyVW = 0, flyVH = 0, carVW = 0, carVH = 0;
   function drawFly(now) {
     const st = ensureAnimStage('fly');
     const p = clamp((now - flyAnim.t0) / Math.max(flyAnim.ms, 1), 0, 1);
@@ -590,7 +593,11 @@
       shadowA = .06 + .11 * q;
       glow = .30 + .70 * Math.sin(q * Math.PI);
     }
-    fit(st);
+    /* 与轮播层同一套：飞入全程不读布局，只在画布刚建立 / 视口变化时 fit 一次 */
+    const vw = window.innerWidth, vh = window.innerHeight;
+    if (!st.fitted || vw !== flyVW || vh !== flyVH) {
+      fit(st); st.fitted = true; flyVW = vw; flyVH = vh;
+    }
     st.gl.clear(st.gl.COLOR_BUFFER_BIT);
     /* 落地影钉在书架那一端的地面高度，不跟着书一起飞走，才像真的离开台面 */
     const ground = flyAnim.reverse ? flyAnim.b : flyAnim.a;
@@ -601,7 +608,6 @@
       11, [1, 1, 1, 1], [glow, flyAnim.reverse ? 1 : 0, 0, 0]);
     if (p >= 1) flyAnim = null;
   }
-  let carVW = 0, carVH = 0;
   function drawCarousel() {
     const st = ensureAnimStage('carousel');
     /* ⚠️ 拖动期间绝不读布局：carousel.js 每帧都在写 transform，fit() 里的

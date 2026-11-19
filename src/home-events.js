@@ -142,7 +142,11 @@ function shelfBeginSort(item, x, y) {
     selJ: state.journals[state.sel], // 记住选中的是哪一本，重排后跟着走
     ghost, gdx: x - r.left, gdy: y - r.top,
     sx: x, sy: y, px: x, py: y, moved: false, raf: 0, flipRaf: 0, slots: null,
-    rect: wrap.getBoundingClientRect()   // 拖动期间容器几何不变，边缘自动滚动只量这一次
+    rect: wrap.getBoundingClientRect(),   // 拖动期间容器几何不变，边缘自动滚动只量这一次
+    /* 自动滚动的上界在起手时量一次。原来 shelfSortTick 每帧都读
+       scrollHeight / clientHeight，而同一帧里又在写 scrollTop 与 transform ——
+       一次典型的强制同步布局。拖动中行数不变，shelfRenderSort 搬完节点会刷新它。 */
+    maxScroll: Math.max(0, wrap.scrollHeight - wrap.clientHeight)
   };
   shelfSort.slots = shelfMeasureSlots();
   wrap.classList.add('sorting');
@@ -239,6 +243,8 @@ function shelfRenderSort(prev) {
   });
   s.el = els[s.at] || null;
   if (s.el) s.el.classList.add('lifted');
+  /* 节点刚搬过行，顺手刷新自动滚动上界（这里本来就在量布局，不是每帧路径） */
+  s.maxScroll = Math.max(0, wrap.scrollHeight - wrap.clientHeight);
 }
 /* 手指压到哪一格，就把拖着的这本插到那一格，其余书顺移让位。
    和轮播模式的排序保持一致（不是两两对调）。
@@ -273,10 +279,14 @@ function shelfSortTick() {
   else if (s.py > r.bottom - edge) d = Math.min(1, (s.py - (r.bottom - edge)) / edge);
   if (d) {
     const before = wrap.scrollTop;
-    wrap.scrollTop = clamp(before + d * 13, 0, Math.max(0, wrap.scrollHeight - wrap.clientHeight));
+    wrap.scrollTop = clamp(before + d * 13, 0, s.maxScroll);
     if (wrap.scrollTop !== before) { shelfGhostMove(s.px, s.py); shelfHitTest(s.px, s.py); }
+    s.raf = requestAnimationFrame(shelfSortTick);
+  } else {
+    /* 手指停在中间区不需要自动滚动：停帧，别让整段长按一直空转。
+       pointermove 走 sortMoveQ → shelfSortPointer，下一动会自己重启。 */
+    s.raf = 0;
   }
-  s.raf = requestAnimationFrame(shelfSortTick);
 }
 function shelfSortPointer(x, y) {
   const s = shelfSort; if (!s) return;
@@ -546,6 +556,7 @@ function spineBeginSort(item, x, y) {
   const i = +item.dataset.i;
   if (!Number.isFinite(i) || state.journals.length < 2) return false;
   const row = $('#spineRow');
+  const sc = $('#spineScroll');
   const nodes = [...row.querySelectorAll('.spine-item')];
   if (nodes.length !== state.journals.length) return false;
   const r = item.getBoundingClientRect();
@@ -563,7 +574,9 @@ function spineBeginSort(item, x, y) {
     selJ: state.journals[state.sel], // 记住选中的是哪一本，重排后跟着走
     ghost, gdx: x - r.left, gdy: y - r.top,
     sx: x, sy: y, px: x, py: y, moved: false, raf: 0, flipRaf: 0, slots: spineMeasureSlots(),
-    rect: $('#spineScroll').getBoundingClientRect()  // 横滑时容器不动，边缘判定复用这一份
+    rect: sc.getBoundingClientRect(),   // 横滑时容器不动，边缘判定复用这一份
+    /* 同多层书架：自动横滚的上界起手量一次，别在每帧的 rAF 里读 scrollWidth */
+    maxScroll: Math.max(0, sc.scrollWidth - sc.clientWidth)
   };
   spineSetHover(-1);                 // 拖起来的时候不要有预览挡着
   $('#spineWrap').classList.add('sorting');
@@ -581,6 +594,7 @@ function spineGhostMove(x, y) {
 function spineRenderSort(prev) {
   const s = spineSort; if (!s) return;
   const row = $('#spineRow');
+  const sc = $('#spineScroll');
   if (s.flipRaf) cancelAnimationFrame(s.flipRaf);
   const before = prev || s.slots;
   s.dom.forEach(el => row.appendChild(el));
@@ -602,6 +616,8 @@ function spineRenderSort(prev) {
       el.style.transform = '';
     });
   });
+  /* 节点搬完行，顺手刷新自动横滚上界（低频，不在每帧路径里） */
+  s.maxScroll = Math.max(0, sc.scrollWidth - sc.clientWidth);
 }
 /* 命中：手指落在哪根书脊的横向区间里，就插到那一格 */
 function spineHitTest(x) {
@@ -642,10 +658,13 @@ function spineSortTick() {
   else if (s.px > r.right - edge) d = Math.min(1, (s.px - (r.right - edge)) / edge);
   if (d) {
     const before = sc.scrollLeft;
-    sc.scrollLeft = clamp(before + d * 13, 0, Math.max(0, sc.scrollWidth - sc.clientWidth));
+    sc.scrollLeft = clamp(before + d * 13, 0, s.maxScroll);
     if (sc.scrollLeft !== before) { spineGhostMove(s.px, s.py); spineHitTest(s.px); }
+    s.raf = requestAnimationFrame(spineSortTick);
+  } else {
+    /* 手指不在两端就停帧，下一动由 spineSortPointer 重启，不再空转 */
+    s.raf = 0;
   }
-  s.raf = requestAnimationFrame(spineSortTick);
 }
 function spineSortPointer(x, y) {
   const s = spineSort; if (!s) return;
@@ -1112,12 +1131,11 @@ $$('#homeMenu button[data-menuact]').forEach(b => b.onclick = () => {
   else if (a === 'pdf') pickBookPDF();
   else if (a === 'import') pickImportFile();
 });
-/* ---- 「导入」页：三个入口聚在一屏，点任意一项先收页再调原来的选文件链路 ---- */
-function openImportPage() {
-  closeMenus();
-  const p = $('#importPanel');
-  if (p) p.hidden = false;
-}
+/* ---- 旧「导入」页的关闭逻辑：#importPanel 自 11-18 起停用（hidden）。
+   ⚠️ openImportPage() 已删除：全局没有任何入口能打开它（菜单三项直接调
+      pickBookImages / pickImportFile / pickBookPDF），是纯死函数。
+   ⚠️ closeImportPage / #impXxx 的绑定必须留着：旧 DOM 与 id 被本文件顶层引用，
+      删了会抛 TypeError。 */
 function closeImportPage() {
   const p = $('#importPanel');
   if (p) p.hidden = true;

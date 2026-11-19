@@ -123,7 +123,6 @@ async function migrateLegacyStorage() {
       }
       if (v === undefined) continue;
       await DB.set(newKey, v);
-      console.log('[Carnet] 已迁移旧数据：' + oldKey + ' → ' + newKey);
     } catch (e) { console.warn('[Carnet] 旧数据迁移失败（忽略）：' + oldKey, e); }
   }
 }

@@ -41,6 +41,18 @@ let flipA = null, lastFlipAt = 0;
 let flipUnder = false;
 /* 「这一回翻页自己按住了中缝」标记：只有自己按的才由自己摘（收尾 / 取消时见 clearBookShift） */
 let gutterHold = false;
+/* 翻页每帧只写 transform / CSS 变量，#leaf / #book 这两个节点在动画期间不会换。
+   缓存下来省掉每帧的 querySelector；万一外部重绘把节点换掉（isConnected=false），
+   惰性重查一次，绝不会拿着脱离文档的旧节点继续写。 */
+let flipLeafEl = null, flipBookEl = null;
+function flipLeaf() {
+  if (!flipLeafEl || !flipLeafEl.isConnected) flipLeafEl = $('#leaf');
+  return flipLeafEl;
+}
+function flipBook() {
+  if (!flipBookEl || !flipBookEl.isConnected) flipBookEl = $('#book');
+  return flipBookEl;
+}
 function endFlip() {
   if (!flipA) return;
   cancelAnimationFrame(flipA.raf);
@@ -58,7 +70,7 @@ function endFlip() {
   } else {
     state.page = clampViewIndex(state.page + dir, n - 1);
   }
-  const leaf = $('#leaf');
+  const leaf = flipLeaf();
   leaf.classList.remove('show', 'turning');
   leaf.style.transition = 'none';
   leaf.style.transform = 'none';
@@ -70,7 +82,7 @@ function endFlip() {
 /* 清掉翻开 / 合上封面时临时写在书上的横移与「翻的是封面」标记（内联样式优先于 cover-only 的类）。
    ⚠️ cover-closing 必须一起摘：它把右页淡到透明，留着会让合上之后那一页不再出现 */
 function clearBookShift() {
-  const bk = $('#book');
+  const bk = flipBook();
   if (!bk) return;
   bk.style.transform = '';
   bk.classList.remove('cover-flip', 'cover-closing', 'cover-opening', 'gutter-hold', 'folding-back', 'back-hinge', 'back-close', 'back-opening');
@@ -93,12 +105,12 @@ function stepFlip(now) {
      ⚠️ 只摘一次：摘完立刻清标记，后面每一帧不用再碰 DOM */
   if (gutterHold && p >= RINGS_SHOW_AT) {
     gutterHold = false;
-    $('#book').classList.remove('gutter-hold');
+    flipBook().classList.remove('gutter-hold');
   }
   const deg = flipA.from + (flipA.to - flipA.from) * e;
   // 翻到中途把纸轻轻"抬"起来一点，避免转动看起来是纯 2D 压扁
   const lift = Math.sin(p * Math.PI) * 30;
-  const leaf = $('#leaf');
+  const leaf = flipLeaf();
   leaf.style.transform = `translateZ(${lift.toFixed(1)}px) rotateY(${deg.toFixed(3)}deg)`;
   /* 11-17 第十二轮：把翻起程度 / 抬升写成 CSS 变量，叶片的压暗、纸面高光与投影跟着变。
      ⚠️ 纯内联属性写入，绝不读 rect / clientWidth —— 这里每帧都在写 transform，读布局会强制重排。 */
@@ -109,7 +121,7 @@ function stepFlip(now) {
   if (flipA.slide) {
     const sp = clamp(p / 0.42, 0, 1), se = sp * sp * (3 - 2 * sp);
     const [s0, s1] = flipA.slide;
-    $('#book').style.transform = `translateX(${(s0 + (s1 - s0) * se).toFixed(1)}px)`;
+    flipBook().style.transform = `translateX(${(s0 + (s1 - s0) * se).toFixed(1)}px)`;
   }
   if (p < 1) flipA.raf = requestAnimationFrame(stepFlip);
   // onEnd：合书时借这套引擎翻一次，翻完自行收束，不走 endFlip（那会改页码并重绘）

@@ -1889,6 +1889,22 @@ async function diyDone() {
   } finally { btn.disabled = false; }
 }
 /* ---- 纸面手势：拖动 / 四角缩放 / 旋转，逐帧合帧，收尾 flush ---- */
+/* 纸面尺寸在一次拖动里是不变的：原来 pointermove 每个事件都 getBoundingClientRect()，
+   来一次就强制同步布局一次（拖动时主线程正忙着写 transform，代价尤其大）。
+   改成「起手量一次 + 尺寸真变了才刷新」的缓存对象，rotShift 也直接吃它
+   （只读 rect.width / rect.height），整段手势零布局读取、零临时对象。
+   ResizeObserver 在布局结束后异步回调，窗口缩放 / 面板抬升 / 键盘弹起都会自动跟上。 */
+const diyPaperBox = { width: 0, height: 0 };
+(() => {
+  const p = $('#diyPaper');
+  if (!p) return;
+  const sync = () => {
+    const r = p.getBoundingClientRect();
+    diyPaperBox.width = r.width; diyPaperBox.height = r.height;
+  };
+  if (window.ResizeObserver) new ResizeObserver(sync).observe(p);
+  else window.addEventListener('resize', sync);
+})();
 const diyPaintQ = frameQueue(v => {
   const el = $(`#diyContent [data-id="${v.id}"]`);
   if (!el) return;
@@ -1932,6 +1948,9 @@ function diyArmTextHold(e, ref) {
 function diyBeginDrag(e, ref, mode, hKey) {
   const o = diyObj(ref); if (!o) return;
   const pr = $('#diyPaper').getBoundingClientRect();
+  /* 起手无条件刷新一次：ResizeObserver 的首帧回调是异步的，
+     面板刚打开就落手指也不会拿到 0 尺寸 */
+  diyPaperBox.width = pr.width; diyPaperBox.height = pr.height;
   const cx = pr.left + (o.x + o.w / 2) * pr.width;
   const cy = pr.top + (o.y + o.h / 2) * pr.height;
   diy.drag = {
@@ -2002,7 +2021,7 @@ $('#diyContent').addEventListener('pointerdown', e => {
 });
 $('#diyContent').addEventListener('pointermove', e => {
   const g = diy.drag; if (!g) return;
-  const r = $('#diyPaper').getBoundingClientRect();
+  const r = diyPaperBox;                 // 缓存的纸面尺寸，拖动途中不读布局
   const dx = (e.clientX - g.sx) / r.width, dy = (e.clientY - g.sy) / r.height;
   const o = diyObj(g.ref); if (!o) return;
   if (g.mode === 'move') {

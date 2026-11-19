@@ -261,8 +261,7 @@
 /* 浅色底（.bg-light 挂在 #home / #reader / body）：上面那套白玻璃描边会糊在白面板里，
    勾选圈 / 选中框 / 分组卡片都得换成深灰线，跟 background.css 的 .bg-light .st-opt 同源 */
 .bg-light .st-check{background:rgba(40,44,66,.1);border-color:rgba(40,44,66,.5)}
-.bg-light .st-opt.checked{border-color:#111318;background:rgba(40,44,66,.12)}
-.bg-light .st-opt.on{border-color:#111318;background:rgba(40,44,66,.12)}
+.bg-light .st-opt.checked,.bg-light .st-opt.on{border-color:#111318;background:rgba(40,44,66,.12)}
 .bg-light .st-group{background:rgba(40,44,66,.04)}
 .bg-light .st-selbar{background:rgba(40,44,66,.05);border-color:rgba(40,44,66,.16)}
 .bg-light .st-sel-btn{background:rgba(40,44,66,.08);border-color:rgba(40,44,66,.16)}
