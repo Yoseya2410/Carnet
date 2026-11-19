@@ -651,11 +651,17 @@
       row.innerHTML = '<b>新视觉风格</b><span class="mn-switch" id="mnMuiSwitch"><input type="checkbox" id="mnMui" aria-label="新视觉风格"></span>';
       card.insertBefore(row, card.firstChild);
     }
-    /* ⚠️ <p class="mn-note"> 这两行最容易被本地编辑器整行还原掉，
-       连 WebGL 原来的说明一起补回来。都插到同一个 anchor 前 = 数组顺序即显示顺序，
-       必须 MUI 在前、GL 在后，跟卡片里两行的上下顺序一致。 */
+    if (!$('#mnPwa')) {
+      const row = document.createElement('label');
+      row.className = 'mn-row';
+      row.innerHTML = '<b>PWA 离线应用</b><span class="mn-switch" id="mnPwaSwitch"><input type="checkbox" id="mnPwa" aria-label="PWA 离线应用"></span>';
+      card.appendChild(row);
+    }
+    /* ⚠️ <p class="mn-note"> 这几行最容易被本地编辑器整行还原掉，
+       连 WebGL / PWA 原来的说明一起补回来。都插到同一个 anchor 前 = 数组顺序即显示顺序，
+       必须 MUI → GL → PWA，跟卡片里三行的上下顺序一致。 */
     const anchor = card.nextSibling;
-    ['mnMuiNote', 'mnGlNote'].forEach(id => {
+    ['mnMuiNote', 'mnGlNote', 'mnPwaNote'].forEach(id => {
       if (document.getElementById(id)) return;
       const n = document.createElement('p');
       n.className = 'mn-note'; n.id = id;
@@ -688,8 +694,47 @@
       : '已关闭 · 手机竖屏界面与电脑端一致';
   }
 
+  /* PWA 开关：与旧设置页那颗共用一个 CarnetPWA 状态 */
+  function bindPwaSwitch() {
+    const cb = $('#mnPwa');
+    if (!cb || cb.dataset.bound) return;
+    cb.dataset.bound = '1';
+    cb.addEventListener('change', e => {
+      const api = window.CarnetPWA;
+      if (!api) { e.target.checked = false; syncPwaSetting(); return; }
+      api.set(e.target.checked);
+      syncPwaSetting();
+      const st = api.status();
+      toast(!st.supported ? '当前环境无法启用 PWA，请用 https 或 localhost 打开'
+        : e.target.checked ? '已开启 PWA · 可在浏览器菜单中安装'
+          : '已关闭 PWA · 离线缓存已清除');
+    });
+  }
+  function syncPwaSetting() {
+    if (!ensureMuiSwitch()) return;
+    bindPwaSwitch();
+    const cb = $('#mnPwa'), box = $('#mnPwaSwitch'), note = $('#mnPwaNote');
+    const st = window.CarnetPWA ? window.CarnetPWA.status() : null;
+    const on = !!(st && st.on);
+    cb.checked = st ? on : false;
+    cb.disabled = !st;
+    if (box) box.classList.toggle('on', on);
+    if (note) {
+      note.textContent = typeof pwaNoteText === 'function'
+        ? pwaNoteText(st)
+        : (!st ? 'PWA 模块未加载' : !st.supported ? '当前环境不支持 PWA' : st.failed || (on ? '已开启 PWA' : '已关闭 PWA'));
+      /* .mn-note 默认隐藏；只有在当前环境确实注册不了 PWA 时才把说明露出来，
+         否则用户点了开关只看到状态变了、却不知道为什么装不上。 */
+      note.style.display = st && !st.supported ? 'block' : '';
+    }
+  }
+  window.addEventListener('carnet-pwa-change', () => {
+    try { syncPwaSetting(); } catch (_) {}
+  });
+
   function mnSync() {
     syncMuiSetting();
+    syncPwaSetting();
     const b = bgNow();
     /* 背景色板：预置色 + 末尾「＋」自定义取色 */
     const box = $('#mnBgColors');

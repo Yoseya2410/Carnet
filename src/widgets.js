@@ -641,6 +641,29 @@ function syncGlSetting() {
   note.hidden = false;
   note.textContent = msg;
 }
+/* PWA 实验开关：状态与注册/注销由 pwa.js 的 window.CarnetPWA 管，
+   同样不进 state.prefs、不跟 .json 导出走。⚠️ 即使当前环境不支持也保持开关可点，
+   否则 file:// / 普通 http 下点击会「毫无反应」；改为记住选择 + 文字/toast 说明。 */
+function pwaApi() { return window.CarnetPWA || null; }
+function pwaNoteText(st) {
+  if (!st) return 'PWA 模块未加载';
+  if (!st.supported) return st.on
+    ? '已记住开启，但当前环境无法注册 PWA：请用 https 或 localhost 打开'
+    : '当前环境不支持 PWA：请用 https 或 localhost 打开';
+  if (st.failed) return st.failed;
+  if (!st.on) return '已关闭 · 使用在线加载，离线缓存已清除';
+  return st.active ? '已开启 · 可离线打开，也可在浏览器菜单中安装到桌面' : '正在启用 PWA…';
+}
+function syncPwaSetting() {
+  const cb = $('#pwaEnabled'), note = $('#pwaNote');
+  if (!cb) return;                       // index.html 被还原时静默跳过
+  const st = pwaApi() ? window.CarnetPWA.status() : null;
+  cb.checked = st ? !!st.on : false;
+  cb.disabled = !st;
+  if (!note) return;
+  note.hidden = false;
+  note.textContent = pwaNoteText(st);
+}
 /* 实验性「新视觉风格」：状态与切换由 m-home.js 的 window.MobileUI 管，
    这里只负责旧设置页（#bgMask）里那颗开关的读写。m-home.js（脚本 30）比本文件
    晚加载，但只在「打开设置 / 拨开关」的运行时访问，不会撞 TDZ。 */
@@ -687,6 +710,7 @@ function openBgPanel() {
   syncBgPanel();
   syncGlSetting();
   syncMuiBgSetting();
+  syncPwaSetting();
   $('#bgMask').classList.add('show');
 }
 /* 头部两颗按钮功能完全一样：移动端显示左上「返回」，电脑端显示右上「✕」。
@@ -713,6 +737,21 @@ $('#glEnabled').addEventListener('change', e => {
   syncGlSetting();
   toast(e.target.checked ? '已开启 WebGL 渲染' : '已关闭 WebGL 渲染');
 });
+/* PWA：统一走 CarnetPWA.set()，它负责 manifest / SW / 缓存三件事一起切 */
+const pwaCb = $('#pwaEnabled');
+if (pwaCb) pwaCb.addEventListener('change', e => {
+  const api = pwaApi();
+  if (!api) { e.target.checked = false; syncPwaSetting(); return; }
+  api.set(e.target.checked);
+  syncPwaSetting();
+  const st = api.status();
+  toast(!st.supported ? '当前环境无法启用 PWA，请用 https 或 localhost 打开'
+    : e.target.checked ? '已开启 PWA · 可在浏览器菜单中安装'
+      : '已关闭 PWA · 离线缓存已清除');
+});
+/* 异步注册完成后状态会变（active / failed），两处开关都要跟着刷 */
+window.addEventListener('carnet-pwa-change', syncPwaSetting);
+
 /* 新视觉风格：与菜单页那颗开关共用一个状态，拨完两边即时同步 */
 const muiBgCb = $('#muiEnabled');
 if (muiBgCb) muiBgCb.addEventListener('change', e => {

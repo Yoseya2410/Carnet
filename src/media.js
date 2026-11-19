@@ -172,8 +172,8 @@ function ensureFillGeom() {
   if (fixingFill) return;
   const j = cur(); if (!j) return;
   const tasks = [];
-  j.pages.forEach(pg => (pg.images || []).forEach(im => {
-    if (im.fill && im.fit !== FILL_GEOM_V) tasks.push(im);
+  (j.pages || []).forEach(pg => ((pg && pg.images) || []).forEach(im => {
+    if (im && im.fill && im.fit !== FILL_GEOM_V) tasks.push(im);
   }));
   if (!tasks.length) return;
   fixingFill = true;
@@ -184,13 +184,19 @@ function ensureFillGeom() {
     renderReader();
   });
 }
-/* 老数据只有宽度：按图片原始比例补齐高度，只跑一次 */
+/* 老数据只有宽度：按图片原始比例补齐高度，只跑一次。
+   ⚠️ 页可以不带 images 字段（老数据 / 部分导入页 / 空白页），渲染那侧用的是
+   (pg.images || [])；这里以前裸写 pg.images.forEach，打开这类本子会直接抛
+   TypeError 并把 renderReader() 后半段（ensureFillGeom / 选中态恢复）一起中断。
+   pages 本身、页对象、图片项都可能是脏值，三层一起兜住。 */
 let fillingHeights = false;
 function ensureImageHeights() {
   if (fillingHeights) return;
   const j = cur(); if (!j) return;
   const tasks = [];
-  j.pages.forEach(pg => pg.images.forEach(im => { if (!im.h) tasks.push(im); }));
+  (j.pages || []).forEach(pg => ((pg && pg.images) || []).forEach(im => {
+    if (im && !im.h) tasks.push(im);
+  }));
   if (!tasks.length) return;
   fillingHeights = true;
   const pa = paperAspect();

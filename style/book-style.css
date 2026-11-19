@@ -52,7 +52,9 @@
     2px 10px 17px -6px rgba(26,30,54,.15),   /* 中影 */
     4px 22px 34px -14px rgba(24,28,52,.13),  /* 远影 */
     8px 42px 62px -26px rgba(20,24,48,.11);  /* 环境影：铺得最开、也最淡 */
-  transition:box-shadow .5s cubic-bezier(.25,.8,.3,1)
+  /* 选中态切换只改最终阴影，不做 box-shadow 插值：五层外影 + 内影逐帧
+     重绘整本复杂封面，快速连续换本时会反复触发 500ms 重栅格化。
+     transform 仍负责滑动 / 缩放动画，静止时的普通影与 active 影完全不变。 */
 }
 /* 中间那本离你最近（scale 1.05），影子也压得更实一点 —— 远近关系才立得住 */
 .carousel .book-item.active .cover{

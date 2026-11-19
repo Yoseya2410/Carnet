@@ -119,7 +119,21 @@
 @media (orientation:portrait) and (max-width:640px){
   .carousel{gap:clamp(34px,11vw,56px)}
 }
-.book-item{flex:0 0 auto;transition:transform .5s cubic-bezier(.25,.8,.3,1),filter .5s;filter:saturate(.86) brightness(.94);position:relative}
+/* ⚠️ 11-19 实测：这里的 `filter .5s` 过渡曾让惯性滑动后半段与吸附段逐帧
+   重新栅格化整本封面（纹理 / 图案 / box-shadow 全在里面），帧率 ~43fps。
+   filter 值仍由 carousel.js 的 styleItems() 按 1/16 档量化写入，明暗差只有
+   14% 饱和 / 6% 亮度，一次写到位看不出跳变；去掉过渡后实测稳定 60fps。
+   排序态（下面 .sortmode）是另一条路径，不受影响。 */
+.book-item{flex:0 0 auto;transition:transform .5s cubic-bezier(.25,.8,.3,1);filter:saturate(.86) brightness(.94);position:relative}
+/* ⚠️ 21:36 实测（20 本、惯性稳定 5 次取中位数）：JS 每帧只占 0.14ms，
+   filter + .cover 三层 box-shadow 同时压在每本书上时，浏览器没法把封面缓存成
+   合成层纹理，每帧 transform 变化都重新栅格化 → 只有 ~54fps；去掉 filter 或
+   box-shadow 任一都立刻回到满帧 59fps。
+   手势期间（拖动 / 惯性 / 触控板滑行）由 carousel.js 加 .gliding 暂时摘掉滤镜：
+   明暗差只有 14% 饱和 / 6% 亮度，freezeFilter 本来也让明暗不跟手，几乎看不出；
+   落位 snap() 移除 class 后逐本 inline 滤镜立即恢复，静止画面 100% 不变。
+   ⚠️ 用 !important 才能压过 styleItems() 写在行内的 filter。 */
+.carousel.gliding .book-item{filter:none!important}
 .book-item.active{transform:scale(1.05);filter:none}
 .book-item.active .gear{opacity:1;pointer-events:auto}
 /* 长按拖动排序：选中的那本被"拎"起来，其余平滑让位 */

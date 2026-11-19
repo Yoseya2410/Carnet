@@ -10,9 +10,10 @@
  *    ⚠️ 玻璃 alpha 必须严格复刻 background.css 浅底那套「近乎全透」分段渐变
  *       （板身 .018 灰 + 上沿 .24 雾 + 下沿 .45 渐白 + 上下各 1px 亮线）；
  *       旧版板身常数 .075 + 下沿 .46 从 72% 就起，整条白雾把书封横切一刀。
- *    ⚠️ 铆钉采样 assets/shelf-rivet.js 内嵌的**同一张 PNG**（dataURL，file:// 也能用），
- *       不做程序化金属圆 —— 否则和普通渲染对不上。封面图案/纹理/彩带仍由 DOM 合成
- *       （与编辑、PDF/SVG 导出同源），GPU 负责它的光影。
+ *    ⚠️ 铆钉交回 DOM 那颗图片铆钉直接显示（.shelf-board .screw，同一张
+ *       assets/shelf-rivet.png），WebGL 层不重画 —— 否则 shader 采样的锯齿噪点 +
+ *       丢失的 CSS 阴影会和关闭 WebGL 时对不上。旧 shader 分支 / 贴图上传保留备用。
+ *       封面图案/纹理/彩带仍由 DOM 合成（与编辑、PDF/SVG 导出同源），GPU 负责光影。
  * ② readerGL（11-17 重做，阅读器继续用 WebGL 渲染）：canvas 挂在 #stage 里、
  *    `.book` **之前**，靠书本身盖住中心，只在外围画椭圆落地软影 + 翻页时随
  *    角度偏移的环境光晕；翻页每帧重画。⚠️ `.book` 的 filter **属性必须保留**
@@ -77,11 +78,17 @@
     '#glLabShelf{z-index:4}',
     /* canvas 的 containing block 必须是滚动容器本身，否则不跟着内容滚 */
     'html.gl-lab-on #shelfWrap{position:relative}',
-    /* ⚠️ 装饰层交给 GPU 后 DOM 副本必须隐藏，但**只隐藏可见性、不能 display:none**：
-       书脚的负 margin 依赖玻璃高度，布局一拆整排书会掉下来。
-       visibility 可被子元素覆盖，所以铆钉再显式写一遍。 */
+    /* ⚠️ 铆钉交回 DOM 渲染（11-19 定稿）：WebGL 层不画铆钉，让 .shelf-board .screw
+       直接显示 —— 用的就是 assets/shelf-rivet.png 那颗图片铆钉，连同 CSS 的
+       细亮边 / 落地影 / 内圈，与关闭 WebGL 时逐像素一致。
+       下面的旧 shader 分支（uKind=2）与 texture 上传保留作备用，drawShelf 不再调用。
+       ⚠️ 不能让 WebGL 自己用 shader 重画：同一张 PNG 经 shader 采样后边缘会冒锯齿
+       噪点、丢掉 box-shadow，和 DOM 那颗对不上（用户 11-19 明确要求两者一致）。 */
     'html.gl-lab-on .shelf-board,html.gl-lab-on .shelf-plinth{visibility:hidden}',
-    'html.gl-lab-on .shelf-board .screw{visibility:hidden}',
+    /* 铆钉要盖在 z-index 4 的 #glLabShelf 之上：visibility 可被子元素覆盖，
+       但子元素的 z-index 跳不出父层叠上下文，所以把 .shelf-board 整体提到 5。 */
+    'html.gl-lab-on .shelf-board{z-index:5}',
+    'html.gl-lab-on .shelf-board .screw{visibility:visible}',
     'html.gl-lab-on .shelf-board{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}',
     'html.gl-lab-on .gear,html.gl-lab-on .cover-badge{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}',
     'html.gl-lab-on .book{filter:drop-shadow(0 22px 38px rgba(40,42,60,.045))!important}'
@@ -162,13 +169,11 @@
     '    float topLine = (1.0 - smoothstep(0.0, 0.08, vUv.y)) * 0.10;',
     '    c = vec4(col, clamp((0.92 + topLine) * uColor.a * mask, 0.0, 1.0));',
     '  } else if (uKind < 2.5) {',
-    /* 铆钉：优先采样和普通渲染同一张 PNG（assets/shelf-rivet.js 内嵌 dataURL），
-       逐像素一致；贴图没就绪 / 上传失败才退回下面这段程序化金属圆。 */
+    /* 铆钉（备用路径，drawShelf 已不调用，见 CSS_TEXT）：直接输出 PNG 图片本身，
+       不加 rim / 高光等任何 shader 加工，保证与 DOM 那颗图片铆钉一致。 */
     '    if (uHasTex > 0.5) {',
     '      vec4 t = texture2D(uTex, vUv);',
-    '      float rr = length((vUv - 0.5) * 2.0);',
-    '      float rim = smoothstep(0.84, 0.94, rr) * (1.0 - smoothstep(0.94, 1.0, rr));',
-    '      c = vec4(t.rgb + rim * 0.14, t.a);',
+    '      c = vec4(t.rgb * t.a, t.a);',
     '    } else {',
     '      vec2 p = (vUv - 0.5) * 2.0;',
     '      float r = length(p);',
@@ -403,7 +408,11 @@
 
   /* 铆钉贴图：assets/shelf-rivet.js 里内嵌的同一张 PNG（dataURL，file:// 也能上传）。
      ⚠️ 不要设 UNPACK_FLIP_Y_WEBGL：本 shader 的 vUv.y=0 就是 quad 顶部，
-        纹理 t=0 恰好对应图片第一行；翻了会让「左上迎光」变成「左下迎光」。 */
+        纹理 t=0 恰好对应图片第一行；翻了会让「左上迎光」变成「左下迎光」。
+     ⚠️ 必须开 mipmap + LINEAR_MIPMAP_LINEAR：128px 的 PNG 要缩到 14~20px，
+        只开 LINEAR 时会稀疏取样，铆钉边缘冒出一圈锯齿噪点，和关闭 WebGL 时
+        浏览器缩图的平滑结果对不上。PNG 是 128×128（2 的幂），WebGL1 可直接
+        generateMipmap。 */
   function loadRivetTex(st) {
     if (!st || !window.SHELF_RIVET_URL || st.hasTex) return;
     const img = new Image();
@@ -414,6 +423,8 @@
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, st.tex);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+        gl.generateMipmap(gl.TEXTURE_2D);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
         st.hasTex = 1;
         invalidate();                 // 贴图到了，重画一帧让铆钉换成正版
       } catch (e) { /* 上传失败就保持程序化圆，不整层崩掉 */ }
@@ -481,12 +492,8 @@
       const rBot = parseFloat(cs.borderBottomLeftRadius) || 4;
       quad(shelf, br, 0, light ? [1, 1, 1, 1] : [0.92, 0.95, 1, 1],
         [rTop, rBot, light ? 0.24 : 0.20, light ? 0.45 : 0.26]);
-      /* ④ 白色台面 ⑤ 两颗铆钉（采样同一张 PNG） */
+      /* ④ 白色台面（铆钉不在这里画 —— 交回 DOM .screw 图片铆钉，见 CSS_TEXT） */
       quad(shelf, pr, 1, light ? [1, 1, 1, 1] : [0.98, 0.98, 1, 0.86], [0, 0, 0, 0]);
-      const screws = board.querySelectorAll('.screw');
-      for (let k = 0; k < screws.length; k++) {
-        quad(shelf, rectOf(screws[k]), 2, [0, 0, 0, 1], [0, 0, 0, 0]);
-      }
     }
   }
 
@@ -562,11 +569,17 @@
   function flyEase(p) { return 1 - Math.pow(1 - p, 3); }   // 放大段：近似 cubic-bezier(.22,1,.28,1)
   function flyLiftEase(p) { return p < .5 ? 2 * p * p : 1 - 2 * (1 - p) * (1 - p); } // 抬起段 ease-in-out
   function lerp(a, b, e) { return a + (b - a) * e; }
+  /* 11-19：飞入 / 轮播都是逐帧绘制，矩形、颜色、参数一律复用同一批对象。
+     原来每帧 new 1 个 rect + 2 组 quad 字面量（共 6~7 个短命对象 / 数组），
+     开合书 + 惯性同时跑时一秒几百个，纯给 GC 添活。quad() 只读不存引用，复用安全。 */
+  const flyRect = { left: 0, top: 0, width: 0, height: 0 };
+  const flyShadowR = { x: 0, y: 0, w: 0, h: 0 }, flyShadowC = [0.20, 0.21, 0.28, 0], flyShadowP = [0, 0, 0, 0];
+  const flyGlowR = { x: 0, y: 0, w: 0, h: 0 }, flyGlowC = [1, 1, 1, 1], flyGlowP = [0, 0, 0, 0];
+  const carR = { x: 0, y: 0, w: 0, h: 0 }, carC = [1, 1, 1, 1], carP = [0, 0, 0, 0];
   function lerpRect(a, b, e) {
-    return {
-      left: lerp(a.left, b.left, e), top: lerp(a.top, b.top, e),
-      width: lerp(a.width, b.width, e), height: lerp(a.height, b.height, e)
-    };
+    flyRect.left = lerp(a.left, b.left, e); flyRect.top = lerp(a.top, b.top, e);
+    flyRect.width = lerp(a.width, b.width, e); flyRect.height = lerp(a.height, b.height, e);
+    return flyRect;
   }
   function snapRect(r) {
     return { left: r.left, top: r.top, width: r.width, height: r.height };
@@ -602,10 +615,14 @@
     /* 落地影钉在书架那一端的地面高度，不跟着书一起飞走，才像真的离开台面 */
     const ground = flyAnim.reverse ? flyAnim.b : flyAnim.a;
     const gy = ground.top + ground.height * .58;
-    quad(st, { x: r.left - r.width * .18, y: gy, w: r.width * 1.36, h: r.height * .72 },
-      9, [0.20, 0.21, 0.28, shadowA], [0, 0, 0, 0]);
-    quad(st, { x: r.left - r.width * .35, y: r.top - r.height * .35, w: r.width * 1.7, h: r.height * 1.7 },
-      11, [1, 1, 1, 1], [glow, flyAnim.reverse ? 1 : 0, 0, 0]);
+    flyShadowR.x = r.left - r.width * .18; flyShadowR.y = gy;
+    flyShadowR.w = r.width * 1.36; flyShadowR.h = r.height * .72;
+    flyShadowC[3] = shadowA;
+    quad(st, flyShadowR, 9, flyShadowC, flyShadowP);
+    flyGlowR.x = r.left - r.width * .35; flyGlowR.y = r.top - r.height * .35;
+    flyGlowR.w = r.width * 1.7; flyGlowR.h = r.height * 1.7;
+    flyGlowP[0] = glow; flyGlowP[1] = flyAnim.reverse ? 1 : 0;
+    quad(st, flyGlowR, 11, flyGlowC, flyGlowP);
     if (p >= 1) flyAnim = null;
   }
   function drawCarousel() {
@@ -626,7 +643,9 @@
           椭圆正好盖住封面下半部，位置随 vel 左右跳、alpha 随速度快慢变 ——
           这就是左右滑动时封面附近那块「闪烁的黑色阴影」，已移除。
           书的落地影由 .cover 的 box-shadow 负责，不需要 GPU 层再补一层。 */
-    quad(st, { x: 0, y: 0, w: w, h: h }, 12, [1, 1, 1, 1], [phase, spd, 0, 0]);
+    carR.w = w; carR.h = h;
+    carP[0] = phase; carP[1] = spd;
+    quad(st, carR, 12, carC, carP);
   }
   function animTick(now) {
     animRaf = 0;
@@ -679,8 +698,9 @@
   }
   function glCarouselHold(ms) {
     if (!enabled) return;
-    carAnim.holdUntil = performance.now() + ms;
-    carAnim.last = performance.now(); carAnim.active = true;
+    const now = performance.now();
+    carAnim.holdUntil = now + ms;
+    carAnim.last = now; carAnim.active = true;
     startAnim();
   }
 

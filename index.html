@@ -4,6 +4,10 @@
 <script data-page-node-id="jdhRRuyxF61P0FHeSaZrDe" src="/page/page_comm/inject.js"></script>
 <meta data-page-node-id="nClwkb7FRKriW8a05CEaEo" charset="UTF-8">
 <meta data-page-node-id="m6rHvTsNY0DZKfK7pHL8WI" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" name="viewport">
+<meta name="theme-color" content="#202637">
+<!-- PWA：默认关闭，manifest link 由 src/pwa.js 在开启时动态挂上 -->
+<link rel="icon" type="image/png" href="assets/pwa-icon-192.png">
+<link rel="apple-touch-icon" href="assets/pwa-icon-192.png">
 <title data-page-node-id="AMkBo7fYY0fEKp0yOp9qQw" data-pnid-children="GnQwls26CENdzqY1ZP8HrY">Carnet · 手帐本</title>
   <!-- 手写体：不等 CSS 解析完就先把字体拉下来，文字贴一出现就是手写体，不再闪一下默认字。
        文件名必须是纯 ASCII——非 ASCII 名在部分静态托管上会被回落成 index.html。
@@ -733,9 +737,11 @@
       <div class="mn-card">
         <label class="mn-row"><b>新视觉风格</b><span class="mn-switch" id="mnMuiSwitch"><input type="checkbox" id="mnMui" aria-label="新视觉风格"></span></label>
         <label class="mn-row"><b>使用 WebGL 渲染</b><span class="mn-switch" id="mnGlSwitch"><input type="checkbox" id="mnGl" aria-label="使用 WebGL 渲染"></span></label>
+        <label class="mn-row"><b>PWA 离线应用</b><span class="mn-switch" id="mnPwaSwitch"><input type="checkbox" id="mnPwa" aria-label="PWA 离线应用"></span></label>
       </div>
       <p class="mn-note" id="mnMuiNote"></p>
       <p class="mn-note" id="mnGlNote"></p>
+      <p class="mn-note" id="mnPwaNote"></p>
 
       <div class="mn-cap">更多</div>
       <div class="mn-card">
@@ -878,6 +884,11 @@
           <label class="bg-switch" title="使用 WebGL 渲染"><input type="checkbox" id="glEnabled" aria-label="使用 WebGL 渲染"><i></i></label>
         </div>
         <div class="bg-note" id="glNote" hidden></div>
+        <div class="bg-opt" id="pwaRow">
+          <div class="bg-opt-tx"><b>PWA 离线应用</b><small>开启后可离线打开，并在浏览器菜单中安装到桌面；关闭会清除离线缓存</small></div>
+          <label class="bg-switch" title="PWA 离线应用"><input type="checkbox" id="pwaEnabled" aria-label="PWA 离线应用"><i></i></label>
+        </div>
+        <div class="bg-note" id="pwaNote" hidden></div>
       </div>
       <!-- 底部「恢复默认背景 / 完成」已撤：恢复默认挪到背景颜色那一栏，
            关闭统一交给头部的返回 / ✕，不再需要第二条操作栏。 -->
@@ -1000,6 +1011,8 @@
   <script src="src/main.js" defer></script>
   <!-- WebGL 实验层（POC，默认关闭）：删掉这一行 + src/gl-lab.js 即可整块摘除，无残留 -->
   <script src="src/gl-lab.js" defer></script>
+  <!-- PWA 实验开关：必须在 m-home.js 之前（m-home.js 仍保持最后一个脚本） -->
+  <script src="src/pwa.js" defer></script>
   <!-- 移动端主页 / 两步式新建 sheet / 卡片菜单页：必须排在最后（要包装前面模块的全局函数） -->
   <script src="src/m-home.js" defer></script>
 </body>

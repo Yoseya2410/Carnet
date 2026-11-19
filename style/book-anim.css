@@ -13,12 +13,19 @@
 .cover-ghost{
   position:fixed;z-index:60;pointer-events:none;transform-origin:0 0;
   border-radius:5px 13px 13px 5px;overflow:hidden;
-  will-change:width,height,transform,opacity
+  /* width / height 是布局属性，每帧变化都会重排。contain 把这次重排 / 重绘
+     锁在 ghost 自己这一层，不让整页 #app（整排封面 + 背景）跟着每帧重算。 */
+  contain:layout paint;
+  /* ⚠️ 只给真正在 GPU 上合成的属性做提示。原来写 width,height,transform,opacity：
+     width/height 加了 will-change 并不能跳过 layout，反而让浏览器反复重建层；
+     opacity 全程不变。JS 现在用 translate3d，整块稳定留在合成层。 */
+  will-change:transform;backface-visibility:hidden
 }
 /* 内容层：按**落地封面**的真实尺寸渲染（宽高由 JS 写成 to 的尺寸），居中于窗口，
    只做等比 scale —— 起点放大到刚好铺满细长的书脊窗口，随窗口展开回落到 1 */
 .cover-ghost-fit{
-  position:absolute;left:50%;top:50%;transform-origin:50% 50%;will-change:transform
+  position:absolute;left:50%;top:50%;transform-origin:50% 50%;
+  will-change:transform;backface-visibility:hidden
 }
 .cover-ghost .cover{
   width:100% !important;height:100% !important;aspect-ratio:auto !important;
@@ -33,11 +40,48 @@
    同源同尺寸同位置，零跳变。
    ⚠️ 别再给 ghost 设 animation / 给书加淡入：CSS 动画优先级高于内联 transition，
       而且任何「飞行途中」的交叉都会重新引出重影。 */
-#home{transition:transform .5s cubic-bezier(.32,.86,.3,1),opacity .42s ease,filter .42s ease}
+/* ⚠️ 11-19：去掉 filter .42s 过渡。全屏 blur(7px) 逐帧重算高斯模糊是与飞行封面
+   抢主线程的最大一笔（与 menus.css 全屏菜单同一条红线）。blur 的终态保留在
+   .book-opening 上，只是不再插值；同一时间 opacity 正淡出到 0，看不出差别。 */
+#home{transition:transform .5s cubic-bezier(.32,.86,.3,1),opacity .42s ease}
 #home.book-opening{transform:scale(.93);opacity:0;filter:blur(7px);pointer-events:none}
 #home.noanim{transition:none !important}
-/* 关闭：主页先瞬回最终布局（这样封面落点才准），再淡入接住飞回来的封面 */
+/* ⚠️ 11-19 第二十轮：开合书的「背景相位」钉在两段式飞行的交界上。
+   flyCover 是「38% 抬起 → 62% 放大」（退出是「缩回玻璃上方 → 插回书架」），
+   以前 #home 一开场就 blur + 淡出、#reader 同时淡入，抬起那段背景已经糊了，
+   看不出书先从玻璃里抽出来。现在：
+     · fly-lift（抬起 / 缩回玻璃上方）：主页保持清晰、原尺寸，阅读器整体透明；
+     · fly-zoom（准备放大 / 插回）：摘掉 fly-lift 的覆盖，主页才**瞬间**模糊并淡出缩小，
+       阅读器淡入。⚠️ filter 依旧不插值（全屏 blur 逐帧重算会拖垮飞行，见上面那条）。
+   ⚠️ fly-zoom 要一直留到 endClose 才摘：#reader.show 自带 fadeIn animation，
+      落地就摘阶段类会让阅读器在落地那一帧重新淡入一次（闪一下）。 */
+#app.fly-lift #home.book-opening{transform:none;opacity:1;filter:none;transition:none}
+#app.fly-lift #reader.show{opacity:0;animation:none;transition:none}
+/* 段②起手先让书架「糊掉」一拍：filter 不插值（上面的性能红线），但 opacity 晚
+   100ms 才淡出、阅读器晚 80ms 才淡入，于是有 ~0.1s 能确实看到虚化的书架 + 放大的书，
+   而不是模糊刚生效就被不透明的阅读器背景盖掉。 */
+#app.fly-zoom #home.book-opening{transition:transform .5s cubic-bezier(.32,.86,.3,1),opacity .32s ease .1s}
+#app.fly-zoom #reader.show{opacity:1;animation:none;transition:opacity .3s ease .08s}
+/* 关闭：主页在「缩回玻璃上方」之后才显现，比原来 .42s 更快，
+   好让书插回书架时主页已经在底下等着（玻璃副本随主页一起淡入） */
 #home.book-returning{opacity:0;transition:opacity .24s ease}
+#home.book-appearing{opacity:1;transition:opacity .16s ease}
+/* ---- 飞行期间的玻璃挡板副本 ------------------------------------------
+   #home 是 z-index:0 的层叠上下文，书架里 z-index:2 的 .shelf-board 再怎么提
+   也盖不到 #app 直属、z-index:60 的 .cover-ghost —— 书从架子里抽出来时是「浮在
+   玻璃外面」的。这份 fixed 副本挂在 #app 上（z:61），只在书还与玻璃矩形重叠的
+   抬起 / 插回两段可见，玻璃就真的压在书上了。
+   外观（渐变 / 圆角 / 阴影 / backdrop-filter / 浅底接触影 / 铆钉）全部由
+   reader-flow.js 从真实 .shelf-board 的 computed style 拷来，不另写第二套色板。 */
+.fly-glass{position:fixed;z-index:61;pointer-events:none;opacity:1;transition:opacity .16s ease}
+.fly-glass.fade{opacity:0}
+.fly-glass.hidden{opacity:0;transition:none}
+/* 副本顶班期间把真实那块玻璃藏掉，免得同一位置叠成两层（visibility 不重排） */
+.shelf-board.fly-hidden{visibility:hidden}
+/* 起飞位留空：抬起段主页是清晰的，架上原位那本封面必须藏掉，否则和飞行封面
+   叠成两张一模一样的皮。⚠️ 只能 visibility:hidden —— display:none 会让
+   coverRect() 量到 0×0 的落点，飞回去就偏到屏幕左上角了。 */
+.book-item.fly-taken,.spine-item.fly-taken{visibility:hidden}
 #reader{opacity:0;transition:opacity .42s ease}
 #reader.show{display:flex;opacity:1}
 #reader.book-opening{opacity:1;transition:none}

@@ -22,8 +22,12 @@ const carousel = (() => {
   }
   let items = [], off = 0, minOff = 0, maxOff = 0;
   let dragging = false, moved = false, startX = 0, startOff = 0, lastX = 0, lastT = 0, vel = 0;
-  let suppressClick = false, wheelLock = 0;
+  let suppressClick = false;
   let holdTimer = 0, pendingEl = null, pendingX = 0, pendingY = 0, sorting = null;
+  /* 触控板横滑：是否正处在「连续跟手」中、停手落位定时器、
+     本次手势累计的横向位移与起手时选中的本子（用于单格滚轮补一本） */
+  let wheelGliding = false, wheelSettleT = 0, wheelTravel = 0, wheelFrom = 0;
+  let wheelVel = 0, wheelLastT = 0;       // px / s；到边弹簧要继承真实滚轮速度
   const HOLD_MS = 420;                          // 长按多久进入排序
 
   /* 每本书的中心点 / 宽度只在 measure() 里量一次，之后一直复用：
@@ -34,8 +38,19 @@ const carousel = (() => {
   /* 拖动 / 惯性期间冻结 filter：saturate+brightness 每改一次都要把整本书
      （封面图案、纹理、box-shadow 全在里面）重新栅格化一次，滑动时会出现
      一闪一闪的深色残影。明暗只差 14% 饱和 / 6% 亮度，跟手过程中保持不变
-     肉眼几乎看不出；松手 snap() 解除冻结，由 filter transition 平滑补齐。 */
+     肉眼几乎看不出；松手 snap() 解除冻结后由 styleItems() 直接写最终档位。
+     ⚠️ 11-19 实测：给 filter 加任何时长的 CSS transition 都会让惯性后半段 +
+     吸附段逐帧重栅格化整本封面，帧率从 60 掉到 ~43fps（950ms 里 12 帧 >33ms）。
+     1/16 档量化本身已经足够平滑，绝不要再给 filter 接过渡。 */
   let freezeFilter = false;
+  /* 手势进行中给 track 加 .gliding：暂时摘掉逐本 filter（见 home.css 的说明）。
+     只在「开始 / 结束」切换，绝不每帧碰 classList。 */
+  let glidingOn = false;
+  function setGliding(on) {
+    if (glidingOn === on) return;
+    glidingOn = on;
+    track.classList.toggle('gliding', on);
+  }
   /* 记录上一回 ease() 写进去的档位与节点集合：CSSOM 读回 style.transition 会
      被浏览器规范化（.46s → 0.46s 等），拿字符串直接 diff 会永远判成不等。 */
   let lastEase = -1, easedItems = null;
@@ -69,8 +84,8 @@ const carousel = (() => {
          阴影全在里面），是拖动时最贵的一笔，也是「左右滑动发涩」的主因。
          把明暗强度量化到 1/16 档：scale 仍然每帧连续跟手，filter 只在跨档时
          写一次 CSSOM，重栅格次数降一个数量级，16 档的阶梯肉眼看不出来；
-         拖动 / 惯性期间 freezeFilter 直接不写，松手 snap() 解除后由
-         ease() 里的 filter transition 平滑补齐。 */
+         拖动 / 惯性期间 freezeFilter 直接不写，松手 snap() 解除后一次写到位，
+         ⚠️ 不要在这里给 filter 接 CSS transition（见上面 freezeFilter 的实测说明）。 */
       const fq = Math.round(k * 16) / 16;
       const needF = !freezeFilter && lastF[i] !== fq;
       /* 屏幕外、上次就已经熄灭、滤镜也已是熄灭态：连除法都不必算。
@@ -117,9 +132,12 @@ const carousel = (() => {
     const k = animate ? 1 : 0;
     if (lastEase !== k || easedItems !== items) {
       lastEase = k; easedItems = items;
-      track.style.transition = animate ? EASE : 'none';
-      const et = animate ? EASE + ',filter .46s ease' : 'none';
-      for (let i = 0; i < items.length; i++) items[i].style.transition = et;
+      const t = animate ? EASE : 'none';
+      track.style.transition = t;
+      /* ⚠️ 只过渡 transform。原来这里是 EASE + ',filter .46s ease'：
+         filter 每帧插值都要把整本封面（纹理 / 图案 / box-shadow）重新栅格化，
+         惯性收尾的吸附段实测掉到 ~43fps。滤镜值由 styleItems() 量化后一次写到位。 */
+      for (let i = 0; i < items.length; i++) items[i].style.transition = t;
     }
     /* 吸附是 CSS transition（中间帧没有 JS paint），让 GPU 光影层按同样时长继续画 */
     if (animate && window.GLLab && GLLab.on) GLLab.carouselHold(460);
@@ -144,6 +162,69 @@ const carousel = (() => {
     }
     return best;
   }
+  /* 跟手 / 惯性 / 触控板滑行中「选中态跟着走」的统一入口：
+     只动进出 active 的两本 + 计数球，绝不碰书名 / 页数 / 整块重绘，
+     也不改 off —— 位置由各自的动画自己负责。state.sel 实时同步，
+     滑行途中点开的一定是视觉中心那本。 */
+  function syncSelection(near) {
+    if (near === state.sel) return;
+    if (items[state.sel]) items[state.sel].classList.remove('active');
+    state.sel = near;
+    if (items[near]) items[near].classList.add('active');
+    const cp = countPill();
+    if (cp) cp.textContent = `${near + 1} / ${items.length}`;
+  }
+  /* ===== 到两端的弹性回弹 =====
+     用保留初速度的欠阻尼弹簧，替代固定振幅 / 固定周期的余弦往返。
+     旧曲线会把一次轻微越界人为放大到 28~80px，再以 340ms 周期来回弹，
+     起手像被额外推一下、收尾又反复折返，所以弹性虽大却生硬。
+     现在 x0 严格等于当前越界量，v0 继承手指 / 惯性 / 滚轮的真实方向：
+     先顺势送出，再柔和拉回，只留一次很小的反向过冲。解析解按秒计算，
+     高刷 / 掉帧都不会改变弹簧手感，也不在帧内读任何布局。 */
+  const BOUNCE_MAX = 80, BOUNCE_OMEGA = 14, BOUNCE_ZETA = .58, BOUNCE_END = 650;
+  let bounceRaf = 0, bouncing = false, edgeSettled = false;
+  function stopBounce() {
+    if (bounceRaf) { cancelAnimationFrame(bounceRaf); bounceRaf = 0; }
+    bouncing = false;
+    edgeSettled = false;
+  }
+  function edgeBounce(target, over, done, v0 = 0) {
+    stopInertia();
+    stopBounce();
+    bouncing = true;
+    /* 方向取当前位置而不是 target===minOff：只有一本书时 minOff===maxOff，
+       两个边界重合，按索引判断会把向右拖出的回弹错画到左侧。 */
+    const outward = off < target ? -1 : 1;
+    const x0 = clamp(over, 0, BOUNCE_MAX);
+    const damping = BOUNCE_OMEGA * BOUNCE_ZETA;
+    const omega = BOUNCE_OMEGA * Math.sqrt(1 - BOUNCE_ZETA * BOUNCE_ZETA);
+    /* 越限保护只限制异常大的 wheel delta；普通快甩仍保留向外速度，
+       反向松手也允许带负速度，不会在切入弹簧时突然改变运动方向。 */
+    const speed0 = clamp((v0 || 0) * outward, -360, 360);
+    const a = x0, b = (speed0 + damping * x0) / omega;
+    const t0 = performance.now();
+    const step = now => {
+      bounceRaf = 0;
+      const t = Math.min((now - t0) / 1000, BOUNCE_END / 1000);
+      const decay = Math.exp(-damping * t), angle = omega * t;
+      const cos = Math.cos(angle), sin = Math.sin(angle);
+      const x = decay * (a * cos + b * sin);
+      const speed = decay * ((b * omega - damping * a) * cos - (a * omega + damping * b) * sin);
+      off = target + outward * x;
+      paint();
+      if ((t > .12 && Math.abs(x) < .45 && Math.abs(speed) < 18) || t >= BOUNCE_END / 1000) {
+        off = target; paint();
+        bouncing = false;
+        if (done) done();               // done 里的 snap() 会 stopBounce()，所以锁要放在它之后
+        edgeSettled = true;             // 收敛完进入「到头锁定」，同向余波不再重启回弹
+        return;
+      }
+      bounceRaf = requestAnimationFrame(step);
+    };
+    off = target + outward * x0;
+    paint();
+    bounceRaf = requestAnimationFrame(step);
+  }
   function settle() { stopInertia(); snap(nearestIndex(), true); }
   function startInertia(v0) {
     stopInertia();
@@ -154,18 +235,22 @@ const carousel = (() => {
       const dt = inertT ? clamp((now - inertT) / 16.7, .5, 2) : 1;
       inertT = now;
       off += inertVel * dt;
-      /* 撞到两端：软回弹 + 快速泄速，不硬停 */
-      if (off > maxOff) { off -= (off - maxOff) * .22; inertVel *= .68; }
-      else if (off < minOff) { off += (minOff - off) * .22; inertVel *= .68; }
       inertVel *= Math.pow(.94, dt);
-      paint();
-      const near = nearestIndex();
-      if (near !== state.sel) {          // 滑行中选中态 / 计数跟着走，点开时 cur() 也是这一本
-        state.sel = near;
-        items.forEach((el, k) => el.classList.toggle('active', k === near));
-        const cp = countPill();
-        if (cp) cp.textContent = `${near + 1} / ${items.length}`;
+      /* 撞到两端：不再每帧压回 22% + 硬泄速，让惯性自然冲出一小段，
+         冲够 BOUNCE_MAX 或速度耗尽时切到弹性回弹（t=0 与当前 off 连续，零跳变）。 */
+      const edge = off < minOff ? minOff : off > maxOff ? maxOff : null;
+      if (edge !== null) {
+        const over = Math.min(Math.abs(off - edge), BOUNCE_MAX);
+        if (over >= BOUNCE_MAX || Math.abs(inertVel) < 2.5) {
+          /* off 与 edgeBounce 的 x0 同源封顶：惯性一帧可能冲过 MAX，
+             若只把 over 截断而 off 留在外面，切弹性第一帧会肉眼可见地跳一下。 */
+          off = edge + (off < edge ? -1 : 1) * over;
+          edgeBounce(edge, over, () => snap(nearestIndex(), false), inertVel * 16.7);
+          return;
+        }
       }
+      paint();
+      syncSelection(nearestIndex());   // 滑行中选中态 / 计数跟着走，点开时 cur() 也是这一本
       if (Math.abs(inertVel) < .35) { settle(); return; }
       inertRaf = requestAnimationFrame(step);
     };
@@ -173,7 +258,9 @@ const carousel = (() => {
   }
   function snap(i, animate) {
     stopInertia();                       // 外部换本 / 滚轮 / 重排都要先掐掉惯性
+    stopBounce();                        // 弹性回弹途中被外部换本打断也要停
     freezeFilter = false;               // 落位这一帧补回拖动期间冻结的明暗
+    setGliding(false);                  // 落位即恢复逐本滤镜，静止画面不变
     measure();
     if (!items.length) { track.style.transform = 'translate3d(0,0,0)'; return; }
     const idx = clamp(i, 0, items.length - 1);
@@ -306,6 +393,12 @@ const carousel = (() => {
 
   wrap.addEventListener('pointerdown', e => {
     if (e.target.closest('.gear')) return;
+    /* 触控板尾流还没落位就换成手指：先收掉那次 settle，
+       否则 160ms 后的 snap() 会在新手势拖动中途改 off，位置突然跳一下。 */
+    clearTimeout(wheelSettleT);
+    stopBounce();                          // 手指接管：掐掉还没弹完的回弹
+    if (wheelGliding) settleWheel(true);   // 无动画收掉，别让缓动拖住新手势
+    setGliding(true);                     // 手指接管：进入手势降级态
     if (inertRaf) {                       // 按下打断惯性：这一下不该顺手把书翻开
       suppressClick = true;
       setTimeout(() => suppressClick = false, 340);
@@ -336,8 +429,11 @@ const carousel = (() => {
     const dt = now - lastT;
     if (dt > 6) { vel = vel * 0.7 + ((x - lastX) / dt) * 0.3 * 16.7; lastX = x; lastT = now; }
     let t = startOff + dx;
-    if (t > maxOff) t = maxOff + (t - maxOff) * 0.3;
-    else if (t < minOff) t = minOff + (t - minOff) * 0.3;
+    /* 连续橡皮筋：起手仍保持原来的 .3 跟手比例，拖得越远阻力渐进增大，
+       渐近 BOUNCE_MAX 而不是线性无限外冲。这样极端快甩松手时不需要把
+       一两百 px 的越界量突然截成 80px，位置与速度都能连续交给弹簧。 */
+    if (t > maxOff) t = maxOff + BOUNCE_MAX * (1 - Math.exp(-(t - maxOff) * .3 / BOUNCE_MAX));
+    else if (t < minOff) t = minOff - BOUNCE_MAX * (1 - Math.exp((t - minOff) * .3 / BOUNCE_MAX));
     off = t;
     schedulePaint();
   }, { passive: true });
@@ -351,6 +447,15 @@ const carousel = (() => {
     /* 手指停在原地超过 120ms 再松手，说明已经不想甩了，别把旧速度带出去 */
     const v0 = performance.now() - lastT < 120 ? vel : 0;
     vel = 0;
+    /* 已经拖出边界时，无论快慢都直接把当前位置 / 速度交给弹簧；
+       慢拖不再硬走 snap，快甩也不会先多跑一帧惯性再把越界量截断。 */
+    const edge = off < minOff ? minOff : off > maxOff ? maxOff : null;
+    if (edge !== null) {
+      const over = Math.min(Math.abs(off - edge), BOUNCE_MAX);
+      off = edge + (off < edge ? -1 : 1) * over;
+      edgeBounce(edge, over, () => snap(nearestIndex(), false), v0 * 16.7);
+      return;
+    }
     if (items.length > 1 && Math.abs(v0) >= 1.5) { startInertia(v0); return; }
     /* 轻手一拨：沿用原来的短投影吸附，最多跨两本 */
     const proj = off + v0 * 5;
@@ -369,12 +474,84 @@ const carousel = (() => {
   document.addEventListener('touchmove', e => {
     if (sorting && e.cancelable) e.preventDefault();
   }, { passive: false });
+  /* ===== 触控板 / 横向滚轮：连续跟手，停手才吸附 =====
+     ⚠️ 原来每个 wheel 都 snap(sel±1, true)：230ms 节流却配 460ms 缓动，
+        一次连续横滑被切成「每 230ms 跳一本」，动画每次都被下一格打断，
+        还要重算书名 / 页数 / 计数球 / 全量 active —— 实测 640ms 里只走 3 本，
+        就是用户说的「滚到一本停一下选中，再滚一本再停一下」。
+     现在跟 pointer 拖动同一套：deltaX 直接累加到 off，走 frameQueue 每帧只
+     paint 一次；最后一次 wheel 安静 160ms 后才 snap() 落位一次（唯一一次
+     更新书名 / 开缓动）。触控板自身的动量尾流会自然把 off 送到位。 */
+  const wheelQ = frameQueue(() => { paint(); syncSelection(nearestIndex()); });
+  function settleWheel(atEdge) {
+    wheelSettleT = 0;
+    if (!wheelGliding) return;
+    wheelGliding = false;
+    wheelQ.flush();                    // 补上攒着没画的最后一帧，别留到新手势里
+    if (dragging || sorting) return;    // 手指 / 排序已经接管，别抢位置
+    const near = nearestIndex();
+    /* 单个离散滚轮 / 轻推一下往往不足以跨过半本，直接落位会「滚了一下又弹回原处」。
+       没跨本但确实滚过 (>8px) 就按方向补一本；触控板连续横滑已经跨本，直接用 near。 */
+    const target = (Math.abs(wheelTravel) > 8 && near === wheelFrom)
+      ? clamp(wheelFrom + (wheelTravel > 0 ? 1 : -1), 0, items.length - 1)
+      : near;
+    /* 到头用无动画立即停住：off 已经 clamp 在 minOff / maxOff（正好是首 / 末本
+       的中心），再走 460ms 缓动只会从「看着已经停了」弹一下。 */
+    snap(target, atEdge ? false : true);
+  }
   wrap.addEventListener('wheel', e => {
-    if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+    if (Math.abs(e.deltaX) <= Math.abs(e.deltaY) || !e.deltaX) return;
+    if (dragging || sorting) return;
+    if (!wheelGliding) {
+      wheelGliding = true;
+      wheelFrom = state.sel; wheelTravel = 0; wheelVel = 0; wheelLastT = 0;
+      stopInertia();
+      measure();
+      ease(false);                      // 位移立即生效，别被 CSS 缓动拖住
+      freezeFilter = true;              // 跟手期间不重栅格化滤镜
+      setGliding(true);                 // 触控板滑行同样进入手势降级态
+    }
+    /* deltaMode: 0 = 像素、1 = 行、2 = 页；行 / 页换算成像素才跟手 */
+    const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? wrapW : 1;
+    const dx = e.deltaX * unit;
+    if (bouncing) return;               // 弹性回弹期间不接收新滚轮，避免叠加成抖动
+    /* 弹性刚收敛完：贴着边界的同向余波直接吞掉，直到出现反向滚轮才解锁。
+       ⚠️ 只认 off 与 dx 的符号，不依赖 wheelGliding 的中间状态 ——
+          否则弹性结束后第一个同向 wheel 会重新起一次回弹，变成「到头一直弹」。 */
+    if (edgeSettled) {
+      const atMin = off <= minOff + .5, atMax = off >= maxOff - .5;
+      if ((atMin && dx > 0) || (atMax && dx < 0)) return;
+      edgeSettled = false;
+    }
+    /* 已经贴边、还继续往界外推：直接忽略（上一轮修掉的「到头还在抖」不能回来） */
+    const pastEnd = (dx > 0 && off <= minOff + .5) || (dx < 0 && off >= maxOff - .5);
+    if (pastEnd && !wheelGliding) return;
+    /* 滚轮事件没有统一的动量尾流，直接用最近事件的 delta / 时间估算 px/s，
+       低通抑住滚轮抖动；弹簧因此会顺着这一下继续送，而不是重新造一段振幅。 */
     const now = performance.now();
-    if (now < wheelLock) return;
-    wheelLock = now + 230;
-    snap(state.sel + (e.deltaX > 0 ? 1 : -1), true);
+    const dt = wheelLastT ? clamp(now - wheelLastT, 8, 80) : 16.7;
+    wheelLastT = now;
+    wheelVel = wheelVel * .55 + (-dx / dt * 1000) * .45;
+    wheelTravel += dx;
+    const t = off - dx;
+    const edge = t < minOff ? minOff : t > maxOff ? maxOff : null;
+    if (edge !== null) {
+      /* 到头：这一下自然冲出边界，随即交给阻尼弹性拉回（t=0 与当前 off 连续）。
+         回弹期间与结束后的同向余波分别由 bouncing / pastEnd 拦掉，位置不会再微动。 */
+      wheelQ.cancel();
+      clearTimeout(wheelSettleT);
+      wheelGliding = false;
+      /* 与惯性分支同源封顶：deltaMode=2（整页）一次可能越界几百 px，
+         只截 x0 而把 off 留在外面，切弹性第一帧会大幅跳回。 */
+      const over = Math.min(Math.abs(t - edge), BOUNCE_MAX);
+      off = edge + (t < edge ? -1 : 1) * over;
+      edgeBounce(edge, over, () => snap(nearestIndex(), false), wheelVel);
+      return;
+    }
+    off = t;
+    wheelQ.push(0);
+    clearTimeout(wheelSettleT);
+    wheelSettleT = setTimeout(() => settleWheel(false), 160);
   }, { passive: true });
 
   return {
