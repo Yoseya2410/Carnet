@@ -456,7 +456,9 @@ html:not(.mui-off) #home.m-carousel #mCarouselMeta{
   #mask .modal.ns-dragging{animation:none;transition:none}
   #mask .modal.ns-closing{animation:none;transition:transform .22s ease-in}
   #mask .modal.ns-snapback{animation:none;transition:transform .2s cubic-bezier(.22,.9,.28,1)}
-  #mask.ns-pick .modal{height:46dvh;max-height:46dvh}
+  /* 第一步：高度贴着内容走（--ns-pick-h 由 m-home.js 量出来），
+     45dvh 只做封顶；内容少就收住，内容多才在弹窗里滚动。 */
+  #mask.ns-pick .modal{height:var(--ns-pick-h,auto);max-height:45dvh}
   #mask.ns-pick #edForm{display:none}
   #mask.ns-pick #edPick{display:block}
   #mask.ns-pick #edPickBack{display:none}
@@ -487,17 +489,14 @@ html:not(.mui-off) #home.m-carousel #mCarouselMeta{
   }
   /* 第一步（照参考图）：大标题「选择装帧」+ 灰副标题（当前款名）+ 居中卡片横滑，
      左右各露出相邻卡片一角，底部一排分页点。款式名称不再印在卡片里。
-     ⚠️ 11-19 比例修正：原来 62vw×250px 卡片 + 132px 封面把整块内容撑到 ~394px，
-        而 sheet 只有 46dvh（≈423px），再扣掉底部安全区，分页点正好被遮住。
-        整组等比收一档：卡片 54vw×196px、封面 108px，头部/间距一起压紧，
-        总高约 320px，标题 / 卡片 / 分页点在安全区之上全部可见。 */
+     ⚠️ 高度不写死：JS 量出这一块的真实高度写进 --ns-pick-h，
+        CSS 只按 45dvh 封顶；内容要一次看完（不出现竖向滚动），分页点离底部留 18~22px。
+     ⚠️ 卡片高度随 dvh 收放，封面用同一比例 transform 缩放：矮屏也能整套塞进 45dvh，
+        圆角跟着 transform 一起缩，不用再单独改 --cr-scale。 */
   #mask.ns-pick .ns-grab{height:26px}
   #mask.ns-pick .ns-head{margin:0 0 8px}
-  /* 收小后内容比 46dvh 矮一截，让整组在 sheet 里垂直居中，
-     上下留白均匀，不会出现「卡片贴着标题、底下空一大片」。 */
   #mask.ns-pick #edPick{
-    display:flex;flex-direction:column;justify-content:center;
-    min-height:calc(46dvh - 26px)
+    display:block;padding-bottom:calc(22px + env(safe-area-inset-bottom))
   }
   #edPick .ns-head h2{font-size:22px;font-weight:700;letter-spacing:.06em}
   .ns-sub{
@@ -513,7 +512,8 @@ html:not(.mui-off) #home.m-carousel #mCarouselMeta{
   }
   .ns-cards::-webkit-scrollbar{display:none}
   .ns-card{
-    flex:0 0 54vw;width:54vw;height:196px;box-sizing:border-box;
+    --ns-pick-card-h:clamp(104px,23.2dvh,196px);
+    flex:0 0 54vw;width:54vw;height:var(--ns-pick-card-h);box-sizing:border-box;
     scroll-snap-align:center;display:flex;align-items:center;justify-content:center;
     padding:0;border-radius:20px;
     color:inherit;background:var(--ns-card);border:1px solid var(--ns-bd);
@@ -521,7 +521,10 @@ html:not(.mui-off) #home.m-carousel #mCarouselMeta{
   }
   .ns-card:active{transform:scale(.98)}
   .ns-card.on{background:var(--ns-on);border-color:rgba(127,132,150,.5)}
-  .ns-pv{display:flex;align-items:center;justify-content:center;pointer-events:none}
+  .ns-pv{
+    display:flex;align-items:center;justify-content:center;pointer-events:none;
+    transform:scale(calc(var(--ns-pick-card-h) / 196px))
+  }
   /* --cr-scale 必须跟着封面宽同比折算（108 / 主页 246 ≈ .44），否则圆角会偏大 */
   .ns-pv .cover{--cover-w:108px;--cr-scale:.44;box-shadow:0 14px 26px -14px rgba(0,0,0,.5)}
   .ns-card b,.ns-card small,.ns-tip{display:none}
@@ -531,6 +534,25 @@ html:not(.mui-off) #home.m-carousel #mCarouselMeta{
     transition:width .26s ease,background .26s ease
   }
   .ns-dots i.on{width:22px;background:#171a21}
+  /* 矮屏（含浏览器地址栏吃掉的高度）：标题 / 副标题 / 卡片间距一起收，
+     但分页点下面仍留 18px；配合上面的卡片缩放，整套内容始终装得进 45dvh。 */
+  @media (max-height:760px){
+    #mask.ns-pick .ns-head{margin-bottom:4px}
+    #edPick .ns-head h2{font-size:19px}
+    .ns-sub{margin:0 0 6px;font-size:12px}
+    .ns-cards{padding-bottom:2px}
+    .ns-dots{margin-top:6px}
+    #mask.ns-pick #edPick{padding-bottom:calc(18px + env(safe-area-inset-bottom))}
+  }
+  @media (max-height:540px){
+    #mask.ns-pick .ns-card{--ns-pick-card-h:clamp(92px,19dvh,112px)}
+    #mask.ns-pick .ns-head{margin-bottom:2px}
+    #edPick .ns-head h2{font-size:17px}
+    .ns-sub{margin:0 0 4px;font-size:11px}
+    .ns-cards{padding-bottom:0}
+    .ns-dots{margin-top:4px}
+    #mask.ns-pick #edPick{padding-bottom:calc(18px + env(safe-area-inset-bottom))}
+  }
 
   /* 第二步：预览图钉在「把手 30 + 标题 34」下面，跟前两段拼成一条吸顶栏 */
   #mask .editor-preview{
@@ -643,14 +665,15 @@ html:not(.mui-off) #home.m-carousel #mCarouselMeta{
 .mn-back:active{transform:scale(.94)}
 /* 右上关闭 ✕：移动端菜单是整屏页，只用左上返回；桌面弹窗才切到它（见下方媒体查询） */
 #homeMenu.addmenu .mn-x{display:none}
-/* 品牌卡：黄色圆头像 + 名称 + 一段说明，照参考图的第一张白卡 */
+/* 品牌卡：项目图标 + 名称 + 一段说明，整块可点进 yoseya.top */
 .mn-brand{
   display:flex;align-items:center;gap:14px;padding:18px 18px 16px;
-  border-radius:20px;background:#fff;box-shadow:0 6px 22px -16px rgba(20,24,40,.4)
+  border-radius:20px;background:#fff;box-shadow:0 6px 22px -16px rgba(20,24,40,.4);
+  cursor:pointer
 }
 .mn-avatar{
-  flex:0 0 54px;height:54px;border-radius:50%;display:grid;place-items:center;
-  background:#ffe14d;color:#171a21;font-family:Georgia,serif;font-size:26px;font-weight:700
+  flex:0 0 54px;width:54px;height:54px;box-sizing:border-box;border-radius:50%;
+  object-fit:cover;background:#fff;border:1px solid rgba(17,19,24,.08)
 }
 .mn-brand-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
 .mn-brand-tx b{font-size:17px;letter-spacing:.02em}

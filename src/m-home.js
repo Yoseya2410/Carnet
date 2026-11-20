@@ -470,10 +470,20 @@
       }, { passive: true });
     }
   }
+  /* 第一步的高度只认真实内容：量 #edPick + 顶部把手，写进 --ns-pick-h；
+     CSS 再用 45dvh 封顶。返回第一步 / 重新打开时都重量一次，
+     不把上次的高度留在内联变量里。 */
+  function nsMeasurePick() {
+    const mask = $('#mask'), modal = $('#modal'), pick = $('#edPick');
+    if (!mask || !modal || !pick || !mask.classList.contains('ns-pick')) return;
+    const grab = modal.querySelector('.ns-grab');
+    const h = (pick.scrollHeight || pick.offsetHeight) + (grab ? grab.offsetHeight : 0);
+    if (h > 0) modal.style.setProperty('--ns-pick-h', Math.ceil(h) + 'px');
+  }
   const origOpenEditor = window.openEditor;
   window.openEditor = function (journal) {
     const mask = $('#mask');
-    /* 新建时先把高度档位落到 46%，再让 origOpenEditor 加 .show ——
+    /* 新建时先落到第一步，再让 origOpenEditor 加 .show ——
        否则打开那一帧会先按 90% 撑开再收下来，看得见一次跳动 */
     if (isMobile() && mask && !journal) mask.classList.add('ns-setup', 'ns-pick');
     origOpenEditor(journal);
@@ -484,12 +494,13 @@
       const b = $('#nsBack'); if (b) b.style.display = '';
       return;
     }
-    /* 编辑已有本：直接给 90% 的设置页；新建：先落在 46% 的选样式页 */
+    /* 编辑已有本：直接给 90% 的设置页；新建：先落在按内容定高的选样式页 */
     mask.classList.add('ns-setup');
     ed.fold = {};                         // 移动端是连续清单，不吃桌面那套折叠状态
     if (!journal) {
       nsRenderPick();
       mask.classList.add('ns-pick');
+      nsMeasurePick();
     } else {
       mask.classList.remove('ns-pick');
     }
@@ -509,7 +520,7 @@
     ed.temp.style = normBookStyle(c.dataset.nsStyle);
     $$('#edPickCards .ns-card').forEach(n => n.classList.toggle('on', n === c));
     const mask = $('#mask');
-    mask.classList.remove('ns-pick');     // 同一个盒子从 46% 抬到 90%
+    mask.classList.remove('ns-pick');     // 同一个盒子从贴内容高度抬到 90%
     mask.classList.add('ns-setup');
     ed.fold = {};
     syncEditor();
@@ -523,6 +534,7 @@
     if (!isMobile() || !ed.isNew || !mask) { nsCleanup(); closeEditor(); return; }
     nsRenderPick();
     mask.classList.add('ns-pick');
+    nsMeasurePick();
     $('#modal').scrollTop = 0;
   });
   /* 关掉 sheet 时把两步状态 / 拖拽残留收干净，下次打开从第一步重新来 */
@@ -800,6 +812,18 @@
   if (deskMenu) deskMenu.onclick = mOpenMenu;
   const mnBack = $('#mnBack');
   if (mnBack) mnBack.onclick = () => closeMenus();
+  /* 品牌卡：点头像 / 名称 / 整块都进 yoseya.top */
+  const mnBrand = $('#homeMenu .mn-brand');
+  if (mnBrand) {
+    const visitSite = () => {
+      closeMenus();
+      window.location.href = 'https://yoseya.top';
+    };
+    mnBrand.addEventListener('click', visitSite);
+    mnBrand.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); visitSite(); }
+    });
+  }
   /* 桌面弹窗右上的 ✕（移动端隐藏），关闭动作与左上返回一致 */
   const mnX = $('#mnX');
   if (mnX) mnX.onclick = () => closeMenus();

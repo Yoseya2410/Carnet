@@ -47,11 +47,10 @@
     const sh = sel => { const e = $(sel); return e && e.classList.contains('show') ? e : null; };
     const vi = sel => { const e = $(sel); return e && !e.hidden ? e : null; };
 
-    /* 取色盘 / 加密 / 确认 / 复制：小窗优先，盖在页面之上 */
+    /* 取色盘 / 加密 / 确认：小窗优先，盖在页面之上 */
     add('color', sh('#cpMask'), () => { if (typeof closeColorPicker === 'function') closeColorPicker(); });
     add('lock', sh('#lockMask'), () => { if (typeof closeLockPanel === 'function') closeLockPanel(); });
     add('confirm', sh('#confirmMask'), () => { if (typeof closeConfirm === 'function') closeConfirm(); });
-    add('copy', vi('#copyMask'), () => { if (typeof closeCopyPanel === 'function') closeCopyPanel(); });
 
     /* DIY 全屏页里的面板 → 先关面板，再关整页 */
     add('diySheet', vi('#diySheet'), () => {
@@ -212,11 +211,11 @@
     });
   }
 
-  /* 兜底：分享菜单、确认框、复制页等不是靠上面的函数打开的，
+  /* 兜底：分享菜单、确认框等不是靠上面的函数打开的，
      只观察这些节点的 class / hidden 变化，不在全 DOM 上撒网。 */
   function observeLayers() {
     const ids = [
-      'cpMask', 'lockMask', 'confirmMask', 'copyMask', 'diySheet', 'tsheet',
+      'cpMask', 'lockMask', 'confirmMask', 'diySheet', 'tsheet',
       'bgsheet', 'frsheet', 'stsheet', 'diyPage', 'mExpMenu', 'mask',
       'searchPanel', 'homeMenu', 'addMenu', 'importPanel', 'bgMask', 'reader', 'home'
     ];

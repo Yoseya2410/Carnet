@@ -182,63 +182,6 @@ body.bg-light .imp-ico{background:rgba(17,19,24,.06)}
   .imp-note{margin-top:20px}
 }
 
-/* ============ 跨本复制页面面板 ============ */
-.cp2-mask{
-  position:absolute;inset:0;z-index:120;display:grid;place-items:center;padding:16px;
-  background:rgba(16,18,30,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)
-}
-.cp2-panel{
-  width:min(480px,100%);max-height:min(78vh,680px);display:flex;flex-direction:column;
-  border-radius:24px;overflow:hidden;background:rgba(35,38,50,.94);color:#f4f6fb;
-  border:1px solid var(--frost-bd);
-  backdrop-filter:var(--frost-fx);-webkit-backdrop-filter:var(--frost-fx);
-  box-shadow:0 30px 60px -18px rgba(0,0,0,.7)
-}
-body.bg-light .cp2-panel{background:rgba(255,255,255,.97);color:#2b2f3d;border-color:rgba(17,19,24,.12)}
-.cp2-head{
-  display:grid;grid-template-columns:38px 1fr 38px;align-items:center;
-  padding:12px 12px 10px;border-bottom:1px solid rgba(255,255,255,.1)
-}
-body.bg-light .cp2-head{border-color:rgba(17,19,24,.09)}
-.cp2-head b{text-align:center;font-size:14px;letter-spacing:.04em}
-.cp2-x{border:none;background:transparent;color:inherit;font-size:16px;opacity:.7}
-.cp2-body{flex:1;min-height:0;overflow-y:auto;padding:12px 14px}
-.cp2-lab{font-size:12px;opacity:.65;margin:8px 0 10px;letter-spacing:.04em}
-.cp2-pages{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:9px;margin-bottom:18px}
-.cp2-page{
-  position:relative;display:flex;align-items:center;gap:9px;padding:8px;border-radius:12px;
-  color:inherit;text-align:left;background:rgba(255,255,255,.07);border:1.5px solid transparent
-}
-.cp2-page.on{border-color:var(--accent-on-dark,#fff);background:rgba(255,255,255,.16)}
-body.bg-light .cp2-page{background:rgba(17,19,24,.04)}
-body.bg-light .cp2-page.on{border-color:#111318;background:rgba(17,19,24,.08)}
-.cp2-page-thumb{
-  flex:none;width:30px;height:40px;border-radius:3px;display:grid;place-items:center;
-  background:#fdfaf3;color:#3a3f52;box-shadow:0 2px 6px -3px rgba(0,0,0,.5)
-}
-.cp2-page-thumb b{font-size:12px}
-.cp2-page-tx{min-width:0;display:flex;flex-direction:column;gap:3px;font-size:12px}
-.cp2-page-tx small{font-size:10.5px;opacity:.55}
-.cp2-tick{position:absolute;right:7px;top:7px;font-style:normal;font-size:10px;line-height:1;opacity:0}
-.cp2-page.on .cp2-tick,.cp2-target.on .cp2-tick{opacity:1}
-.cp2-targets{display:flex;flex-direction:column;gap:8px}
-.cp2-target{
-  position:relative;display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:12px;
-  color:inherit;text-align:left;background:rgba(255,255,255,.07);border:1.5px solid transparent
-}
-.cp2-target.on{border-color:var(--accent-on-dark,#fff);background:rgba(255,255,255,.16)}
-body.bg-light .cp2-target{background:rgba(17,19,24,.04)}
-body.bg-light .cp2-target.on{border-color:#111318;background:rgba(17,19,24,.08)}
-.cp2-target-sw{flex:none;width:24px;height:32px;border-radius:3px;box-shadow:0 2px 6px -3px rgba(0,0,0,.55)}
-.cp2-target-tx{
-  flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;font-size:13px;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap
-}
-.cp2-target-tx small{font-size:10.5px;opacity:.55}
-.cp2-empty{font-size:12px;opacity:.6;line-height:1.7;margin:6px 0}
-.cp2-foot{display:flex;justify-content:flex-end;gap:10px;padding:12px 14px;border-top:1px solid rgba(255,255,255,.1)}
-body.bg-light .cp2-foot{border-color:rgba(17,19,24,.09)}
-
 /* 矮横屏（手机横过来只剩 ~390px 高）：弹窗里收起说明文字，三张卡片一次看完 */
 @media (orientation:landscape) and (max-height:480px){
   .imp-lead,.imp-note{display:none}

@@ -245,7 +245,6 @@
         <button data-page-node-id="AMtext" data-addact="text"><span data-page-node-id="AMtextIco" class="am-t"><!--pnid:daEy0hddPu4xJt9odUGyku-->T</span><!--pnid:wmvfMHu0bJp1J0W4jKw40h-->添加文字<span data-page-node-id="AMtextP" class="am-p"></span></button>
         <button data-page-node-id="AMsticker" data-addact="sticker"><svg data-page-node-id="AMstickerIco" fill="none" height="16" stroke="currentColor" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><path data-page-node-id="AMstickerP1" d="M12 3.4l2.2 4.7 5.1.5-3.9 3.4 1.1 5L12 14.6l-4.5 2.6 1.1-5-3.9-3.4 5.1-.5z"/><path data-page-node-id="AMstickerP2" d="M5.4 19.8h5.2"/></svg><!--pnid:AMstickerTx-->贴纸<span data-page-node-id="AMstickerP" class="am-p"></span></button>
         <button data-page-node-id="AMbg" data-addact="bg"><svg data-page-node-id="AMbgIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><path data-page-node-id="AMbgP1" d="M12 21a9 9 0 110-18c4.97 0 9 3.58 9 8 0 1.5-1.23 2.5-2.5 2.5H17a2 2 0 00-1.42 3.42A1.94 1.94 0 0114 18.5c0-1.1-.9-2-2-2h-.5"/><circle data-page-node-id="AMbgC1" cx="7.6" cy="11.2" fill="currentColor" r=".85" stroke="none"/><circle data-page-node-id="AMbgC2" cx="10.6" cy="6.8" fill="currentColor" r=".85" stroke="none"/><circle data-page-node-id="AMbgC3" cx="15.6" cy="7.6" fill="currentColor" r=".85" stroke="none"/></svg><!--pnid:AMbgTx-->本页底色<span data-page-node-id="AMbgP" class="am-p"></span></button>
-        <button data-page-node-id="AMcopy" data-addact="copy"><svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><rect height="11.6" rx="2.4" width="11.6" x="8.4" y="8.4"/><path d="M15.9 8.4V6.3a2.3 2.3 0 00-2.3-2.3H6.3A2.3 2.3 0 004 6.3v7.3a2.3 2.3 0 002.3 2.3h2.1"/></svg>复制页面到…<span class="am-p"></span></button>
         <button data-page-node-id="AMdel" class="am-del" data-addact="del"><svg data-page-node-id="AMdelIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><path data-page-node-id="AMdelP1" d="M4.5 6.6h15"/><path data-page-node-id="AMdelP2" d="M9.6 6.6V4.9h4.8v1.7"/><path data-page-node-id="AMdelP3" d="M6.4 6.6l.9 11.9a1 1 0 001 .9h7.4a1 1 0 001-.9l.9-11.9"/><path data-page-node-id="AMdelP4" d="M10.4 10.4v5.6"/><path data-page-node-id="AMdelP5" d="M13.6 10.4v5.6"/></svg><!--pnid:AMdelTx-->删除本页<span data-page-node-id="AMdelP" class="am-p"></span></button>
       </div>
     </div>
@@ -392,17 +391,17 @@
       </div>
       <div data-page-node-id="STFoot" class="st-foot">
         <div class="st-tools" id="stFootMain">
-          <button class="st-imp" id="stImport">
+          <button class="st-imp" id="stImport" title="导入图片为贴纸，可一次选择多张">
             <svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><path d="M12 5v14M5 12h14"/></svg>
-            导入图片（可多选）
+            导入图片
           </button>
-          <button class="st-imp" id="stImportLbl" title="导入 .lbl 贴纸包，按文件分成不同组">
+          <button class="st-imp" id="stImportLbl" title="导入 .lbl 贴纸包，可多选文件，按文件分成不同组">
             <svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><path d="M12 4v11M8 11l4 4 4-4M4.6 15.2v4.3a1.1 1.1 0 001.1 1.1h12.6a1.1 1.1 0 001.1-1.1v-4.3"/></svg>
-            导入 .lbl
+            导入贴纸
           </button>
           <button class="st-imp" id="stExportLbl" title="勾选多张贴纸，导出成一个 .lbl 贴纸包">
             <svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><path d="M12 16V4M8 8l4-4 4 4M4.6 15.2v4.3a1.1 1.1 0 001.1 1.1h12.6a1.1 1.1 0 001.1-1.1v-4.3"/></svg>
-            导出 .lbl（多选）
+            导出贴纸
           </button>
         </div>
         <!-- 多选导出条：勾选贴纸 → 起个贴纸包名字 → 导出成一个 .lbl 文件 -->
@@ -711,9 +710,9 @@
       </div>
 
       <div class="mn-brand-wrap">
-        <div class="mn-brand">
-          <span class="mn-avatar">C</span>
-          <span class="mn-brand-tx"><b>Carnet</b><small>把日子装订成册</small></span>
+        <div class="mn-brand" role="link" tabindex="0" aria-label="打开 yoseya.top">
+          <img class="mn-avatar" src="assets/pwa-icon-192.png" alt="">
+          <span class="mn-brand-tx"><b>Carnet</b><small>由 Aidea Studio 开发</small></span>
           <span class="mn-chev">›</span>
         </div>
       </div>
@@ -786,29 +785,6 @@
     </div>
     </div>
   </section>
-
-  <!--pnid:CopyMask--><!-- 跨本复制页面：勾选一页或多页 → 选目标手账本 → 追加到目标末尾 -->
-  <div class="cp2-mask" id="copyMask" hidden>
-    <div class="cp2-panel">
-      <div class="cp2-head">
-        <button class="panel-back" id="copyBack" title="返回" aria-label="返回">
-          <svg fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="20"><path d="M14.5 5.5L8 12l6.5 6.5"/></svg>
-        </button>
-        <b>复制页面到另一本手帐</b>
-        <button class="panel-x" id="copyClose" title="关闭" aria-label="关闭">✕</button>
-      </div>
-      <div class="cp2-body">
-        <div class="cp2-lab">选择要复制的页面（可多选）</div>
-        <div class="cp2-pages" id="copyPages"></div>
-        <div class="cp2-lab">复制到</div>
-        <div class="cp2-targets" id="copyTargets"></div>
-      </div>
-      <div class="cp2-foot">
-        <button class="btn ghost" id="copyCancel">取消</button>
-        <button class="btn primary" id="copyOk">复制</button>
-      </div>
-    </div>
-  </div>
 
   <div data-page-node-id="CFmask" class="confirm-mask" id="confirmMask">
     <div data-page-node-id="CFbox" class="confirm-box">

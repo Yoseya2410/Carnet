@@ -30,7 +30,7 @@
  *
  * 懒加载：菜单 / 新建弹窗的动画也要 cloneNode 整棵子树（菜单 .mn-scroll
  * 含色板、开关、卡片；#edForm 有 300+ 节点），逐帧克隆与重绘是主要卡顿源。
- *   开启时（默认开）动画期间把重子树摘到内存、换成十来个节点的轻骨架，
+ *   开启时（默认关）动画期间把重子树摘到内存、换成十来个节点的轻骨架，
  *   落地后原样放回：节点对象没销毁，id / 值 / 监听器 / 事件绑定都在。
  *   状态存 localStorage carnet_lazy_v1，和 Genie 开关一样不进 prefs、不跟导出走。
  * ===================================================================== */
@@ -80,9 +80,10 @@
   let editorOwned = false;
   let editorDone = null;   // 关闭动画落地后才跑的业务收尾（renderHome / toast）
 
-  /* ---- 懒加载总开关：默认开，和 Genie 开关一样只存 localStorage ---- */
-  let lazyOn = true;
-  try { lazyOn = localStorage.getItem(LAZY_KEY) !== '0'; } catch (_) {}
+  /* ---- 懒加载总开关：默认关，和 Genie 开关一样只存 localStorage ----
+     只有显式存过 '1' 才算开；没有这个 key（含老用户升级）一律按关处理。 */
+  let lazyOn = false;
+  try { lazyOn = localStorage.getItem(LAZY_KEY) === '1'; } catch (_) {}
 
   window.CarnetLazyLoad = {
     get on() { return lazyOn; },

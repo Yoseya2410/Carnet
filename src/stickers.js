@@ -350,6 +350,10 @@ function stTab(name) {
   sts.tab = name || 'note';
   $$('#stTabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === sts.tab));
   $$('#stPanes .ts-pane').forEach(p => p.classList.toggle('on', p.dataset.pane === sts.tab));
+  /* 导入图片 / 导入贴纸 / 导出贴纸只服务「我的贴纸」，另外两档藏掉整条底栏。
+     走 stTab 统一收口：点标签、导入图片后自动切档、打开面板时的初始化都覆盖到。 */
+  const foot = $('#stsheet .st-foot');
+  if (foot) foot.hidden = sts.tab !== 'mine';
 }
 function buildStickerSheet() {
   const notes = $('#stNotes');

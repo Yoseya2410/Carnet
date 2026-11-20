@@ -193,8 +193,14 @@
 }
 
 /* ============ .lbl 贴纸包：工具行 / 多选条 / 按文件分组 ============ */
-.st-tools{display:flex;gap:8px;flex-wrap:wrap;padding:2px 0 6px}
-.st-tools .st-imp{flex:1 1 auto;min-width:104px;padding:9px 10px;font-size:12px}
+/* 三个按钮恒定一行、等宽：min-width:0 让窄面板（横屏 352px / 小屏）也能挤下，
+   flex:1 1 0 三等分，文字放不下时自动折行而不是把按钮顶到下一行 */
+.st-tools{display:flex;gap:6px;flex-wrap:nowrap;padding:2px 0 6px}
+.st-tools .st-imp{
+  flex:1 1 0;min-width:0;padding:9px 4px;font-size:12px;gap:4px;
+  line-height:1.2;text-align:center
+}
+.st-tools .st-imp svg{flex:none;width:14px;height:14px}
 .st-selbar{
   display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px;border-radius:12px;
   background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.18)
