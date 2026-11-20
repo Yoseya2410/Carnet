@@ -528,8 +528,23 @@ function openEditor(journal) {
   $('#mask').classList.add('show');
   $('#modal').scrollTop = 0;          // 每次打开都从最上面开始
   $('#mask').scrollTop = 0;
+  /* 电脑端「＋ 新建手帐本」：弹窗从底栏那颗按钮飞出来。
+     编辑已有本 / 移动端两步 Sheet 仍走原来的 pop 入场。 */
+  const genie = window.CarnetMenuGenie;
+  if (genie && !journal) genie.openEditor(!journal);
 }
-function closeEditor() { $('#mask').classList.remove('show'); }
+function closeEditor(after) {
+  const mask = $('#mask'), genie = window.CarnetMenuGenie;
+  const cb = typeof after === 'function' ? after : null;
+  /* 返回 / 取消 / 完成 / Esc / 点遮罩共用这一条关闭链路，三个按钮的收回
+     动画完全一致。先让效果层接住当前画面，再摘 .show（业务状态立即完成）。
+     ⚠️ after（重绘书架 / toast）由 Genie 在动画落地后执行，恰好一次；
+        动画被打断、降级或 Genie 未加载时立即执行。紧跟在 closeEditor 后面
+        同步 renderHome 会在动画第一帧重绘主页，把收回动画盖掉。 */
+  if (mask.classList.contains('show') && genie) genie.closeEditor(cb);
+  else if (cb) cb();
+  mask.classList.remove('show');
+}
 /* 自定义「＋」色块直接追加到该组色块的末尾（同排显示，色值提示紧跟其后） */
 function appendCustomChip(boxSel, id, tipId, title) {
   const box = $(boxSel); if (!box) return;
@@ -987,7 +1002,7 @@ function syncEditor() {
       : (locked ? '已用封面图片，图案不可用' : (ED_SEC_HINT[key] || (() => ''))());
   });
 }
-$('#edCancel').onclick = closeEditor;
+$('#edCancel').onclick = () => closeEditor();
 $('#edSave').onclick = () => {
   const t = ed.temp;
   t.name = ($('#edName').value || '').trim() || '未命名手帐';
@@ -999,8 +1014,14 @@ $('#edSave').onclick = () => {
   }
   if (ed.isNew) { state.journals.push(t); state.sel = state.journals.length - 1; }
   else { state.journals[state.sel] = t; }
-  save(); closeEditor(); renderHome(); renderReader();
-  toast(ed.isNew ? '手帐本已创建' : '已保存修改');
+  const wasNew = ed.isNew;
+  save();
+  /* 书架重绘 / toast 延到收回动画落地：返回 / 取消 / 完成三个入口的视觉
+     节奏一致。Genie 关闭或降级时 closeEditor 会立即执行这个回调。 */
+  closeEditor(() => {
+    renderHome(); renderReader();
+    toast(wasNew ? '手帐本已创建' : '已保存修改');
+  });
 };
 /* 「设置 / 管理密钥…」：先把编辑器里的改动落盘并关掉弹窗，再去管 state 里那一本。
    ⚠️ 不能直接在 ed.temp 上改 lock —— ed.temp 是深拷贝，用户再点一次「完成」

@@ -981,6 +981,9 @@
   <script src="assets/frame-gold.js" defer></script>
   <!-- 书架铆钉贴图（内嵌 dataURL）：WebGL 实验层要采样它，必须排在 gl-lab.js 之前 -->
   <script src="assets/shelf-rivet.js" defer></script>
+  <!-- 菜单 Genie Effect 接入层：@web-kits/springboard 的本地离线打包由它在
+       空闲时按需加载（懒加载），首屏不吃这 42KB；附加模块不占主链编号。 -->
+  <script src="src/menu-genie.js" defer></script>
   <script src="src/core.js" defer></script>
   <script src="src/visuals.js" defer></script>
   <script src="src/storage.js" defer></script>
@@ -1009,6 +1012,8 @@
   <script src="src/scrub.js" defer></script>
   <script src="src/system.js" defer></script>
   <script src="src/main.js" defer></script>
+  <!-- 移动端左边缘侧滑返回：必须在 m-home.js 之前，仍由 m-home.js 收尾 -->
+  <script src="src/swipe-back.js" defer></script>
   <!-- WebGL 实验层（POC，默认关闭）：删掉这一行 + src/gl-lab.js 即可整块摘除，无残留 -->
   <script src="src/gl-lab.js" defer></script>
   <!-- PWA 实验开关：必须在 m-home.js 之前（m-home.js 仍保持最后一个脚本） -->

@@ -997,6 +997,9 @@ python -c "from fontTools.ttLib import TTFont; from fontTools.subset import Subs
   （保留布局，书脚负 margin 依赖它）。玻璃严格复刻 CSS 的六段低透明度渐变，铆钉通过
   `assets/shelf-rivet.js` 内嵌的同一张 PNG 贴图采样，因此与标准渲染逐像素一致、也不会再出现白横带。
   封面图案仍由 DOM 合成（与编辑、PDF/SVG 导出同源），GPU 负责其光影。
+  ⚠️ 后续修订（11-19 / 11-20）：两颗铆钉已交回 DOM（`.shelf-board .screw`，WebGL 不再采样重画）；
+  整组层级改为 `#glLabShelf` 3 / `.shelf-board` 4，必须低于 `.topbar` / `.pickbar` / `.actionbar`
+  的 `z-index:5`，否则书架滚到顶部时铆钉会压住模式切换 / 搜索 / 菜单按钮。见 `src/gl-lab.js` CSS_TEXT。
 - **设置页**：底部「恢复默认背景 / 完成」已移除；「恢复默认」移入「背景颜色」一栏。
 - **统一弹窗头部**：设置 / 导入 / 跨本复制共用 `.panel-back`（左上返回）与 `.panel-x`（右上 ✕），
   功能相同，移动端整屏页显示返回、电脑端弹窗显示叉；三块面板圆角与玻璃质感统一。

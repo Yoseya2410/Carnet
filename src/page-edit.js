@@ -359,6 +359,9 @@ function bindPage() {
   };
 
   $$('#slotL .pimg-wrap, #slotR .pimg-wrap, #slotL .ptext-wrap, #slotR .ptext-wrap').forEach(w => {
+    /* 翻页落定会复用未换内容的另一侧；同一节点只绑一次手势，避免重复监听。 */
+    if (w.__pageBound) return;
+    w.__pageBound = true;
     let pid = +w.dataset.page;         // 可能被跨页拖到另一页，所以不能是 const
     const iid = w.dataset.id;
     const isText = w.classList.contains('ptext-wrap');

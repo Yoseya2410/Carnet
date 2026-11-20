@@ -100,7 +100,7 @@
 /* ---- 弹窗（新建 / 编辑手帐本、设置…）---- */
 .bg-light .modal{
   color:#2b2f3d;
-  background:linear-gradient(180deg,rgba(255,255,255,.58),rgba(255,255,255,.46));
+  background:linear-gradient(180deg,rgba(255,255,255,.24),rgba(255,255,255,.20));
   border-color:rgba(255,255,255,.72);
   box-shadow:0 40px 80px -22px rgba(30,32,48,.42)
 }

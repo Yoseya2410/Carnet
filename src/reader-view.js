@@ -355,7 +355,7 @@ function clampViewIndex(v, max) {
   if (v === PAGE_BACK_COVER && hasBackCover(cur())) return PAGE_BACK_COVER;
   return clamp(v, -1, Math.max(max, -1));
 }
-function renderReader() {
+function renderReader(reuseFlipDOM) {
   commitTextEdit();                    // 重绘前先把正在编辑的文字存下来
   const book = $('#book');
   state.mode = isSpread() ? 'spread' : 'single';
@@ -385,17 +385,22 @@ function renderReader() {
      没环的两档（笔记本 / 方形画册）清空，中缝只剩原来的折痕 */
   const ringed = !!bookStyleOf(cur()).rings;
   book.classList.toggle('ringed', ringed);
+  /* 封面态就提前算活页内侧配色：纯色在 microtask、图片在 decode / 取色后完成，
+     通常开书飞行结束前缓存已就绪，不再把异步回调挤进第一次翻开封面。 */
+  if (ringed && cov) coverInsideStyle(cur());
   /* 第一跨页：只有活页的左半边是封面内侧（不是正文页），整格不铺纸、圆角也跟封面一致；
      笔记本 / 画册打开就是第 1 页，那一格照正文页来铺 */
   book.classList.toggle('first-spread', state.mode === 'spread' && !cov && state.spread === 0 && ringed);
   const grings = $('#gutterRings');
-  if (grings) grings.innerHTML = gutterRingsHTML();
+  /* endFlip 的复用路径：铁环只跟装帧有关，页码变化不必重建整套 SVG。 */
+  if (grings && !reuseFlipDOM) grings.innerHTML = gutterRingsHTML();
   /* 内页底下那层封面内侧：活页翻开后内页是压在封面上的，封面比内页大一圈、四周露一条边。
      封面态（整页就是封面）不需要 —— 那就成了「封面压封面」 */
   const under = !cov && ringed;
   book.classList.toggle('has-under', under);
   const bu = $('#bookUnder');
-  if (bu) bu.innerHTML = under ? coverUnderBoardsHTML() : '';
+  /* 封面内侧同样已在 flip() 起手铺好；复用可避免活页首次收尾重复栅格化。 */
+  if (bu && !reuseFlipDOM) bu.innerHTML = under ? coverUnderBoardsHTML() : '';
   const n = pageCount();
   const [a, b] = currentIndices();
   /* 最后一跨的右页越界 = 后封面内侧（活页）/ 环衬（胶装）：
@@ -409,16 +414,18 @@ function renderReader() {
   $$('#slotL .ptext-wrap, #slotR .ptext-wrap').forEach(x => {
     if (x.__outDown) { document.removeEventListener('pointerdown', x.__outDown, true); x.__outDown = null; }
   });
-  if (state.mode === 'spread' && !cov) {
-    $('#slotL').innerHTML = pageHTML(a, 'left');
-    $('#slotR').innerHTML = pageHTML(b, 'right');
-  } else if (state.mode === 'spread' && back) {
-    /* 封底态：封底躺在左槽（合书叶片的落点），右槽收起 */
-    $('#slotL').innerHTML = backCoverPageHTML();
-    $('#slotR').innerHTML = '';
-  } else {
-    $('#slotL').innerHTML = '';
-    $('#slotR').innerHTML = pageHTML(state.mode === 'spread' ? b : state.page, 'single');
+  if (!reuseFlipDOM) {
+    if (state.mode === 'spread' && !cov) {
+      $('#slotL').innerHTML = pageHTML(a, 'left');
+      $('#slotR').innerHTML = pageHTML(b, 'right');
+    } else if (state.mode === 'spread' && back) {
+      /* 封底态：封底躺在左槽（合书叶片的落点），右槽收起 */
+      $('#slotL').innerHTML = backCoverPageHTML();
+      $('#slotR').innerHTML = '';
+    } else {
+      $('#slotL').innerHTML = '';
+      $('#slotR').innerHTML = pageHTML(state.mode === 'spread' ? b : state.page, 'single');
+    }
   }
   $('#leaf').classList.remove('show');
   $('#leaf').style.transform = 'none';

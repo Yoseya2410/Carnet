@@ -585,8 +585,11 @@ html:not(.mui-off) #home.m-carousel #mCarouselMeta{
   position:absolute;inset:0;
   z-index:135;min-width:0;
   /* 桌面 = 居中圆角弹窗：inset:0 + 固定宽高 + margin:auto 自动居中。
-     ⚠️ 不能用 transform 居中 —— 下面 transform:none 是给旧毛玻璃菜单擦屁股的，会把它抹掉。 */
-  width:min(430px,calc(100vw - 40px));height:min(76vh,660px);
+     ⚠️ 不能用 transform 居中 —— 下面 transform:none 是给旧毛玻璃菜单擦屁股的，会把它抹掉。
+     11-20：430 → 480 → 560，与「新建手账本」.modal 的 min(560px,100%) 同宽；
+     .mn-scroll 的 max-width 必须同步放到 560，否则内容会被卡在 520 居中、白加宽。
+     竖屏整屏页在 ⑤ 用 width:auto 复位。 */
+  width:min(560px,calc(100vw - 40px));height:min(76vh,660px);
   margin:auto;padding:0;
   border:1px solid rgba(255,255,255,.7);border-radius:24px;overflow:hidden;
   box-shadow:0 30px 70px -22px rgba(20,24,40,.55);
@@ -624,7 +627,9 @@ html:not(.mui-off) #home.m-carousel #mCarouselMeta{
 #homeMenu.addmenu .mn-back{padding:0;border-radius:50%}
 .mn-scroll{
   height:100%;overflow-y:auto;overscroll-behavior:contain;
-  max-width:520px;margin:0 auto;padding:0 22px calc(40px + env(safe-area-inset-bottom));
+  /* 11-20：520 → 560，跟桌面弹窗宽度一起放（弹窗 560 时内容才不会被钉在 520 居中）。
+     竖屏整屏页宽度小于 560，这条上限在那里本来就不生效。 */
+  max-width:560px;margin:0 auto;padding:0 22px calc(40px + env(safe-area-inset-bottom));
   color:#20232c;
   /* 菜单页滚动条隐藏，滚动照旧（桌面弹窗与移动整屏页共用这一处） */
   scrollbar-width:none;-ms-overflow-style:none
@@ -763,6 +768,68 @@ html:not(.mui-off) #home.m-carousel #mCarouselMeta{
 }
 
 /* =====================================================================
+ * ④b 电脑端菜单弹窗背景：白玻璃 + 一层压暗（11-20）
+ *    · 底层仍是「新建手账本」.modal 那套半透明白玻璃（模糊同样吃 var(--frost-fx)），
+ *      但菜单面积大、白卡多，纯白玻璃在浅底上会白成一片、卡片浮不出来。
+ *      11-20 二次调整：白玻璃调薄（.58/.46 → .50/.40）＋ 叠一层中性灰
+ *      (24,27,38) .10→.14 压亮，玻璃变柔和、后面的书封透得更清楚。
+ *      ⚠️ 只改菜单这一处，别回去动 background.css 的 .bg-light .modal（新建弹窗保持原样）。
+ *    · ⚠️ 独立 media 写 64.0625em（=1025px，但字符串不含 1025px）：muiCss() 关
+ *      「新视觉风格」时会把 ④ 整段改成 all；若把这条写进 ④，竖屏手机的整屏
+ *      菜单也会跟着变透明。这里只认视口，跟开关无关。
+ *    · 11-20 四次：用户接着要求「选项和按钮也是透明的」—— 卡片 / 选项行 /
+ *      圆钮 / 小按钮 / 开关轨道一并半透明，别在玻璃底上留一块块死白。
+ *      ⚠️ 只改这些容器，头像 / 开关滑块 / 色板选中圈保持实色，否则看不清。
+ *      用 inset 描边代替 border，不动盒模型尺寸；不加 backdrop-filter（多张卡片
+ *      逐帧重算高斯，Genie 动画会卡）。
+ *    · ⑤ 竖屏整屏页不匹配这条，继续吃 ③ 的 #f5f6f8 不透明实底（卡片仍是 #fff）。
+ * ===================================================================== */
+@media (min-width:64.0625em), (orientation:landscape){
+  #homeMenu.addmenu,
+  #homeMenu.addmenu.show{
+    background:
+      linear-gradient(180deg,rgba(24,27,38,.10),rgba(24,27,38,.14)),
+      linear-gradient(180deg,rgba(255,255,255,.50),rgba(255,255,255,.40));
+    border-color:rgba(255,255,255,.72);
+    -webkit-backdrop-filter:var(--frost-fx);backdrop-filter:var(--frost-fx)
+  }
+  /* 分组卡 / 品牌卡：半透明白，玻璃底和模糊书封能透上来，深色文字仍压得住。
+     比弹窗底稍亮一档，白卡依旧浮得出来，但不再是一整块死白。 */
+  #homeMenu.addmenu .mn-brand,
+  #homeMenu.addmenu .mn-card{
+    background:rgba(255,255,255,.60);
+    box-shadow:0 6px 22px -16px rgba(20,24,40,.4),
+               inset 0 0 0 1px rgba(255,255,255,.52)
+  }
+  #homeMenu.addmenu .mn-card .mn-row + .mn-row::before{background:rgba(20,24,40,.08)}
+  #homeMenu.addmenu .mn-row:active{background:rgba(255,255,255,.38) !important}
+  /* 左上返回 / 右上关闭：④ 里 .mn-x 是三级选择器，这里必须同款才压得住 #fff */
+  #homeMenu.addmenu .mn-back,
+  #homeMenu.addmenu .mn-top .mn-x{
+    background:rgba(255,255,255,.66);
+    box-shadow:0 3px 12px -5px rgba(20,24,40,.2),
+               inset 0 0 0 1px rgba(255,255,255,.55)
+  }
+  /* 「选择图片 / 移除」小按钮（基础规则带 !important）、开关轨道 */
+  #homeMenu.addmenu .mn-mini{
+    background:rgba(255,255,255,.48) !important;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.5)
+  }
+  #homeMenu.addmenu .mn-switch{background:rgba(20,24,40,.18)}
+  #homeMenu.addmenu .mn-switch.on{background:rgba(17,19,24,.82)}
+  /* 卡片一透，后面的书封花纹会把浅色辅助字吃掉：分组标题 / 说明 / 值 /
+     箭头统一压深一档（主文字 #20232c 不用动），页脚与禁用态也别淡到看不见。 */
+  #homeMenu.addmenu .mn-cap,
+  #homeMenu.addmenu .mn-intro,
+  #homeMenu.addmenu .mn-brand-tx small,
+  #homeMenu.addmenu .mn-row .mn-val{color:#6f7482}
+  #homeMenu.addmenu .mn-row .mn-arr,
+  #homeMenu.addmenu .mn-chev{color:#9096a2}
+  #homeMenu.addmenu .mn-foot{color:#9a9ea9}
+  #homeMenu.addmenu .mn-mini[disabled]{opacity:.55}
+}
+
+/* =====================================================================
  * ⑤ 移动端菜单页复位（整屏页）—— 11-19 定稿：只跟视口走，不跟开关走
  *    · 必须写在 ③ 之后：③ 的居中弹窗宽高与这里特异性相同，放前面会被盖掉。
  *    · ⚠️ 条件写 64em 而不是 1024px：index.html 首帧脚本 / m-home.js 的
@@ -780,6 +847,9 @@ html:not(.mui-off) #home.m-carousel #mCarouselMeta{
     width:auto;height:auto;margin:0;
     border:0;border-radius:0;box-shadow:none;overflow:visible
   }
+  /* ③ 的 .mn-scroll 上限跟着桌面弹窗放到 560；整屏页复位成 520，
+     平板竖屏（520~560 宽）的菜单内容宽度保持原样，不受这次加宽影响。 */
+  .mn-scroll{max-width:520px}
   /* 整屏页只用左上返回；右上 ✕ 是桌面弹窗的关闭键 */
   #homeMenu.addmenu .mn-top{display:block}
   #homeMenu.addmenu .mn-top .mn-back{display:grid}
@@ -789,3 +859,80 @@ html:not(.mui-off) #home.m-carousel #mCarouselMeta{
   .mn-sw::-webkit-scrollbar{display:none}
   .mn-sw{scrollbar-width:none}
 }
+
+/* =====================================================================
+ * ⑥ 侧滑返回（src/swipe-back.js）—— 不跟实验开关走，手机触屏一直可用
+ *    阴影层只盖住「上一屏」，当前屏由 JS 临时抬到 z:1000 跟着手指走；
+ *    平时 opacity:0 + pointer-events:none，对原有层级和点击零影响。
+ * ===================================================================== */
+#swipeBackShade{
+  position:absolute;inset:0;z-index:999;pointer-events:none;opacity:0;
+  background:linear-gradient(90deg,rgba(0,0,0,.42),rgba(0,0,0,.14) 30%,transparent 62%);
+  will-change:opacity
+}
+@media (prefers-reduced-motion:reduce){
+  /* 减少动画时仍保留跟手，只把松手的补间交给 JS 的短时长/瞬时关闭分支 */
+  #swipeBackShade{will-change:auto}
+}
+
+/* =====================================================================
+ * ⑦ 菜单 Genie Effect（src/menu-genie.js + @web-kits/springboard）
+ *    动画期间本体的 visibility / opacity 由效果层的 WAAPI 时钟管，CSS 过渡让位。
+ *    ⚠️ 只锁 transition，不动几何 / 圆角：副本克隆的仍是同一份 CSS。
+ * ===================================================================== */
+#homeMenu.addmenu.genie-running,
+#homeMenu.addmenu.genie-running.show{transition:none !important}
+/* 桌面 .show 那层 100vmax 压暗是画在菜单自己身上的 box-shadow；genie 会把它
+   当窗口阴影一起弯曲，展开中段甩出一大块灰矩形。动画期间把真实本体的
+   box-shadow 清成 none：既没有遮罩伪影，库的 createShadow() 也直接跳过
+   每帧重建 SVG 路径 / clip-path（整段动画最贵的一笔）。落地后交回遮罩。
+   ⚠️ 条件写 64.0625em 不是 1025px：首帧脚本会把含 1025px 的 media 改成 all；
+      #app > / #app > #mask > 前缀用来排除效果层里的切片副本。 */
+@media (min-width:64.0625em), (orientation:landscape){
+  #app > #homeMenu.addmenu.genie-running.show{box-shadow:none !important}
+}
+#app > #mask > #modal.genie-running{box-shadow:none !important}
+/* .modal 的 pop 入场带 transform 会量歪窗口位置，落地时还会重播一次白闪。 */
+#modal.genie-running,
+#modal.genie-settled{animation:none !important;transition:none !important}
+/* 副本：禁 backdrop-filter（逐帧高斯）；一圈内描边让浅色主题下的细带可见；
+   离屏的重内容用 content-visibility 延迟渲染 —— 只画真正看得见的部分。 */
+[data-genie] .modal{
+  -webkit-backdrop-filter:none !important;backdrop-filter:none !important;
+  box-shadow:inset 0 0 0 1.5px rgba(20,24,40,.2),
+             0 24px 48px -16px rgba(20,24,40,.45) !important
+}
+/* 11-20：菜单弹窗也换白玻璃后，切片副本逐帧重算高斯同样会卡 —— 副本一律禁毛玻璃，
+   与上面 .modal 副本同处理；真实本体只有一个，动画期间保留玻璃，落地不跳变。
+   ⚠️ 两种结构都要兜：副本自带 data-genie（库把 id 贴回副本）/ 副本容器内再克隆一份。 */
+[data-genie] #homeMenu.addmenu,
+#homeMenu.addmenu[data-genie]{
+  -webkit-backdrop-filter:none !important;backdrop-filter:none !important
+}
+/* 动画期间顶替 #edForm 的轻骨架（懒加载）：像「内容还没加载完」，落地后
+   立刻换回真表单。⚠️ 高度由 JS 按原弹窗实测高度锁死，别在这里写 height。 */
+.genie-skeleton{
+  display:flex;flex-direction:column;gap:14px;
+  height:100%;box-sizing:border-box;
+  padding:4px 2px 18px;overflow:hidden;color:#20232c
+}
+.genie-skeleton > *{background:rgba(20,24,40,.07);border-radius:12px}
+.gs-head{display:flex!important;align-items:center;gap:12px;height:36px;background:none!important}
+.gs-head i{flex:0 0 34px;height:34px;border-radius:50%;background:rgba(20,24,40,.08)!important}
+.gs-head b{font-size:17px;font-weight:600;letter-spacing:.02em}
+.gs-cover{
+  flex:0 0 140px;width:100px;align-self:center;border-radius:6px!important;
+  background:linear-gradient(150deg,#ffd98a,#f0a95b)!important;
+  box-shadow:0 8px 18px -8px rgba(20,24,40,.4)
+}
+.gs-line{height:38px}
+.gs-line.short{width:58%}
+.gs-cards{display:grid!important;grid-template-columns:1fr 1fr;gap:10px;background:none!important}
+.gs-cards i{height:74px;background:rgba(20,24,40,.05)!important;border:1px solid rgba(20,24,40,.07)}
+.gs-foot{display:flex!important;gap:10px;justify-content:flex-end;margin-top:auto;background:none!important}
+.gs-foot i{width:86px;height:42px;background:rgba(20,24,40,.08)!important}
+.gs-foot i:last-child{background:#111318!important}
+/* 飞出动画期间遮罩完全保持项目原样：浅色白玻璃 + 毛玻璃模糊 + fadeIn，
+   和弹窗落地后的静态状态连续一致。
+   ⚠️ 别在这里加深色 background（用户明确不要黑色透明背景），也别为了性能
+      关掉 backdrop-filter —— 飞出时背景就该是毛玻璃模糊效果。 */

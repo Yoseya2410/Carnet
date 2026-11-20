@@ -3,7 +3,10 @@
  * ---------------------------------------------------------------------
  * ① shelfGL（11-17 第九轮：书架四件套**全部由 GPU 画**）：
  *    · #glLabShelfBack（z-index 0，书后）：每本手账本的椭圆落地软影 + 台面外扩软影
- *    · #glLabShelf（z-index 4，书前）：玻璃挡板 / 白色台面 / 两颗铆钉
+ *    · #glLabShelf（z-index 3，书前）：玻璃挡板 / 白色台面
+ *    · 两颗铆钉交回 DOM（.shelf-board .screw，z-index 4），见下方 CSS_TEXT
+ *      ⚠️ 11-20：整组必须低于 .topbar / .pickbar / .actionbar 的 z-index 5，
+ *         否则书架滚到顶部时铆钉会同层压住模式切换 / 搜索 / 菜单按钮。
  *    ⚠️ 第十轮：两块都挂在 #shelfWrap **内部**，尺寸 = 整个可滚动内容、按内容坐标画一次，
  *       随 DOM 书一起被合成线程滚动 —— 全程 GPU、滚动零重绘，天然相对静止。
  *       别再改回挂在 #home 上靠 scroll 重绘，也别用「滚动时交回 DOM」的折中。
@@ -75,7 +78,9 @@
        浏览器合成线程滚动时与 DOM 书一起移动，全程 GPU、绝不依赖主线程重绘。 */
     '#glLabShelfBack,#glLabShelf{position:absolute;top:0;left:0;pointer-events:none}',
     '#glLabShelfBack{z-index:0}',
-    '#glLabShelf{z-index:4}',
+    /* ⚠️ 11-20：书前层只能用 3，不能是 4 —— 铆钉那层（.shelf-board）要压在它上面，
+       同时又必须留在 z-index 5 的顶栏 / 底栏之下，整组只有 3 / 4 这两格可用。 */
+    '#glLabShelf{z-index:3}',
     /* canvas 的 containing block 必须是滚动容器本身，否则不跟着内容滚 */
     'html.gl-lab-on #shelfWrap{position:relative}',
     /* ⚠️ 铆钉交回 DOM 渲染（11-19 定稿）：WebGL 层不画铆钉，让 .shelf-board .screw
@@ -85,9 +90,12 @@
        ⚠️ 不能让 WebGL 自己用 shader 重画：同一张 PNG 经 shader 采样后边缘会冒锯齿
        噪点、丢掉 box-shadow，和 DOM 那颗对不上（用户 11-19 明确要求两者一致）。 */
     'html.gl-lab-on .shelf-board,html.gl-lab-on .shelf-plinth{visibility:hidden}',
-    /* 铆钉要盖在 z-index 4 的 #glLabShelf 之上：visibility 可被子元素覆盖，
-       但子元素的 z-index 跳不出父层叠上下文，所以把 .shelf-board 整体提到 5。 */
-    'html.gl-lab-on .shelf-board{z-index:5}',
+    /* ⚠️ 11-20 定稿：铆钉要盖在 z-index 3 的 #glLabShelf 之上，但**绝不能到 5**。
+       visibility 可被子元素覆盖、子元素的 z-index 却跳不出父层叠上下文，所以要提
+       .shelf-board 整块；.topbar / .pickbar / .actionbar 都是 z-index 5 且 DOM 在前，
+       同为 5 时后面的书架会反过来压住顶部 / 底部按钮（用户实测铆钉盖住模式切换）。
+       定在 4：上比玻璃层高一层，下比所有浮层栏低一层。 */
+    'html.gl-lab-on .shelf-board{z-index:4}',
     'html.gl-lab-on .shelf-board .screw{visibility:visible}',
     'html.gl-lab-on .shelf-board{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}',
     'html.gl-lab-on .gear,html.gl-lab-on .cover-badge{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}',
@@ -439,7 +447,7 @@
 
   /* ---------------- 书架：两层 canvas，四件套全由 GPU 画 ----------------
      back（z-index 0，书后）：每本手账本的椭圆落地影 + 台面外扩软影
-     front（z-index 4，书前）：玻璃挡板 → 白色台面 → 两颗铆钉
+     front（z-index 3，书前）：玻璃挡板 → 白色台面（铆钉是 DOM .screw，z-index 4）
      ⚠️ 书后层绝不能画任何带白雾的东西，书会盖住中心，只在外围露出柔影。 */
   function drawShelf() {
     /* ⚠️ renderHome() 会重建 #shelfWrap 的子节点，挂在里面的画布也被一起清掉。

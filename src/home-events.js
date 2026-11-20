@@ -1103,9 +1103,19 @@ $('#pickDelete').onclick = () => {
 
 /* ==================== 主页右上角菜单 / 分享菜单 ==================== */
 function closeMenus() {
+  const hm = $('#homeMenu');
   /* 收回这 380ms 里也别动柔光，玻璃收缩才能跑满合成线程 */
-  if ($('#homeMenu').classList.contains('show')) hmSettledAt = performance.now() + 400;
-  $$('.addmenu.show').forEach(m => m.classList.remove('show'));
+  if (hm.classList.contains('show')) {
+    hmSettledAt = performance.now() + 400;
+    /* Genie：先让效果层接住菜单当前这一帧，再摘 .show。业务状态立即完成，
+       副本层自己跑完 0.6s 的「吸回图标」动画，不挡后面的选图 / 跳转。 */
+    const g = window.CarnetMenuGenie;
+    if (g && g.enabled()) g.close();
+  }
+  $$('.addmenu.show').forEach(m => {
+    /* 效果层里的切片副本也带着 .addmenu.show，别把它一起摘了 */
+    if (!m.closest('[data-genie]')) m.classList.remove('show');
+  });
 }
 function toggleMenu(el) {
   const open = !el.classList.contains('show');
@@ -1178,7 +1188,8 @@ $$('#shareMenu button').forEach(b => b.onclick = async () => {
 document.addEventListener('pointerdown', e => {
   /* 菜单页是整屏页，点空白不关闭：用左上返回按钮或 Esc 收起。
      页面内所有元素都在 #homeMenu.addmenu 里，下面的 closest 会直接 return。 */
-  if (e.target.closest('.addmenu') || e.target.closest('#menuBtn') || e.target.closest('.share-wrap')) return;
+  if (e.target.closest('.addmenu') || e.target.closest('#menuBtn') ||
+      e.target.closest('#mMenu') || e.target.closest('.share-wrap')) return;
   /* 阅读器的「+」菜单：点页面是「切换加到哪一页」，不能在这一步关掉它 */
   const am = $('#addMenu');
   if (am && am.classList.contains('show') && (e.target.closest('#book') || e.target.closest('#rAdd'))) return;
@@ -1200,7 +1211,18 @@ function openHomeMenu() {
   el.style.setProperty('--hm-y', y + 'px');
   el.style.setProperty('--hm-r', Math.ceil(far + 6) + 'px');
   hmSettledAt = performance.now() + 460;   // 开合期间不写柔光变量，见文件末尾
-  toggleMenu(el);
+  const g = window.CarnetMenuGenie;
+  if (!g || !g.enabled()) { toggleMenu(el); return; }
+  /* 再点一次按钮 = 原路收回（保持 toggleMenu 的 toggle 语义） */
+  if (el.classList.contains('show')) { closeMenus(); return; }
+  /* 先收掉别的菜单（分享 / 阅读器「＋」…），别误伤效果层里的切片副本 */
+  $$('.addmenu.show').forEach(m => {
+    if (m !== el && !m.closest('[data-genie]')) m.classList.remove('show');
+  });
+  /* .show 先落地：副本克隆的就是用户最终看到的那一版菜单；
+     g.open() 只接管视觉，哪怕它失败也只是退回原来的 CSS 淡入。 */
+  el.classList.add('show');
+  g.open();
 }
 $('#menuBtn').onclick = openHomeMenu;
 $('#homeMenuClose').onclick = closeMenus;

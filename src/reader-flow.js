@@ -534,6 +534,9 @@ function closeReader() {
   hideTextBar();
   const home = $('#home'), reader = $('#reader'), book = $('#book');
   if (!reader.classList.contains('show')) return;
+  /* 侧滑返回本身就是转场：这里跳过合书 + 飞回书架那一段，直接收掉阅读器，
+     否则会先看到页面右滑露出主页、又看到封面从阅读器里飞回去，像返回了两次。 */
+  const sbInstant = !!(window.CarnetSwipeBack && window.CarnetSwipeBack.consuming);
   /* 从封底退出：先把书翻回封面那一面，再让封面飞回书架。
      主页书架上摆的永远是封面，直接拿封底去缩回去会「封底飞着飞着变成封面」。 */
   if (isBackView()) { state.page = -1; state.spread = -1; renderReader(); }
@@ -557,7 +560,7 @@ function closeReader() {
   home.classList.remove('noanim');
   const to = coverRect() || fallbackCoverRect();
   book.classList.remove('folded', 'gone');
-  if (reduced) {
+  if (reduced || sbInstant) {
     $('#app').classList.remove('fly-lift', 'fly-zoom');
     flyGlassCleanup();
     reader.classList.remove('show');

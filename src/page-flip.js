@@ -77,7 +77,19 @@ function endFlip() {
   leaf.style.removeProperty('--turn');          // 翻完把受光变量收干净，别留在下一次翻页
   leaf.style.removeProperty('--lift');
   clearBookShift();                            // 清掉「翻开 / 合上」时的临时位移
-  renderReader();
+  /* 起手时四块内容已经按这次翻页摆好，落定只交接被叶片盖住的那一侧：
+     · 双页往前：右槽已是新右页，只换左槽；往后则相反。
+     · 单页往前：右槽已是下一页；往后才把叶正面的上一页交回右槽。
+     再让 renderReader(true) 只同步类名 / 页码 / 几何，不重复建铁环、封面底板
+     和另外那张已经正确的页面。首次活页翻页尤其需要避开这次整棵 3D 子树重建。 */
+  const [ia, ib] = currentIndices();
+  if (state.mode === 'spread') {
+    if (dir > 0) $('#slotL').innerHTML = pageHTML(ia, 'left');
+    else $('#slotR').innerHTML = pageHTML(ib, 'right');
+  } else if (dir < 0) {
+    $('#slotR').innerHTML = pageHTML(state.page, 'single');
+  }
+  renderReader(true);
 }
 /* 清掉翻开 / 合上封面时临时写在书上的横移与「翻的是封面」标记（内联样式优先于 cover-only 的类）。
    ⚠️ cover-closing 必须一起摘：它把右页淡到透明，留着会让合上之后那一页不再出现 */
@@ -112,10 +124,10 @@ function stepFlip(now) {
   const lift = Math.sin(p * Math.PI) * 30;
   const leaf = flipLeaf();
   leaf.style.transform = `translateZ(${lift.toFixed(1)}px) rotateY(${deg.toFixed(3)}deg)`;
-  /* 11-17 第十二轮：把翻起程度 / 抬升写成 CSS 变量，叶片的压暗、纸面高光与投影跟着变。
-     ⚠️ 纯内联属性写入，绝不读 rect / clientWidth —— 这里每帧都在写 transform，读布局会强制重排。 */
+  /* 只让压暗强度跟角度走；高光背景与叶片阴影已是静态值（reader.css）。
+     --lift 不再写 CSS：3D translateZ 已负责抬升，少一次全子树样式失效。
+     ⚠️ 纯内联属性写入，绝不读 rect / clientWidth —— 每帧读布局会强制重排。 */
   leaf.style.setProperty('--turn', Math.min(1, Math.abs(deg) / 180).toFixed(3));
-  leaf.style.setProperty('--lift', (lift / 30).toFixed(3));
   /* 封面 ↔ 第一跨页：书同时「摊开 / 合拢」——整本横移半页宽，
      前 42% 就把位移补齐，剩下的动作跟普通翻页一模一样 */
   if (flipA.slide) {
@@ -162,6 +174,9 @@ function flip(dir) {
   }
 
   const leaf = $('#leaf'), lf = $('#leafF'), lb = $('#leafB');
+  /* 起手就会替换槽位，先摘旧文字贴的 document 监听；复用落定后旧节点已经离场，
+     再清理就找不到它们了。 */
+  dropSlotTextListeners('#slotL'); dropSlotTextListeners('#slotR');
   let start, end, slide = null;
   if (state.mode === 'spread') {
     const s = state.spread;

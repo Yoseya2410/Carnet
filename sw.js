@@ -5,7 +5,7 @@
  * 关闭 PWA 时页面会 unregister 本 SW 并 postMessage 让仍在控制页面的
  * worker 立即停止拦截（disabled=true），所以关掉后不需要刷新就恢复在线直连。
  * ===================================================================== */
-const CACHE = 'carnet-pwa-v1';
+const CACHE = 'carnet-pwa-v15';
 
 const SHELL = [
   './', './index.html', './manifest.webmanifest',
@@ -31,6 +31,7 @@ const SHELL = [
   './assets/font/en/Schoolbell-Regular.woff2',
   './assets/font/en/SpecialElite-Regular.woff2',
   './assets/vendor/pdf.min.js', './assets/vendor/pdf.worker.min.js',
+  './assets/vendor/springboard.js',
   './style/base.css', './style/controls.css', './style/home.css',
   './style/book-style.css', './style/reader.css', './style/image-tools.css',
   './style/text.css', './style/page-bg.css', './style/scrub.css',
@@ -39,7 +40,7 @@ const SHELL = [
   './style/shelf.css', './style/spine-shelf.css', './style/menus.css',
   './style/decor.css', './style/background.css', './style/diy-cover.css',
   './style/lock.css', './style/m-home.css',
-  './src/core.js', './src/visuals.js', './src/storage.js', './src/lock.js',
+  './src/menu-genie.js', './src/core.js', './src/visuals.js', './src/storage.js', './src/lock.js',
   './src/io-export.js', './src/io-doc.js', './src/io-share.js',
   './src/io-import.js', './src/io-example.js', './src/io-photobook.js',
   './src/state.js', './src/home-view.js', './src/carousel.js',
@@ -48,7 +49,7 @@ const SHELL = [
   './src/widgets.js', './src/img-frame.js', './src/stickers.js',
   './src/editor.js', './src/home-events.js', './src/reader-flow.js',
   './src/scrub.js', './src/system.js', './src/main.js',
-  './src/gl-lab.js', './src/pwa.js', './src/m-home.js',
+  './src/swipe-back.js', './src/gl-lab.js', './src/pwa.js', './src/m-home.js',
   './example/manifest.json', './example/UCAS.json',
   './example/花之法典.json', './example/冷少!.json', './example/日志.json'
 ];

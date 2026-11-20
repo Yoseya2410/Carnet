@@ -830,11 +830,28 @@ function ensureInsideDominant(j, key) {
     __insidePending.delete(j);
     if (!list || !list.length) return;
     __insideCache.set(key, list);
-    /* 算完重绘一次：命中缓存后 coverInsideStyle 不再触发，不会循环。 */
+    /* 命中缓存后 coverInsideStyle 不再触发，不会循环。
+       ⚠️ 阅读器绝不能在这里整本 renderReader()：纯色封面也会让 Promise 在 microtask
+       里立刻返回，首次活页翻页起手刚铺好叶片 / 右侧第一页，就被它同步覆盖回封面，
+       并重建整棵 3D 子树（首次封面翻页的长帧根因）。配色只影响现有封面内侧的
+       背景，直接更新这些板的内联样式即可；叶片、槽位、铁环与页码全部保持原样。 */
     try {
       if (typeof ed !== 'undefined' && ed && ed.temp === j && typeof syncEditor === 'function') syncEditor();
       const rd = document.getElementById('reader');
-      if (rd && rd.classList.contains('show') && typeof renderReader === 'function') renderReader();
+      if (rd && rd.classList.contains('show') && typeof cur === 'function' && cur() === j) {
+        const apply = () => {
+          if (!rd.classList.contains('show') || cur() !== j) return;
+          const ins = coverInsideStyle(j), css = ins.bg + coverRadiusVar(j);
+          rd.querySelectorAll('.cover-board').forEach(el => { el.style.cssText = css; });
+        };
+        /* 翻页途中只留缓存：同时改写多块 3D 封面板的背景也会逐帧拖住合成。
+           等当前翻页落定再局部更新一次；连续快翻则等这一串手势全部收完。 */
+        if (typeof flipA !== 'undefined' && flipA) {
+          requestAnimationFrame(function waitFlip() {
+            if (flipA) requestAnimationFrame(waitFlip); else apply();
+          });
+        } else apply();
+      }
     } catch (_) {}
   });
 }

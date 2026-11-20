@@ -479,26 +479,30 @@
 .gutter .grings i .wire .ring-body{stroke-width:calc(var(--pw) * .026)}
 .gutter .grings i .wire .ring-glint{stroke:rgba(255,255,252,.96);stroke-width:calc(var(--pw) * .0072)}
 /* 翻页时，叶片靠书脊的一侧也压暗，翻动过程中折痕不会消失。
-   11-17 第十二轮：压暗强度 / 纸面高光 / 投影都跟着翻起角度（--turn）与抬升（--lift）走：
-   翻到 90° 时受光最斜、投影最深，落地前收干净，更像真的在翻一张纸。
-   ⚠️ --turn / --lift 由 page-flip.js stepFlip 写在 #leaf 的内联 style 上（纯属性写入，不读布局）。
-   ⚠️ 白色高光 alpha 上限 .10，只提亮不糊内容；别加任何深色叠层（会变「中缝黑影」）。 */
+   11-20 性能定稿：压暗 opacity 仍跟 --turn 走；高光背景与叶片投影保持静态，
+   不再逐帧改渐变 alpha / 阴影模糊半径。3D translateZ 的抬升仍由 stepFlip 负责。
+   ⚠️ --turn 由 page-flip.js 写在 #leaf 内联 style 上（纯属性写入，不读布局）。
+   ⚠️ 白色高光 alpha 上限 .08，只提亮不糊内容；别加任何深色叠层（会变「中缝黑影」）。 */
 .leaf-face::before{
   content:"";position:absolute;inset:0;pointer-events:none;z-index:5;
+  /* 背景保持静态，只让整条光影的 opacity 跟角度走。不要给 preserve-3d 里的
+     伪元素再加 will-change / 独立透明层：实测会多出一层 3D 合成，反而更慢。 */
   background:
     linear-gradient(90deg,rgba(14,10,30,.34),rgba(14,10,30,.10) 12%,rgba(14,10,30,0) 30%),
-    linear-gradient(100deg,transparent 34%,rgba(255,255,255,calc(var(--lift,0) * .10)) 52%,transparent 70%);
+    linear-gradient(100deg,transparent 34%,rgba(255,255,255,.08) 52%,transparent 70%);
   opacity:calc(.55 + var(--turn,0) * .45)
 }
 .leaf-face.back::before{
   background:
     linear-gradient(270deg,rgba(14,10,30,.34),rgba(14,10,30,.10) 12%,rgba(14,10,30,0) 30%),
-    linear-gradient(260deg,transparent 34%,rgba(255,255,255,calc(var(--lift,0) * .10)) 52%,transparent 70%)
+    linear-gradient(260deg,transparent 34%,rgba(255,255,255,.08) 52%,transparent 70%)
 }
 .leaf-face{
   position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;
   overflow:hidden;background:var(--paper);
-  box-shadow:0 0 calc(16px + 18px * var(--turn,0)) rgba(20,18,32,calc(.10 + .14 * var(--turn,0)))
+  /* 阴影留在静止那档。原来 blur / alpha 跟 --turn 逐帧插值，会让正反两张
+     复杂页面（活页还含孔洞与封面皮）每帧重栅格化；翻转本身仍由 3D transform 负责。 */
+  box-shadow:0 0 16px rgba(20,18,32,.10)
 }
 /* 翻口那两个角跟着本子的纸角（摊开态 = 四角统一的 --book-r-open），装订侧在 .back 上 */
 .leaf-face.front{border-radius:0 var(--slot-r-r,10px) var(--slot-r-r,10px) 0}
