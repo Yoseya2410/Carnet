@@ -5,7 +5,7 @@
  * 关闭 PWA 时页面会 unregister 本 SW 并 postMessage 让仍在控制页面的
  * worker 立即停止拦截（disabled=true），所以关掉后不需要刷新就恢复在线直连。
  * ===================================================================== */
-const CACHE = 'carnet-pwa-v15';
+const CACHE = 'carnet-pwa-v21';
 
 const SHELL = [
   './', './index.html', './manifest.webmanifest',
@@ -47,7 +47,7 @@ const SHELL = [
   './src/reader-view.js', './src/page-flip.js', './src/page-edit.js',
   './src/text-sticker.js', './src/page-bg.js', './src/media.js',
   './src/widgets.js', './src/img-frame.js', './src/stickers.js',
-  './src/editor.js', './src/home-events.js', './src/reader-flow.js',
+  './src/editor.js', './src/home-events.js', './src/spine-openfx.js', './src/reader-flow.js',
   './src/scrub.js', './src/system.js', './src/main.js',
   './src/swipe-back.js', './src/gl-lab.js', './src/pwa.js', './src/m-home.js',
   './example/manifest.json', './example/UCAS.json',

@@ -932,6 +932,21 @@ html:not(.mui-off) #home.m-carousel #mCarouselMeta{
 .gs-foot{display:flex!important;gap:10px;justify-content:flex-end;margin-top:auto;background:none!important}
 .gs-foot i{width:86px;height:42px;background:rgba(20,24,40,.08)!important}
 .gs-foot i:last-child{background:#111318!important}
+/* 菜单打开时的懒加载骨架：只十来个节点，Genie 逐帧 cloneNode 的成本大幅下降。
+   ⚠️ 不写固定高度：沿用 .mn-scroll 的 height:100%，桌面弹窗 / 竖屏整屏都通用。 */
+.menu-lazy{pointer-events:none}
+.menu-lazy-skeleton{padding:18px 0 0;gap:12px}
+.menu-lazy-skeleton .gs-head b{font-size:15px}
+.lazy-cap{height:11px;width:72px;border-radius:6px!important;background:rgba(20,24,40,.06)!important}
+.lazy-cards{display:flex!important;flex-direction:column;gap:10px;background:none!important}
+.lazy-cards i{
+  position:relative;display:block;height:52px;border-radius:18px!important;
+  background:#fff!important;box-shadow:0 6px 22px -16px rgba(20,24,40,.4)
+}
+.lazy-cards i::before{
+  content:"";position:absolute;left:18px;right:18px;top:20px;height:10px;
+  border-radius:5px;background:rgba(20,24,40,.07)
+}
 /* 飞出动画期间遮罩完全保持项目原样：浅色白玻璃 + 毛玻璃模糊 + fadeIn，
    和弹窗落地后的静态状态连续一致。
    ⚠️ 别在这里加深色 background（用户明确不要黑色透明背景），也别为了性能

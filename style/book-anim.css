@@ -178,6 +178,55 @@
   .carousel{padding:0 40vw}
 }
 
+/* ============ 单层书架 3D 开合书（spine-openfx.js，2026-11-20）============
+   白场：盖住主页与阅读器（z56），只留 3D 舞台（z80）里那一本书。
+   书盒四个面全是项目自己的 DOM 渲染（封面 / 书脊克隆 / 书口 / 封底），
+   preserve-3d 真旋转，不引 WebGL / three.js（DOM 皮无法直接当纹理）。 */
+#spfxWhite{position:fixed;inset:0;z-index:56;background:#fdfdfc;opacity:0;pointer-events:none;transition:opacity .3s ease}
+#spfxWhite.on{opacity:1}
+#spfxWhite.out{opacity:0;transition:opacity .38s ease}
+.spfx-stage{position:fixed;inset:0;z-index:80;pointer-events:none;perspective:1700px;perspective-origin:50% 46%}
+/* ⚠️ .spfx-book 不能加 contain / overflow / filter —— 那些会把 preserve-3d 压平，
+   四个面就塌成一张牌。位移 / 旋转 / 缩放全部由 JS 逐帧写 transform。 */
+.spfx-book{position:fixed;left:0;top:0;transform-style:preserve-3d;will-change:transform}
+.spfx-face{position:absolute;overflow:hidden;backface-visibility:hidden}
+.spfx-front,.spfx-back{inset:0}
+.spfx-fit{position:absolute;inset:0}
+.spfx-fit .cover{
+  width:100% !important;height:100% !important;aspect-ratio:auto !important;
+  border-radius:0;box-shadow:0 22px 44px -20px rgba(10,12,26,.42)
+}
+/* 书脊面 / 书口面：宽度 = 厚度（JS 写内联），居中后 translateX 到左右两侧再转 90° */
+.spfx-spine,.spfx-pages{left:50%;top:0;height:100%}
+/* 书脊克隆体：类名重置为静置 .spine-item，宽高强制铺满书脊面，
+   位移 / 悬停态一律压掉（克隆那一刻真身可能还带着 .pulling 的 transform） */
+.spfx-spine-in{
+  width:100% !important;height:100% !important;transform:none !important;
+  cursor:default;box-shadow:none
+}
+.spfx-pages{
+  background:linear-gradient(90deg,#efe9da,#faf6ea 30%,#e7e0cf 70%,#f4efe2);
+  box-shadow:inset 0 0 0 1px rgba(120,110,90,.12)
+}
+/* 纸页断面的细层纹：转身时露出的那条纸边才有「一叠纸」的感觉 */
+.spfx-pages::after{
+  content:"";position:absolute;inset:0;
+  background:repeating-linear-gradient(180deg,rgba(140,130,105,.10) 0 1px,transparent 1px 4px)
+}
+/* 朝向光：面越侧对镜头越暗（透明度由 JS 按转角逐帧写） */
+.spfx-shade{position:absolute;inset:0;pointer-events:none;opacity:0;
+  background:linear-gradient(90deg,rgba(8,10,20,.6),rgba(8,10,20,.28))}
+.spfx-shadow{
+  position:fixed;left:0;top:0;height:34px;border-radius:50%;pointer-events:none;
+  background:radial-gradient(ellipse at center,rgba(10,12,22,.34),rgba(10,12,22,0) 68%)
+}
+/* 阅读器相位（与 fly-lift / fly-zoom 同一套思路，白场版）：
+   hold：书还在白场里转，阅读器整体透明（含 fadeIn 也掐掉）；
+   enter：书转正了，阅读器淡入。⚠️ enter 要一直留到 endClose 才摘：
+   一摘 #reader.show 的 fadeIn 会在阅读期任意一帧重播（闪一下）。 */
+#app.spinefx-hold #reader.show{opacity:0;animation:none !important;transition:none}
+#app.spinefx-enter #reader.show{opacity:1;animation:none !important;transition:opacity .26s ease .02s}
+
 
 /* ============ 封底态：合着的书翻了个面，书脊在右（2026-11-16）============
    阅读器停在封底时给 #book 挂 .back-view：外框圆角跟着左右对调，

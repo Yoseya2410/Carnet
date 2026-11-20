@@ -738,10 +738,12 @@
         <label class="mn-row"><b>新视觉风格</b><span class="mn-switch" id="mnMuiSwitch"><input type="checkbox" id="mnMui" aria-label="新视觉风格"></span></label>
         <label class="mn-row"><b>使用 WebGL 渲染</b><span class="mn-switch" id="mnGlSwitch"><input type="checkbox" id="mnGl" aria-label="使用 WebGL 渲染"></span></label>
         <label class="mn-row"><b>PWA 离线应用</b><span class="mn-switch" id="mnPwaSwitch"><input type="checkbox" id="mnPwa" aria-label="PWA 离线应用"></span></label>
+        <label class="mn-row"><b>懒加载</b><span class="mn-switch" id="mnLazySwitch"><input type="checkbox" id="mnLazy" aria-label="懒加载" title="动画期间只克隆轻量骨架，落地后恢复完整内容"></span></label>
       </div>
       <p class="mn-note" id="mnMuiNote"></p>
       <p class="mn-note" id="mnGlNote"></p>
       <p class="mn-note" id="mnPwaNote"></p>
+      <p class="mn-note" id="mnLazyNote"></p>
 
       <div class="mn-cap">更多</div>
       <div class="mn-card">
@@ -1008,6 +1010,8 @@
   <script src="src/stickers.js" defer></script>
   <script src="src/editor.js" defer></script>
   <script src="src/home-events.js" defer></script>
+  <!-- 单层书架 3D 开合书：删掉这一行 + src/spine-openfx.js 即回到飞入动画，无残留 -->
+  <script src="src/spine-openfx.js" defer></script>
   <script src="src/reader-flow.js" defer></script>
   <script src="src/scrub.js" defer></script>
   <script src="src/system.js" defer></script>
