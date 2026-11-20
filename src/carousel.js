@@ -148,10 +148,10 @@ const carousel = (() => {
      手上没有"东西还在滑"的感觉。现在按初速逐帧滑行，末端仍吸附到最近一本。
      惯性期间 track 的 transition 保持 'none'（pointerdown 的 ease(false) 设的），
      每帧位移立即生效；只有收尾 snap() 才打开缓动补最后一点距离。 */
-  let inertRaf = 0, inertVel = 0, inertT = 0;
+  let inertRaf = 0, inertVel = 0, inertT = 0, inertV0 = 0, inertStartOff = 0;
   function stopInertia() {
     if (inertRaf) { cancelAnimationFrame(inertRaf); inertRaf = 0; }
-    inertVel = 0; inertT = 0;
+    inertVel = 0; inertT = 0; inertV0 = 0;
   }
   function nearestIndex() {
     const view = wrapW / 2 - off;
@@ -228,30 +228,37 @@ const carousel = (() => {
   function settle() { stopInertia(); snap(nearestIndex(), true); }
   function startInertia(v0) {
     stopInertia();
-    inertVel = clamp(v0, -48, 48);
+    inertVel = clamp(v0, -48, 48);          // px / 帧，供速度光影与收尾阈值使用
     if (Math.abs(inertVel) < 1.2) { settle(); return; }
+    inertV0 = inertVel * 60;                // springboard decay 使用 px / 秒
+    inertStartOff = off;
+    inertT = performance.now();
     const step = now => {
       inertRaf = 0;
-      const dt = inertT ? clamp((now - inertT) / 16.7, .5, 2) : 1;
-      inertT = now;
-      off += inertVel * dt;
-      inertVel *= Math.pow(.94, dt);
-      /* 撞到两端：不再每帧压回 22% + 硬泄速，让惯性自然冲出一小段，
-         冲够 BOUNCE_MAX 或速度耗尽时切到弹性回弹（t=0 与当前 off 连续，零跳变）。 */
+      const elapsed = Math.max(0, (now - inertT) / 1000);
+      const M = window.CarnetMotion;
+      if (M) {
+        off = inertStartOff + M.decay(inertV0, elapsed);
+        inertVel = M.decayVelocity(inertV0, elapsed) / 60;
+      } else {
+        /* 库尚未加载的短暂降级：保留旧摩擦模型，下一次手势自动使用 Decay。 */
+        const dt = .5 + Math.min(elapsed * 60, 1);
+        off += inertVel * dt;
+        inertVel *= Math.pow(.94, dt);
+      }
+      /* 撞到两端：保留 Decay 的即时速度，连续交给弹性回弹。 */
       const edge = off < minOff ? minOff : off > maxOff ? maxOff : null;
       if (edge !== null) {
         const over = Math.min(Math.abs(off - edge), BOUNCE_MAX);
         if (over >= BOUNCE_MAX || Math.abs(inertVel) < 2.5) {
-          /* off 与 edgeBounce 的 x0 同源封顶：惯性一帧可能冲过 MAX，
-             若只把 over 截断而 off 留在外面，切弹性第一帧会肉眼可见地跳一下。 */
           off = edge + (off < edge ? -1 : 1) * over;
           edgeBounce(edge, over, () => snap(nearestIndex(), false), inertVel * 16.7);
           return;
         }
       }
       paint();
-      syncSelection(nearestIndex());   // 滑行中选中态 / 计数跟着走，点开时 cur() 也是这一本
-      if (Math.abs(inertVel) < .35) { settle(); return; }
+      syncSelection(nearestIndex());
+      if (Math.abs(inertVel) < .35 || elapsed > 4) { settle(); return; }
       inertRaf = requestAnimationFrame(step);
     };
     inertRaf = requestAnimationFrame(step);
@@ -299,7 +306,6 @@ const carousel = (() => {
     stopInertia();
     wrap.classList.add('sortmode');
     el.classList.add('picked');
-    buzz(12);
     applySort();
   }
   /* 手指拖不动了（到屏幕边）就用 scroll 接力：其余的书持续往反方向送，
@@ -417,6 +423,7 @@ const carousel = (() => {
       /* 左右滑动模式长按 = **直接拖动排序**，绝不跳去多层书架进多选。
          一进多选就会 setView('shelf') 整块重绘，触摸手势锁死的目标节点被换掉，
          同一根手指再也拖不动。桌面端与移动端在这里走同一条 beginSort。 */
+      buzz(12);                         // 长按成立即反馈；只有一本时也有震动
       beginSort(pendingEl, pendingX, pendingY);
     }, HOLD_MS);
   });
@@ -429,11 +436,16 @@ const carousel = (() => {
     const dt = now - lastT;
     if (dt > 6) { vel = vel * 0.7 + ((x - lastX) / dt) * 0.3 * 16.7; lastX = x; lastT = now; }
     let t = startOff + dx;
-    /* 连续橡皮筋：起手仍保持原来的 .3 跟手比例，拖得越远阻力渐进增大，
-       渐近 BOUNCE_MAX 而不是线性无限外冲。这样极端快甩松手时不需要把
-       一两百 px 的越界量突然截成 80px，位置与速度都能连续交给弹簧。 */
-    if (t > maxOff) t = maxOff + BOUNCE_MAX * (1 - Math.exp(-(t - maxOff) * .3 / BOUNCE_MAX));
-    else if (t < minOff) t = minOff - BOUNCE_MAX * (1 - Math.exp((t - minOff) * .3 / BOUNCE_MAX));
+    /* 连续橡皮筋：springboard rubberBand 按剩余行程渐进增加阻力，
+       渐近 BOUNCE_MAX；松手时位置与速度都能连续交给弹簧。 */
+    const M = window.CarnetMotion;
+    if (t > maxOff) {
+      const over = M ? M.rubberBand(t - maxOff, BOUNCE_MAX) : (t - maxOff) * .3;
+      t = maxOff + Math.min(BOUNCE_MAX, over);
+    } else if (t < minOff) {
+      const over = M ? M.rubberBand(t - minOff, BOUNCE_MAX) : (t - minOff) * .3;
+      t = minOff + Math.max(-BOUNCE_MAX, over);
+    }
     off = t;
     schedulePaint();
   }, { passive: true });

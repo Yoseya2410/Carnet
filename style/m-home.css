@@ -20,6 +20,8 @@
    独立面板，复用不了藏在被收起的 #pickMenu 里的那一份。 */
 .m-exp-mask{display:none;position:absolute;inset:0;z-index:40;background:rgba(18,20,32,.38)}
 .m-exp-mask.show{display:block}
+/* 收回时遮罩跟着 Sheet 一起淡出；关掉后 show/closing 都摘，下次重新打开不残留透明 */
+.m-exp-mask.closing{opacity:0;transition:opacity .22s ease}
 .m-exp-menu{
   display:none;position:absolute;left:0;right:0;bottom:0;z-index:41;
   flex-direction:column;gap:2px;padding:0 20px calc(20px + env(safe-area-inset-bottom));
@@ -28,7 +30,20 @@
   animation:nsUp .3s cubic-bezier(.22,.9,.28,1)
 }
 .m-exp-menu.show{display:flex}
-.m-exp-grab{width:38px;height:4px;border-radius:99px;background:rgba(17,19,24,.2);margin:12px auto 8px}
+/* 就地收回：只滑这一小块，不建退场副本 —— 取消时不用等 springboard 的 ~500ms。
+   !important 压住拖动时留下的 inline transform，从手指松开处接着滑到屏外。 */
+.m-exp-menu.m-exp-closing{
+  animation:none!important;pointer-events:none;
+  transition:transform .22s cubic-bezier(.3,0,.8,1)!important;
+  transform:translate3d(0,100%,0)!important
+}
+/* 只有 4px 高的细条手机上基本点不中；::after 把命中区撑到上下各 14px，
+   touch-action:none 防止浏览器把下拉当页面滚动抢走 pointer。 */
+.m-exp-grab{
+  position:relative;width:38px;height:4px;border-radius:99px;
+  background:rgba(17,19,24,.2);margin:12px auto 8px;touch-action:none
+}
+.m-exp-grab::after{content:"";position:absolute;left:-32px;right:-32px;top:-14px;bottom:-14px}
 .m-exp-menu b{
   padding:6px 0 14px;font-size:17px;font-weight:700;color:#20232c;
   text-align:center;letter-spacing:.06em
@@ -974,3 +989,25 @@ html:not(.mui-off) #home.m-carousel #mCarouselMeta{
    和弹窗落地后的静态状态连续一致。
    ⚠️ 别在这里加深色 background（用户明确不要黑色透明背景），也别为了性能
       关掉 backdrop-filter —— 飞出时背景就该是毛玻璃模糊效果。 */
+
+/* Springboard 接管期间只关掉旧 CSS 入场，静态外观与业务 .show / hidden 不变。 */
+.sb-sheet-running,.sb-sheet-clone{animation:none!important}
+/* 已被 sheetTop 接管过的面板永久取消旧 keyframes，避免落地摘 running 时再播一次。 */
+.sb-sheet-driven{animation:none!important}
+.sb-sheet-clone-mask{pointer-events:none!important}
+.sb-morph-running{animation:none!important;transition:none!important}
+/* 阅读器菜单用不透明实底；展开副本不带阴影，落地后的菜单本体才保留轻阴影。 */
+#reader .addmenu{
+  background:#272b3d;-webkit-backdrop-filter:none;backdrop-filter:none;
+  box-shadow:0 8px 22px -10px rgba(20,22,38,.28)!important
+}
+.bg-light #reader .addmenu{background:#fff}
+[data-morph] .addmenu{
+  background:#272b3d!important;-webkit-backdrop-filter:none;backdrop-filter:none;
+  box-shadow:none!important
+}
+.bg-light [data-morph] .addmenu{background:#fff!important}
+.sb-push-running{will-change:transform}
+@media (prefers-reduced-motion:reduce){
+  .sb-push-running{will-change:auto}
+}

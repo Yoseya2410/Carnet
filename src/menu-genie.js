@@ -28,10 +28,12 @@
  * ⚠️ 开关不进 state.prefs、不跟导出走；库没加载 / 不支持 WAAPI 时自动
  *    退回原来的 CSS 淡入淡出。
  *
- * 懒加载：菜单 / 新建弹窗的动画也要 cloneNode 整棵子树（菜单 .mn-scroll
+ * 懒加载：菜单 / 新建弹窗 / 移动端新建页的动画都要处理重子树（菜单 .mn-scroll
  * 含色板、开关、卡片；#edForm 有 300+ 节点），逐帧克隆与重绘是主要卡顿源。
  *   开启时（默认关）动画期间把重子树摘到内存、换成十来个节点的轻骨架，
  *   落地后原样放回：节点对象没销毁，id / 值 / 监听器 / 事件绑定都在。
+ *   移动端 Bottom Sheet 关闭走 motion.js 的 cloneNode 副本，park/restore
+ *   在同一个同步任务里完成，真 DOM 不会被看见换成骨架。
  *   状态存 localStorage carnet_lazy_v1，和 Genie 开关一样不进 prefs、不跟导出走。
  * ===================================================================== */
 (function () {
@@ -50,6 +52,15 @@
   function ensureLib() {
     if (SB) return Promise.resolve(true);
     if (libPromise) return libPromise;
+    /* motion.js 是统一加载口：两个模块同时预取也只插入一次 vendor 脚本。 */
+    if (window.CarnetMotion && typeof window.CarnetMotion.load === 'function') {
+      libPromise = window.CarnetMotion.load().then(ok => {
+        SB = window.CarnetMotion.lib();
+        syncSwitch();
+        return !!(ok && SB);
+      });
+      return libPromise;
+    }
     libPromise = new Promise(resolve => {
       const s = document.createElement('script');
       s.src = 'assets/vendor/springboard.js';
@@ -88,12 +99,16 @@
   window.CarnetLazyLoad = {
     get on() { return lazyOn; },
     status: () => ({ on: lazyOn }),
+    /* 给 motion.js 的移动端 sheet 退场用：必须在同一个同步任务里 park + clone + restore */
+    parkSheetForClone,
+    restoreSheetClone,
     set(v) {
       const next = !!v;
       if (next !== lazyOn) {
         lazyOn = next;
         try { localStorage.setItem(LAZY_KEY, next ? '1' : '0'); } catch (_) {}
       }
+      if (!next) restoreSheetClone();   // 中途关掉也别把表单落在内存里
       syncLazySwitch();
       return lazyOn;
     },
@@ -126,14 +141,14 @@
     el: () => $('#homeMenu'),
     from: () => visibleFrom([$('#mMenu'), $('#menuBtn')]),
     root: 'div.addmenu',
-    edge: 'auto', scale: 1,
+    edge: 'auto', scale: 1, blur: true,
     layerZ: null,
   };
   const EDITOR = {
     el: () => $('#modal'),
     from: () => $('.actionbar .icon-btn[data-act="new"]'),
     root: 'div.modal',
-    edge: 'bottom', scale: 1,
+    edge: 'bottom', scale: 1, blur: true,
     layerZ: '150',
   };
   /* ③ 阅读器封面 ← 单层书架的书脊。el / from 由 reader-flow.js 每次飞行前
@@ -170,10 +185,7 @@
      和逐帧重绘都降一个数量级。落地后原样放回 —— 节点对象没被销毁，
      input 值、勾选状态、事件监听器全都在。 */
   let parked = null;
-  function parkEditor(el) {
-    if (parked) return;
-    const form = el.querySelector('#edForm');
-    if (!form) return;
+  function editorSkeleton() {
     const sk = document.createElement('div');
     sk.className = 'genie-skeleton';
     sk.setAttribute('aria-hidden', 'true');
@@ -183,6 +195,13 @@
       '<div class="gs-line"></div><div class="gs-line short"></div>' +
       '<div class="gs-cards"><i></i><i></i><i></i><i></i></div>' +
       '<div class="gs-foot"><i></i><i></i></div>';
+    return sk;
+  }
+  function parkEditor(el) {
+    if (parked) return;
+    const form = el.querySelector('#edForm');
+    if (!form) return;
+    const sk = editorSkeleton();
     /* #modal 高度由内容撑开，摘掉表单后会缩水。直接用与 max-height 同一个
        88vh 锁住窗口几何（不读 getComputedStyle —— 那会强制同步布局，在
        buildEditor 刚生成 300 节点后要花几十毫秒）。 */
@@ -196,6 +215,33 @@
     parked = null;
     if (p.sk.parentNode) p.sk.parentNode.replaceChild(p.form, p.sk);
     if (p.el) p.el.style.height = '';
+  }
+
+  /* ---- 移动端新建页 Bottom Sheet 懒加载 -------------------------------
+     sheet 关闭时 motion.js 会 cloneNode(true) 整棵 #modal 做退场动画，
+     300+ 节点的 #edForm 是逐帧重绘的大头。这里在同一个同步任务里把真表单
+     临时换成骨架给克隆用，克隆完立刻换回 —— 用户不会看到闪烁，input 值 /
+     勾选 / 事件监听全在原节点上，不销毁重建。与桌面 parkEditor 共用骨架。 */
+  let sheetParked = null;
+  function parkSheetForClone(el) {
+    if (!lazyOn || sheetParked) return false;
+    const form = el && el.querySelector('#edForm');
+    if (!form || !form.parentNode) return false;
+    const sk = editorSkeleton();
+    /* 真表单此刻已摘出 DOM，骨架临时顶它的 id：第一步（ns-pick）里原本
+       #edForm 就是 display:none，clone 出去的骨架也得跟着隐藏，不然退场
+       副本会突然多出一块表单骨架。 */
+    sk.id = 'edForm';
+    form.parentNode.replaceChild(sk, form);
+    sheetParked = { form, sk };
+    return true;
+  }
+  function restoreSheetClone() {
+    if (!sheetParked) return false;
+    const p = sheetParked;
+    sheetParked = null;
+    if (p.sk.parentNode) p.sk.parentNode.replaceChild(p.form, p.sk);
+    return true;
   }
 
   /* ---- 菜单懒加载 ----------------------------------------------------
@@ -295,7 +341,7 @@
       inst = SB.origin(el, {
         from,
         /* 飞出 / 收回同速；scale 只改网格细度，不改窗口像素尺寸。 */
-        effect: SB.genie({ edge: cfg.edge, duration: cfg.duration || 0.4, scale: cfg.scale }),
+        effect: SB.genie({ edge: cfg.edge, duration: cfg.duration || 0.4, scale: cfg.scale, blur: !!cfg.blur }),
         /* 效果层挂 #app 内，跟着 App 的 fixed 视口走，不盖住系统级弹窗 */
         bounds,
         hideTarget: false,             // Dock 图标始终露着
@@ -388,7 +434,7 @@
     if (!$('#mnLazy')) {
       const row = document.createElement('label');
       row.className = 'mn-row';
-      row.innerHTML = '<b>懒加载</b><span class="mn-switch" id="mnLazySwitch"><input type="checkbox" id="mnLazy" aria-label="懒加载" title="动画期间只克隆轻量骨架，落地后恢复完整内容"></span>';
+      row.innerHTML = '<b>懒加载</b><span class="mn-switch" id="mnLazySwitch"><input type="checkbox" id="mnLazy" aria-label="懒加载" title="动画期间只克隆轻量骨架，落地后恢复完整内容（菜单 / 新建弹窗 / 移动端新建页）"></span>';
       card.appendChild(row);
     }
     if (!$('#mnLazyNote')) {
@@ -419,7 +465,7 @@
     cb.checked = lazyOn;
     if (box) box.classList.toggle('on', lazyOn);
     if (note) note.textContent = lazyOn
-      ? '已开启 · 菜单与新建弹窗动画期间只加载轻量骨架'
+      ? '已开启 · 菜单 / 新建弹窗 / 移动端新建页动画只加载轻量骨架'
       : '已关闭 · 动画期间加载完整界面';
   }
 

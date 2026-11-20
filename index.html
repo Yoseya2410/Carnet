@@ -737,7 +737,7 @@
         <label class="mn-row"><b>新视觉风格</b><span class="mn-switch" id="mnMuiSwitch"><input type="checkbox" id="mnMui" aria-label="新视觉风格"></span></label>
         <label class="mn-row"><b>使用 WebGL 渲染</b><span class="mn-switch" id="mnGlSwitch"><input type="checkbox" id="mnGl" aria-label="使用 WebGL 渲染"></span></label>
         <label class="mn-row"><b>PWA 离线应用</b><span class="mn-switch" id="mnPwaSwitch"><input type="checkbox" id="mnPwa" aria-label="PWA 离线应用"></span></label>
-        <label class="mn-row"><b>懒加载</b><span class="mn-switch" id="mnLazySwitch"><input type="checkbox" id="mnLazy" aria-label="懒加载" title="动画期间只克隆轻量骨架，落地后恢复完整内容"></span></label>
+        <label class="mn-row"><b>懒加载</b><span class="mn-switch" id="mnLazySwitch"><input type="checkbox" id="mnLazy" aria-label="懒加载" title="动画期间只克隆轻量骨架，落地后恢复完整内容（菜单 / 新建弹窗 / 移动端新建页）"></span></label>
       </div>
       <p class="mn-note" id="mnMuiNote"></p>
       <p class="mn-note" id="mnGlNote"></p>
@@ -959,6 +959,8 @@
   <script src="assets/frame-gold.js" defer></script>
   <!-- 书架铆钉贴图（内嵌 dataURL）：WebGL 实验层要采样它，必须排在 gl-lab.js 之前 -->
   <script src="assets/shelf-rivet.js" defer></script>
+  <!-- Springboard 物理动效 / 长按震动：与 Genie 共用同一份库懒加载 -->
+  <script src="src/motion.js" defer></script>
   <!-- 菜单 Genie Effect 接入层：@web-kits/springboard 的本地离线打包由它在
        空闲时按需加载（懒加载），首屏不吃这 42KB；附加模块不占主链编号。 -->
   <script src="src/menu-genie.js" defer></script>

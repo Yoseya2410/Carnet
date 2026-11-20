@@ -1954,6 +1954,7 @@ function diyArmTextHold(e, ref) {
   st.timer = setTimeout(() => {
     cleanup();
     const o = diyObj(ref); if (!o || !diy.open) return;
+    if (window.carnetHaptic) carnetHaptic(12);
     o.locked = false;
     diy.tap = { t: 0, id: '', x: 0, y: 0 };     // 长按不算「第一下点」，别跟后面凑成双击
     diySel(ref, true);

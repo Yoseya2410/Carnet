@@ -288,7 +288,7 @@
         sw.classList.add('gl-on');   // 由 shader 画玻璃，CSS 那层退到只剩阴影
         st.gl = true;
       }
-      try { navigator.vibrate && navigator.vibrate(8); } catch (_) {}
+      try { window.carnetHaptic ? carnetHaptic(8) : navigator.vibrate && navigator.vibrate(8); } catch (_) {}
     }
     /* pointer 手势正常收尾时，只吞掉紧随其后的那一次 click。
        ⚠️ 别用「500ms 内一律忽略」：某些浏览器 / 触摸场景 pointerup 没派到
@@ -374,6 +374,7 @@
       clearTimeout(holdT);
       holdT = setTimeout(() => {
         longFired = true;
+        if (window.carnetHaptic) carnetHaptic(12);
         enterPickMode('del');
         setTimeout(() => { longFired = false; }, 420);
       }, 420);
@@ -404,22 +405,92 @@
     if (!pickedList().length) { toast('先勾选手帐本再分享'); return; }
     mExpOpen(true);
   });
+  let expCloseT = 0;
   function mExpOpen(open) {
     const m = $('#mExpMenu'), mask = $('#mExpMask');
-    if (m) m.classList.toggle('show', open);
-    if (mask) mask.classList.toggle('show', open);
+    const M = window.CarnetMotion;
+    clearTimeout(expCloseT); expCloseT = 0;
+    /* 重新打开时把上一次的收起动画 / 未完成的入场动画都收干净 */
+    if (m && M) M.cancelSheet(m);
+    if (m) { m.style.transform = ''; m.classList.remove('m-exp-closing'); m.classList.toggle('show', open); }
+    if (mask) { mask.classList.remove('closing'); mask.classList.toggle('show', open); }
+    if (open && m && M) M.sheet(m, true);
+  }
+  /* 关闭：就地用 CSS 把这一小块 Sheet 滑下去，不建退场副本 ——
+     副本要等 springboard 的 ~500ms 才清，取消时就有「卡一下」的延迟。
+     ⚠️ 先 cancelSheet 摘掉入场的 WAAPI，否则它按 composite:add 继续叠 transform。 */
+  function mExpClose(animate) {
+    const m = $('#mExpMenu'), mask = $('#mExpMask');
+    if (!m || !m.classList.contains('show') || m.classList.contains('m-exp-closing')) return;
+    const M = window.CarnetMotion;
+    if (M) M.cancelSheet(m);
+    clearTimeout(expCloseT);
+    const instant = !animate || (window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches);
+    if (instant) {
+      m.classList.remove('show', 'm-exp-closing'); m.style.transform = '';
+      if (mask) mask.classList.remove('show', 'closing');
+      return;
+    }
+    m.classList.add('m-exp-closing');
+    if (mask) mask.classList.add('closing');
+    expCloseT = setTimeout(() => {
+      m.classList.remove('show', 'm-exp-closing'); m.style.transform = '';
+      if (mask) mask.classList.remove('show', 'closing');
+      expCloseT = 0;
+    }, 240);
   }
   const expMask = $('#mExpMask');
-  if (expMask) expMask.addEventListener('click', () => mExpOpen(false));
+  if (expMask) expMask.addEventListener('click', () => mExpClose(true));
   const expCancel = $('#mExpCancel');
-  if (expCancel) expCancel.addEventListener('click', () => mExpOpen(false));
+  if (expCancel) expCancel.addEventListener('click', () => mExpClose(true));
   $$('#mExpMenu button[data-expkind]').forEach(b => {
     b.addEventListener('click', async () => {
       const kind = b.dataset.expkind;
-      mExpOpen(false);
+      mExpClose(true);
       await exportPicked(kind);
     });
   });
+
+  /* 分享 Sheet 的把手：跟手往下拖，过阈值就地滑走，没过就弹回。
+     ⚠️ CSS 给把手设了 touch-action:none 并用 ::after 撑大命中区 ——
+        4px 高的细条在手机上既难点，不禁用触摸滚动又会被浏览器手势抢走 pointer。 */
+  (function expGrabDrag() {
+    const grab = $('#mExpMenu .m-exp-grab'), m = $('#mExpMenu');
+    if (!grab || !m) return;
+    let st = null;
+    grab.addEventListener('pointerdown', e => {
+      if (!m.classList.contains('show') || m.classList.contains('m-exp-closing')) return;
+      const M = window.CarnetMotion;
+      if (M) M.cancelSheet(m);       // 入场的 WAAPI 会让 inline transform 失效
+      st = { id: e.pointerId, y: e.clientY, dy: 0 };
+      try { grab.setPointerCapture(e.pointerId); } catch (_) {}
+      e.preventDefault();
+    });
+    grab.addEventListener('pointermove', e => {
+      if (!st || e.pointerId !== st.id) return;
+      st.dy = Math.max(0, e.clientY - st.y);
+      m.style.transform = 'translate3d(0,' + st.dy.toFixed(1) + 'px,0)';
+      e.preventDefault();
+    }, { passive: false });
+    const finish = e => {
+      if (!st || (e.pointerId !== undefined && e.pointerId !== st.id)) return;
+      const dy = st.dy; st = null;
+      try { grab.releasePointerCapture(e.pointerId); } catch (_) {}
+      if (dy < 90) {
+        /* 先清 inline transform 再量最终落点，否则 sheetTop 会按已偏移的 rect 再叠一次 */
+        m.style.transform = '';
+        const M = window.CarnetMotion;
+        if (M && M.sheet(m, true, { fromY: dy })) return;
+        m.style.transition = 'transform .22s';
+        setTimeout(() => { m.style.transition = ''; }, 240);
+        return;
+      }
+      /* 保留当前位移，.m-exp-closing 的 CSS !important 会从这里接着滑到 100% */
+      mExpClose(true);
+    };
+    grab.addEventListener('pointerup', finish);
+    grab.addEventListener('pointercancel', finish);
+  })();
 
   /* ------------------------------------------------------------------
    * ② 新建 / 编辑：两步式 Bottom Sheet
@@ -582,12 +653,16 @@
       const dy = st.dy; st = null;
       try { grab.releasePointerCapture(e.pointerId); } catch (_) {}
       modal.classList.remove('ns-dragging');
-      if (dy < 90) {                       // 没拖够：带一点缓动弹回原位
-        modal.classList.add('ns-snapback');
+      if (dy < 90) {                       // 没拖够：UIKit sheet 弹簧从当前位移回原位
         modal.style.transform = '';
+        const M = window.CarnetMotion;
+        if (M && M.sheet(modal, true, { fromY: dy })) return;
+        modal.classList.add('ns-snapback');
         setTimeout(() => modal.classList.remove('ns-snapback'), 220);
         return;
       }
+      /* motion.js 的 closeEditor 包装会在原面板隐藏前抓住当前位置做 sheetTop 收起。 */
+      if (window.CarnetMotion) { closeEditor(); nsCleanup(); return; }
       modal.classList.add('ns-closing');
       modal.style.transform = 'translateY(100%)';
       setTimeout(() => { nsCleanup(); closeEditor(); }, 230);

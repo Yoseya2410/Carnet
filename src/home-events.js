@@ -151,7 +151,6 @@ function shelfBeginSort(item, x, y) {
   shelfSort.slots = shelfMeasureSlots();
   wrap.classList.add('sorting');
   item.classList.add('lifted');
-  try { navigator.vibrate && navigator.vibrate(12); } catch (_) {}
   shelfGhostMove(x, y);
   return true;
 }
@@ -362,6 +361,7 @@ $('#shelfWrap').addEventListener('pointerdown', e => {
   shelfHold.timer = setTimeout(() => {
     if (shelfHold.moved || !shelfHold.el || !shelfHold.el.isConnected) return;
     shelfHold.fired = true;              // 这次抬手不翻开（拖动或唤出按钮）
+    if (window.carnetHaptic) carnetHaptic(12);
     const el = shelfHold.el, x = shelfHold.cx, y = shelfHold.cy;
     /* 移动端常态：长按计时一到就**直接**进多选，不先把书「拎起来」等松手。
        封面左上角的勾选框、整架晃动、左上分享、右上「删除+完成」胶囊一起露出来。 */
@@ -581,7 +581,6 @@ function spineBeginSort(item, x, y) {
   spineSetHover(-1);                 // 拖起来的时候不要有预览挡着
   $('#spineWrap').classList.add('sorting');
   item.classList.add('lifted');
-  try { navigator.vibrate && navigator.vibrate(12); } catch (_) {}
   spineGhostMove(x, y);
   return true;
 }
@@ -716,6 +715,7 @@ $('#spineWrap').addEventListener('pointerdown', e => {
   spineHold.timer = setTimeout(() => {
     if (spineHold.moved || !spineHold.el || !spineHold.el.isConnected) return;
     spineHold.fired = true;              // 这次抬手不翻开
+    if (window.carnetHaptic) carnetHaptic(12);
     const i = +spineHold.el.dataset.i;
     /* 只有一本时排不了序，长按就当作「要改它」—— 直接开编辑，别白按一下 */
     if (!spineBeginSort(spineHold.el, spineHold.cx, spineHold.cy) && Number.isFinite(i)) {
@@ -1114,13 +1114,23 @@ function closeMenus() {
   }
   $$('.addmenu.show').forEach(m => {
     /* 效果层里的切片副本也带着 .addmenu.show，别把它一起摘了 */
-    if (!m.closest('[data-genie]')) m.classList.remove('show');
+    if (m.closest('[data-genie]')) return;
+    const M = window.CarnetMotion;
+    if (M) M.morphClose(m);            // Morph 只负责展开，关闭立即清理源点与副本
+    m.classList.remove('show');
   });
 }
 function toggleMenu(el) {
   const open = !el.classList.contains('show');
   closeMenus();
-  if (open) el.classList.add('show');
+  if (!open) return;
+  el.classList.add('show');
+  const mobile = window.MHome ? MHome.isMobile() :
+    !!(window.matchMedia && matchMedia('(orientation:portrait) and (max-width:1024px)').matches);
+  const from = el.id === 'shareMenu' ? $('.actionbar [data-act="share"]') :
+    el.id === 'pickMenu' ? $('#pickExport') : null;
+  const M = window.CarnetMotion;
+  if (!mobile && from && M) M.morphOpen(el, { from, layerZ: 45 });
 }
 /* 右上角「菜单」：导入 / 设置 / 帮助与反馈（现在是全屏毛玻璃里的三行大字）。
    11-17：将图片导入为手账本 / 导入手账本源文件 / 导入 PDF 三项收进「导入」页，

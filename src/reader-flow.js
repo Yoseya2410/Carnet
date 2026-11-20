@@ -259,14 +259,27 @@ function flyCover(from, to, reverse, onLand, onLift) {
       fit.style.transition = `transform ${liftMs}ms ${FLY_LIFT_EASE}`;
       fit.style.transform = `translate3d(-50%,-50%,0px) scale(${fitScale(mid, to)})`;
       setTimeout(() => {
-        /* 段 ②：放大进阅读器 / 插回书架 */
-        ghost.style.transition = winTrans(zoomMs, FLY_EASE);
-        ghost.style.width = b.width + 'px';
-        ghost.style.height = b.height + 'px';
-        ghost.style.borderRadius = reverse ? rStart : rEnd;
-        ghost.style.transform = `translate3d(${b.left}px,${b.top}px,0px)`;
-        fit.style.transition = `transform ${zoomMs}ms ${FLY_EASE}`;
-        fit.style.transform = `translate3d(-50%,-50%,0px) scale(${fitScale(b, to)})`;
+        /* 段 ②：放大进阅读器 / 插回书架。打开时优先用 springboard zoom
+           生成窗口与内容帧；关闭和降级仍走原来的 CSS 两段式。 */
+        const M = !reverse && window.CarnetMotion;
+        const zx = M && M.zoomFrames(mid, b, zoomMs);
+        if (zx) {
+          ghost.style.transition = 'none'; fit.style.transition = 'none';
+          ghost.style.width = b.width + 'px'; ghost.style.height = b.height + 'px';
+          ghost.style.borderRadius = rEnd;
+          ghost.style.transform = `translate3d(${b.left}px,${b.top}px,0px)`;
+          fit.style.transform = 'translate3d(-50%,-50%,0px) scale(1)';
+          ghost.animate(zx.window, { duration: zoomMs, easing: 'linear', fill: 'both' });
+          fit.animate(zx.fit, { duration: zoomMs, easing: 'linear', fill: 'both' });
+        } else {
+          ghost.style.transition = winTrans(zoomMs, FLY_EASE);
+          ghost.style.width = b.width + 'px';
+          ghost.style.height = b.height + 'px';
+          ghost.style.borderRadius = reverse ? rStart : rEnd;
+          ghost.style.transform = `translate3d(${b.left}px,${b.top}px,0px)`;
+          fit.style.transition = `transform ${zoomMs}ms ${FLY_EASE}`;
+          fit.style.transform = `translate3d(-50%,-50%,0px) scale(${fitScale(b, to)})`;
+        }
         /* 段 ① 刚走完、书已经抬到玻璃上方：这一帧才通知外层切「背景相位」
            （打开＝背景模糊 + 阅读器淡入；退出＝主页显现 + 书插回书架）。
            ⚠️ 和段 ② 的属性写在同一次任务里，背景与放大严格同帧起步。 */

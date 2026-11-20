@@ -496,7 +496,12 @@ function sheetLayout() {
     return 0;
   }
   reader.style.setProperty('--sheet-side', '0px');
-  const sr = stage.getBoundingClientRect(), hr = sheet.getBoundingClientRect();
+  const sr = stage.getBoundingClientRect();
+  /* sheetTop 入场时 getBoundingClientRect() 含实时 translateY；排版必须按最终落点
+     预留空间，否则书会先缩得很小、再随面板上升逐帧跳。 */
+  const hr = sheet.classList.contains('sb-sheet-running')
+    ? { top: reader.getBoundingClientRect().bottom - sheet.offsetHeight }
+    : sheet.getBoundingClientRect();
   const cov = Math.max(0, Math.round(sr.bottom - hr.top + 4));
   window.__sheetCov = cov;
   reader.style.setProperty('--sheet-h', cov + 'px');

@@ -276,8 +276,12 @@ function clipPasteTarget() {
 }
 /* 右键菜单：复制 / 剪切只在指着某个对象时可用；粘贴永远可点（系统剪贴板也可能有东西） */
 function closePaperMenu() {
-  const m = $('#paperMenu'); if (m) m.classList.remove('show');
+  const m = $('#paperMenu');
   paperMenuCtx = null;
+  if (!m || !m.classList.contains('show')) return;
+  const M = window.CarnetMotion;
+  if (M && M.morphClose(m)) return;      // 业务上下文立即清空，视觉原路吸回长按点
+  m.classList.remove('show');
 }
 function openPaperMenu(e) {
   const m = $('#paperMenu'); if (!m) return;
@@ -309,6 +313,10 @@ function openPaperMenu(e) {
   const r = m.getBoundingClientRect();
   m.style.left = clamp(e.clientX, 8, Math.max(8, window.innerWidth - r.width - 8)) + 'px';
   m.style.top = clamp(e.clientY, 8, Math.max(8, window.innerHeight - r.height - 8)) + 'px';
+  const coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  if (coarse && window.carnetHaptic) carnetHaptic([10, 24, 12]);
+  const M = window.CarnetMotion;
+  if (M) M.morphOpen(m, { x: e.clientX, y: e.clientY });
 }
 function clipPasteMenu(c) {
   if (!c) return;
