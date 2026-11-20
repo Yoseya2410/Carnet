@@ -2,9 +2,11 @@
  * Carnet · Genie Effect（src/menu-genie.js）
  * ---------------------------------------------------------------------
  * 用 @web-kits/springboard 的 origin() + genie()，让面板从按钮图标「飞出去」，
- * 收起时再原路吸回图标。目前两套：
+ * 收起时再原路吸回图标。目前三套：
  *   ① #homeMenu   ← 右上角菜单按钮（竖屏是 #mMenu）
  *   ② #modal      ← 电脑端底栏中间的「＋ 新建手帐本」
+ *   ③ 阅读器封面   ← 单层书架的那根书脊（reader-flow.js 调 flyBook，
+ *                    ghost 封面由它建好传进来，打开飞出 / 关闭吸回）
  *
  * 业务状态仍由 .show 说了算（closeMenus / closeEditor / Esc / 侧滑返回 /
  * 历史脚本都认这套），这里只接管开合那 0.4 秒的视觉：
@@ -25,11 +27,18 @@
  *
  * ⚠️ 开关不进 state.prefs、不跟导出走；库没加载 / 不支持 WAAPI 时自动
  *    退回原来的 CSS 淡入淡出。
+ *
+ * 懒加载：菜单 / 新建弹窗的动画也要 cloneNode 整棵子树（菜单 .mn-scroll
+ * 含色板、开关、卡片；#edForm 有 300+ 节点），逐帧克隆与重绘是主要卡顿源。
+ *   开启时（默认开）动画期间把重子树摘到内存、换成十来个节点的轻骨架，
+ *   落地后原样放回：节点对象没销毁，id / 值 / 监听器 / 事件绑定都在。
+ *   状态存 localStorage carnet_lazy_v1，和 Genie 开关一样不进 prefs、不跟导出走。
  * ===================================================================== */
 (function () {
   'use strict';
 
   const KEY = 'carnet_genie_v1';
+  const LAZY_KEY = 'carnet_lazy_v1';
   const $ = s => document.querySelector(s);
   const $$ = s => [...document.querySelectorAll(s)];
 
@@ -71,6 +80,25 @@
   let editorOwned = false;
   let editorDone = null;   // 关闭动画落地后才跑的业务收尾（renderHome / toast）
 
+  /* ---- 懒加载总开关：默认开，和 Genie 开关一样只存 localStorage ---- */
+  let lazyOn = true;
+  try { lazyOn = localStorage.getItem(LAZY_KEY) !== '0'; } catch (_) {}
+
+  window.CarnetLazyLoad = {
+    get on() { return lazyOn; },
+    status: () => ({ on: lazyOn }),
+    set(v) {
+      const next = !!v;
+      if (next !== lazyOn) {
+        lazyOn = next;
+        try { localStorage.setItem(LAZY_KEY, next ? '1' : '0'); } catch (_) {}
+      }
+      syncLazySwitch();
+      return lazyOn;
+    },
+    toggle() { return window.CarnetLazyLoad.set(!lazyOn); }
+  };
+
   function enabled() {
     return on && libReady() && !!$('#app');
   }
@@ -107,6 +135,18 @@
     edge: 'bottom', scale: 1,
     layerZ: '150',
   };
+  /* ③ 阅读器封面 ← 单层书架的书脊。el / from 由 reader-flow.js 每次飞行前
+     现配：ghost 是它建好停在落点矩形上的 .cover-ghost，from 是那根书脊。
+     edge:auto 让库按中心方位自己挑漏斗边（书脊在封面下方 → bottom）。
+     时长 0.5s 比面板的 0.4s 略长：封面飞的路程远，跟 FLY_MS(560) 一个量级。 */
+  const BOOK = {
+    el: () => bookRef.el,
+    from: () => bookRef.from,
+    root: 'div.cover-ghost',
+    edge: 'auto', scale: 1, duration: .5,
+    layerZ: '70',
+  };
+  let bookRef = { el: null, from: null };
 
   /* 副本是逐帧新建 strip 的；只给还没补过的新副本贴 id。
      pairs 是「索引 → id」的稀疏表，一次 run 只算一遍，每帧只写几十个节点，
@@ -157,6 +197,43 @@
     if (p.el) p.el.style.height = '';
   }
 
+  /* ---- 菜单懒加载 ----------------------------------------------------
+     #homeMenu .mn-scroll 装着整张卡片列表（色板 / 开关 / 说明），Genie 每帧
+     都要 cloneNode 这棵子树。动画期间换成十来个节点的骨架，落地后原样放回。
+     ⚠️ 只摘 .mn-scroll：#homeMenu 自身的 id / 关闭热区 / CSS 变量都留着，
+        closeMenus() / Esc / openHomeMenu() 的 .show 状态完全不受影响。 */
+  let menuParked = null;
+  function parkMenu(el) {
+    if (!lazyOn || menuParked) return;
+    const scroll = el.querySelector('.mn-scroll');
+    if (!scroll) return;
+    const sk = document.createElement('div');
+    sk.className = 'mn-scroll menu-lazy';
+    sk.setAttribute('aria-hidden', 'true');
+    sk.innerHTML =
+      '<div class="genie-skeleton menu-lazy-skeleton">' +
+        '<div class="gs-head"><i></i><b>Carnet</b></div>' +
+        '<div class="lazy-cards"><i></i><i></i><i></i></div>' +
+        '<div class="lazy-cap"></div>' +
+        '<div class="lazy-cards"><i></i><i></i><i></i></div>' +
+        '<div class="lazy-cap"></div>' +
+        '<div class="lazy-cards"><i></i><i></i><i></i></div>' +
+      '</div>';
+    scroll.parentNode.replaceChild(sk, scroll);
+    menuParked = { scroll, sk, el };
+  }
+  function restoreMenu(notify) {
+    if (!menuParked) return;
+    const p = menuParked;
+    menuParked = null;
+    if (p.sk.parentNode) p.sk.parentNode.replaceChild(p.scroll, p.sk);
+    /* 落地后菜单里的开关 / 色板要重新同步一次：window.openHomeMenu 的包装
+       会在 g.open() 之后调 mnSync()，那一刻真节点还在内存里。 */
+    if (notify) {
+      try { window.dispatchEvent(new CustomEvent('carnet-lazy-restore')); } catch (_) {}
+    }
+  }
+
   /* 收回动画落地（或被中断 / 降级）时统一放行业务收尾，绝不吞掉回调：
      点「完成」后书架必须刷新，哪怕动画被系统返回打断。 */
   function callEditorDone() {
@@ -169,6 +246,7 @@
     token++;
     if (inst) { try { inst.destroy(); } catch (_) {} inst = null; }
     restoreEditor();
+    restoreMenu(true);
     callEditorDone();
     const hm = $('#homeMenu'), md = $('#modal');
     if (hm) hm.classList.remove('genie-running');
@@ -189,6 +267,7 @@
     editorDone = typeof after === 'function' ? after : null;
     const mine = ++token;
     if (cfg === EDITOR) parkEditor(el);   // 懒加载：动画期间只挂轻骨架
+    if (cfg === MENU) parkMenu(el);       // 菜单同样懒加载：克隆时只带轻骨架
     el.classList.add('genie-running');
     const ids = [el.id, ...[...el.querySelectorAll('*')].map(n => n.id || '')];
     const pairs = [];
@@ -199,6 +278,7 @@
       if (mine !== token) return;      // 已被新一段接手
       clearTimeout(safety);
       restoreEditor();                 // 懒加载落地：完整表单原样放回
+      restoreMenu(cfg === MENU);       // 菜单骨架换回真卡片，并补一次状态同步
       /* 落地后别把 .modal 的 pop 入场又放一遍：摘 genie-running 会让
          animation-name 从 none 变回 pop，白闪一下。留个 settled 压住它，
          直到下次 openEditor / 下一段动画开头再清。 */
@@ -213,8 +293,8 @@
     try {
       inst = SB.origin(el, {
         from,
-        /* 0.4s 飞出 / 收回同速；scale 只改网格细度，不改窗口像素尺寸。 */
-        effect: SB.genie({ edge: cfg.edge, duration: 0.4, scale: cfg.scale }),
+        /* 飞出 / 收回同速；scale 只改网格细度，不改窗口像素尺寸。 */
+        effect: SB.genie({ edge: cfg.edge, duration: cfg.duration || 0.4, scale: cfg.scale }),
         /* 效果层挂 #app 内，跟着 App 的 fixed 视口走，不盖住系统级弹窗 */
         bounds,
         hideTarget: false,             // Dock 图标始终露着
@@ -244,6 +324,15 @@
   /* ---- ① 菜单页 ---- */
   function menuOpen() { return run(true, MENU); }
   function menuClose() { return run(false, MENU); }
+
+  /* ---- ③ 单层书架开合书 ----
+     reader-flow.js 在打开 / 关闭阅读器时调用：ghost 封面与书脊都由它备好，
+     业务相位（主页淡出、书显形、书脊归位）挂在 after 上，落地那一帧同任务完成。
+     返回 false = 库没接住（开关关着 / 库未就绪 / 异常），调用方退回两段式飞行。 */
+  function bookFly(opening, ghost, from, after) {
+    bookRef = { el: ghost, from };
+    return run(opening, BOOK, after);
+  }
 
   /* ---- ② 电脑端「＋ 新建手帐本」：只对新建、只对桌面弹窗启用 ----
      编辑已有本（封面齿轮 / 单层长按）和移动端两步 Bottom Sheet 保持原样。 */
@@ -294,7 +383,43 @@
         syncSwitch();
       });
     }
+    /* 懒加载开关同样自愈：本地编辑器把 index.html 那一行还原掉也不丢入口 */
+    if (!$('#mnLazy')) {
+      const row = document.createElement('label');
+      row.className = 'mn-row';
+      row.innerHTML = '<b>懒加载</b><span class="mn-switch" id="mnLazySwitch"><input type="checkbox" id="mnLazy" aria-label="懒加载" title="动画期间只克隆轻量骨架，落地后恢复完整内容"></span>';
+      card.appendChild(row);
+    }
+    if (!$('#mnLazyNote')) {
+      const n = document.createElement('p');
+      n.className = 'mn-note'; n.id = 'mnLazyNote';
+      card.parentNode.insertBefore(n, card.nextSibling);
+    }
+    bindLazySwitch();
     syncSwitch();
+    syncLazySwitch();
+  }
+
+  /* 行可能是 HTML 自带的，也可能是自愈补的，绑定统一走这里（幂等） */
+  function bindLazySwitch() {
+    const cb = $('#mnLazy');
+    if (!cb || cb.dataset.bound) return;
+    cb.dataset.bound = '1';
+    cb.addEventListener('change', e => {
+      window.CarnetLazyLoad.set(e.target.checked);
+      if (typeof toast === 'function')
+        toast(lazyOn ? '已开启懒加载 · 动画只加载轻量内容' : '已关闭懒加载 · 动画加载完整界面');
+    });
+  }
+
+  function syncLazySwitch() {
+    const cb = $('#mnLazy'), box = $('#mnLazySwitch'), note = $('#mnLazyNote');
+    if (!cb) return;
+    cb.checked = lazyOn;
+    if (box) box.classList.toggle('on', lazyOn);
+    if (note) note.textContent = lazyOn
+      ? '已开启 · 菜单与新建弹窗动画期间只加载轻量骨架'
+      : '已关闭 · 动画期间加载完整界面';
   }
 
   function syncSwitch() {
@@ -308,10 +433,12 @@
 
   window.CarnetMenuGenie = {
     enabled,
+    lazy: () => lazyOn,
     open: menuOpen,
     close: menuClose,
     openEditor: editorOpen,
     closeEditor: editorClose,
+    flyBook: bookFly,
     teardown,
     sync: syncSwitch,
   };

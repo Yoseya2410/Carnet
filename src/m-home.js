@@ -731,6 +731,11 @@
   window.addEventListener('carnet-pwa-change', () => {
     try { syncPwaSetting(); } catch (_) {}
   });
+  /* 懒加载骨架落地后真节点才回到 DOM，这里补一次同步：window.openHomeMenu
+     包装里的 mnSync() 跑在 g.open() 之后，那时真菜单还暂存在内存里。 */
+  window.addEventListener('carnet-lazy-restore', () => {
+    try { mnSync(); } catch (_) {}
+  });
 
   function mnSync() {
     syncMuiSetting();

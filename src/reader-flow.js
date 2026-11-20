@@ -2,7 +2,10 @@
  * Carnet · 阅读器交互 · 开合书动画与增删页   （脚本 25 / 28）
  * ---------------------------------------------------------------------
  * ① 打开：封面飞入放大成书 flyCover / openReader
+ *    （单层书架改走 spine-openfx.js 的 3D 开合：白场立书 → 书脊转身到封面 → 落入阅读器，
+ *      模块不可用才退回 Genie 漏斗 / 两段式飞入）
  * ② 关闭：合上书（只合一次，不再先连翻回封面）、书缩回主页封面 closeReader
+ *    （单层书架同样走 spine-openfx.js：封面转回书脊方向 → 插回架上原位）
  * ③ 阅读器内的手势与「添加」菜单联动
  * ④ 加页 addPageAfter / 删页 deleteCurrentPage
  *
@@ -285,6 +288,38 @@ function flyCover(from, to, reverse, onLand, onLift) {
   }, ms + 60);
   return ghost;
 }
+/* ==================== Genie Effect（单层书架专用） ====================
+   打开：书脊先自己抽出来（home-events.js 的 .pulling），封面再用漏斗从书脊
+        展开成书；关闭：封面直接吸回那根书脊。动画本身在 menu-genie.js
+        （springboard 克隆切片 + 网格漏斗），这里只管把「皮」摆对、把业务相位
+        挂在落地帧上。开关 / 库未就绪 / 异常时 spineGenieEl 返回 null，
+        自动退回上面的两段式 flyCover。 */
+function spineGenieEl() {
+  if (!state.prefs || state.prefs.view !== 'spine') return null;
+  const G = window.CarnetMenuGenie;
+  if (!G || typeof G.flyBook !== 'function' || !G.enabled()) return null;
+  return $(`#spineRow .spine-item[data-i="${state.sel}"]`) || null;
+}
+/* 一张「停在落点上」的静态飞行封面：尺寸 / 圆角 / 内容与 flyCover 的落地端
+   完全一致（合书态整本外框的 --book-r），springboard 克隆它去飞，真身不用动。 */
+function genieGhostAt(rect, j) {
+  const ghost = document.createElement('div');
+  ghost.className = 'cover-ghost';
+  const fit = document.createElement('div');
+  fit.className = 'cover-ghost-fit';
+  fit.innerHTML = closedCoverHTML(j);
+  fit.style.width = rect.width + 'px';
+  fit.style.height = rect.height + 'px';
+  fit.style.transform = 'translate3d(-50%,-50%,0px) scale(1)';
+  ghost.appendChild(fit);
+  const rr = bookRadiusOf(j).toFixed(1);
+  ghost.style.borderRadius = `5px ${rr}px ${rr}px 5px`;
+  ghost.style.width = rect.width + 'px';
+  ghost.style.height = rect.height + 'px';
+  ghost.style.transform = `translate3d(${rect.left}px,${rect.top}px,0px)`;
+  $('#app').appendChild(ghost);
+  return ghost;
+}
 function openReader() {
   if (flyBusy || !cur()) return;
   /* 加密本还没解锁就先解密：本机记住过密钥时静默完成（不弹框），
@@ -308,6 +343,41 @@ function openReader() {
     book.classList.remove('book-in', 'book-out', 'gone', 'folded', 'folding', 'folding-back', 'back-hinge', 'back-close', 'back-opening', 'cover-flip');
     renderReader();
     return;
+  }
+  /* 单层书架：3D 开合（spine-openfx.js）—— 书脊抽出后白场只留这一本，
+     立到屏幕中央从书脊慢慢转到正面封面，再落进阅读器。模块接管了整趟
+     （含相位类与落地交接），返回 false 才退回下面的 Genie / 两段式飞入。 */
+  if (window.CarnetSpineFx && CarnetSpineFx.open(from)) return;
+  /* 单层书架 + Genie Effect：书脊已经抽出来了（.pulling），封面直接用漏斗
+     从书脊展开成书，不再走两段式放大。漏斗只有一段，相位②（主页淡出 /
+     阅读器淡入）与漏斗同帧起步；落地交接仍守「同一次任务摘层 + 显书」。 */
+  const gFrom = spineGenieEl();
+  if (gFrom) {
+    armFlyBusy(FLY_MS + 900);
+    app.classList.remove('fly-lift');
+    app.classList.add('fly-zoom');
+    home.classList.remove('book-returning', 'book-appearing');
+    home.classList.add('book-opening');
+    reader.classList.add('book-opening');
+    reader.classList.add('show');
+    book.classList.remove('book-out', 'gone', 'folded', 'folding', 'folding-back', 'back-hinge', 'back-close', 'back-opening', 'cover-flip');
+    renderReader();
+    const to = coverPageRect() || fallbackCoverRect();
+    book.classList.add('book-in');
+    const ghost = genieGhostAt(to, cur());
+    const ok = CarnetMenuGenie.flyBook(true, ghost, gFrom, () => {
+      freeFlyBusy();
+      app.classList.remove('fly-lift');
+      reader.classList.remove('book-opening');
+      book.classList.remove('book-in');
+      ghost.remove();
+    });
+    if (ok) return;
+    /* 库没接住：拆掉半成品现场，退回下面的两段式飞行（类都是幂等重挂） */
+    ghost.remove();
+    book.classList.remove('book-in');
+    app.classList.remove('fly-zoom');
+    freeFlyBusy();
   }
   armFlyBusy(FLY_MS + 600);
   /* 相位 ①：只把书从玻璃里抬出来，主页保持清晰、原尺寸，阅读器整体透明 */
@@ -484,7 +554,10 @@ function endClose(hard) {
   cancelFlip();                                // 合书没跑完就被跳过时，别让它的收尾再给书加上合拢态
   if (hard) flyGlassCleanup();
   /* fly-zoom 与 .show 同一任务摘掉：单独摘会让 #reader.show 的 fadeIn 重播一次 */
-  $('#app').classList.remove('fly-lift', 'fly-zoom');
+  $('#app').classList.remove('fly-lift', 'fly-zoom', 'spinefx-hold', 'spinefx-enter');
+  /* 单层书架 3D 开合的兜底清理：正常落地时模块自己会收，这里兜的是
+     「动画中途被返回键打断」—— teardown 幂等，白场走淡出不硬闪 */
+  if (window.CarnetSpineFx && CarnetSpineFx.teardown) CarnetSpineFx.teardown();
   /* 单层书架：把那根被「抽走」的书脊放回架上（抽出 + 隐藏的 class 一起摘掉） */
   $$('#spineRow .spine-item.pulling,#spineRow .spine-item.gone')
     .forEach(el => el.classList.remove('pulling', 'gone'));
@@ -513,6 +586,34 @@ async function runCloseSequence(to) {
   /* 封面那一页的位置（可能是左槽也可能是右槽） */
   const from = coverPageRect() || fallbackCoverRect();
   state.page = -1; state.spread = -1;          // 统一归位到封面态
+  /* 单层书架：3D 合书 —— 封面抬到白场中央转回书脊方向，缩成书脊插回架上
+     原位，白场淡出后周围的书显现。模块内部自己调 endClose() 收尾。 */
+  if (window.CarnetSpineFx && CarnetSpineFx.close(from)) return;
+  /* 单层书架 + Genie Effect：封面一段到底直接吸回那根书脊。
+     ⚠️ 先摘掉 .pulling 再让库量落点：书脊整场阅读期都挂着「抽出」的位移，
+        而它被 .gone 藏着眼看不见 —— 落点必须对准架上**静置**位，落地帧
+        endClose 摘 .gone 时书脊就在漏斗尖端出现，不会在收尾再下沉一截。 */
+  const gTo = spineGenieEl();
+  if (gTo) {
+    gTo.classList.remove('pulling');
+    const ghost = genieGhostAt(from, cur());
+    book.classList.add('gone');
+    const ok = CarnetMenuGenie.flyBook(false, ghost, gTo, () => {
+      ghost.remove();
+      endClose();                          // 归位书脊 / 摘 .show / 放锁，同一帧
+    });
+    if (ok) {
+      /* 主页显现与吸回同帧起步（漏斗一段到底，没有第二段交界可等） */
+      const home = $('#home');
+      home.classList.remove('book-returning');
+      home.classList.add('book-appearing');
+      return;
+    }
+    /* 库没接住：恢复现场，退回两段式飞回（to 是抽出位量的，.pulling 放回去） */
+    ghost.remove();
+    book.classList.remove('gone');
+    gTo.classList.add('pulling');
+  }
   flyCover(to, from, true, null, () => {
     /* 相位 ②：书已经缩回到书架玻璃上方 —— 主页这才显现出来，紧接着 ghost 插回书架。
        玻璃副本同步淡入并顶班到落地，插回那一段它一直压在书脚上。 */
@@ -571,6 +672,9 @@ function closeReader() {
     return;
   }
   if (flyBusy) {                               // 飞入 / 退场动画没播完就再点：直接收掉
+    /* Genie 段被打断：效果层（切片副本）也要一起收 —— teardown 会连带把
+       挂在落地帧上的业务收尾跑掉（幂等），下面的 endClose 再兜一遍也无妨 */
+    if (window.CarnetMenuGenie && CarnetMenuGenie.teardown) CarnetMenuGenie.teardown();
     $$('.cover-ghost').forEach(g => g.remove());   // 别让被打断的封面继续飞到空背景上
     endClose(true);
     return;
