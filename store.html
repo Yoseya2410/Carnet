@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f4f4f1">
+  <link rel="icon" type="image/png" href="assets/pwa-icon-192.png">
+  <title>Carnet · 手账本商店</title>
+  <link rel="stylesheet" href="style/home.css">
+  <link rel="stylesheet" href="style/book-style.css">
+  <link rel="stylesheet" href="style/store.css">
+  <script src="src/i18n-data.js" defer></script>
+  <script src="src/i18n.js" defer></script>
+  <script src="src/core.js" defer></script>
+  <script src="src/visuals.js" defer></script>
+  <script src="src/storage.js" defer></script>
+  <script src="src/home-view.js" defer></script>
+  <script src="src/font-library.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tencent-ai/workbuddy-cloud-sdk@dev/lib/index.global.js" defer></script>
+  <script src="src/store-cloud.js" defer></script>
+  <script src="src/store.js" defer></script>
+</head>
+<body>
+  <div class="store-shell" id="storeShell">
+    <header class="store-header">
+      <a class="store-back" href="index.html" title="返回书架" aria-label="返回书架">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+      </a>
+      <a class="store-wordmark" href="index.html" aria-label="Carnet 首页">CARNET</a>
+    </header>
+
+    <main class="store-main">
+      <nav class="store-tabs" id="storeTabs" aria-label="商店分类">
+        <button class="on" type="button" data-store-tab="journal">手账本</button>
+        <button type="button" data-store-tab="stickers">贴纸</button>
+        <button type="button" data-store-tab="font">字体</button>
+      </nav>
+      <div class="store-grid" id="storeGrid"></div>
+      <p class="store-message" id="storeMessage">正在整理商品…</p>
+      <p class="store-source" id="storeSource">本地商品</p>
+    </main>
+  </div>
+
+  <section class="store-detail" id="storeDetail" role="dialog" aria-modal="true" aria-label="商品详情" hidden>
+    <header class="detail-header">
+      <button class="detail-close" id="detailClose" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+        <span>返回商店</span>
+      </button>
+      <span class="detail-header-brand">CARNET / STORE</span>
+    </header>
+    <div class="detail-scroll">
+      <div class="detail-layout">
+        <div class="detail-visual">
+          <div class="book-stage" id="bookStage" role="img" tabindex="0" aria-label="可拖动旋转的 3D 手账本">
+            <div class="book-3d" id="book3d"></div>
+          </div>
+          <div class="asset-preview" id="assetPreview" hidden></div>
+          <div class="preview-tools">
+            <span>拖动旋转 · 双击复位</span>
+            <button id="resetView" type="button">复位</button>
+          </div>
+        </div>
+        <div class="detail-info">
+          <p class="detail-kicker" id="detailKicker">EDITION 01</p>
+          <h2 id="detailName" data-i18n-skip></h2>
+          <p class="detail-meta" id="detailMeta"></p>
+          <p class="detail-description" id="detailDescription"></p>
+          <div class="detail-actions">
+            <button class="download-button" id="downloadBtn" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7.5 10.5L12 15l4.5-4.5M4 16v4h16v-4"/></svg>
+              <span>下载并导入</span>
+            </button>
+            <a class="open-shelf" id="openShelf" href="index.html" hidden>返回书架查看</a>
+          </div>
+          <p class="download-status" id="downloadStatus" role="status" aria-live="polite"></p>
+          <p class="download-note">下载完成后，自动保存到本机对应素材库。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+  <noscript><p class="store-noscript">需要启用 JavaScript 才能打开手账本商店。</p></noscript>
+</body>
+</html>

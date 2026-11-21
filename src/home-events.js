@@ -815,7 +815,7 @@ $('#spineScroll').addEventListener('wheel', e => {
 }, { passive: false });
 /* 多层书架 / 单层书架 / 左右滑动 的切换按钮 */
 $$('#viewToggle button').forEach(btn => {
-  btn.addEventListener('click', () => setView(btn.dataset.vt));
+  btn.addEventListener('click', () => setView(btn.dataset.vt, { defer: true }));
 });
 /* 白钮也能**拖着**换模式：按下 → 拖 → 松手吸附到最近那一格。
    点击仍走上面那组 click；只有真拖过（≥6px）才吞掉尾巴跟着来的那一下 click，
@@ -828,6 +828,19 @@ $$('#viewToggle button').forEach(btn => {
   const btns = Array.from(box.querySelectorAll('button'));
   let drag = null, suppress = false;
   const step = () => btns.length > 1 ? (btns[1].offsetLeft - btns[0].offsetLeft) || 39 : 39;
+  /* pointermove 可能一帧来多次，只保留最新位置，在下一帧统一写 transform / 高亮。 */
+  const moveQ = frameQueue(clientX => {
+    const d = drag;
+    if (!d || !d.captured) return;
+    const x = clamp(d.from + (clientX - d.x), 0, d.max);
+    thumb.style.transform = 'translateX(' + x.toFixed(1) + 'px)';
+    /* 选中态跟着白钮走：图标高亮落到拇指最近那一格，旧格不再「还留着一个按钮」。
+       白底已被 .dragging 关掉，所以全程只有一个白色圆。松手由 syncViewToggle 定稿。 */
+    const hi = clamp(Math.round(x / d.step), 0, views.length - 1);
+    if (d.hi === hi) return;
+    d.hi = hi;
+    btns.forEach((b, i) => b.classList.toggle('on', i === hi));
+  });
   box.addEventListener('pointerdown', e => {
     if (e.button > 0 || drag) return;
     const s = step(), i = Math.max(0, views.indexOf(state.prefs.view));
@@ -843,19 +856,15 @@ $$('#viewToggle button').forEach(btn => {
     if (drag.moved < 6) return;
     if (!drag.captured) {
       try { box.setPointerCapture(e.pointerId); drag.captured = true; } catch (_) {}
+      box.classList.add('dragging');         // 只在拖动成立时写一次 class
+      thumb.classList.add('dragging');
     }
-    box.classList.add('dragging');           // 收掉 .on 的白玻璃底，只留白钮这一个圆
-    thumb.classList.add('dragging');
-    const x = clamp(drag.from + dx, 0, drag.max);
-    thumb.style.transform = 'translateX(' + x.toFixed(1) + 'px)';
-    /* 选中态跟着白钮走：图标高亮落到拇指最近那一格，旧格不再「还留着一个按钮」。
-       白底已被 .dragging 关掉，所以全程只有一个白色圆。松手由 syncViewToggle 定稿。 */
-    const hi = clamp(Math.round(x / drag.step), 0, views.length - 1);
-    btns.forEach((b, i) => b.classList.toggle('on', i === hi));
-  });
+    moveQ.push(e.clientX);
+  }, { passive: true });
   const finish = (e, cancel) => {
     if (!drag || (e.pointerId !== undefined && e.pointerId !== drag.id)) return;
-    const d = drag; drag = null;
+    moveQ.flush();                           // 补上最后一次位移，再清理手势
+    const d = drag; drag = null; moveQ.cancel();
     if (d.captured) { try { box.releasePointerCapture(d.id); } catch (_) {} }
     box.classList.remove('dragging');
     thumb.classList.remove('dragging');
@@ -865,7 +874,7 @@ $$('#viewToggle button').forEach(btn => {
     const x = clamp(d.from + (e.clientX - d.x), 0, d.max);
     const i = clamp(Math.round(x / d.step), 0, views.length - 1);
     suppress = true;
-    setView(views[i]);                         // syncViewToggle 把 data-vt 落到新格
+    setView(views[i], { defer: true });         // syncViewToggle 把 data-vt 落到新格
     setTimeout(() => { suppress = false; }, 0);
   };
   box.addEventListener('pointerup', e => finish(e, false));

@@ -1,0 +1,36 @@
+{
+  "app": "carnet",
+  "version": 1,
+  "store": {
+    "id": "iris-square",
+    "code": "IRIS SQUARE",
+    "description": "淡紫方形开本配菱格封面，适合照片、灵感剪贴和每一页的小小展览。"
+  },
+  "journal": {
+    "id": "store-iris-square",
+    "name": "鸢尾",
+    "style": "square",
+    "cover": {
+      "img": null,
+      "radius": 10,
+      "type": "solid",
+      "value": "#b8a6d9",
+      "pattern": "check",
+      "patColor": "#f7f2ff",
+      "texture": "paper"
+    },
+    "ribbon": "#5c4a78",
+    "template": "grid",
+    "tplImg": "",
+    "tplImgs": [],
+    "tplFit": "cover",
+    "pageBg": "",
+    "pages": [
+      {"images":[],"texts":[]},{"images":[],"texts":[]},{"images":[],"texts":[]},{"images":[],"texts":[]},
+      {"images":[],"texts":[]},{"images":[],"texts":[]},{"images":[],"texts":[]},{"images":[],"texts":[]},
+      {"images":[],"texts":[]},{"images":[],"texts":[]},{"images":[],"texts":[]},{"images":[],"texts":[]}
+    ],
+    "created": 0,
+    "pagesN": 12
+  }
+}

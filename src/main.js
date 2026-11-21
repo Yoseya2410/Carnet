@@ -79,6 +79,9 @@
   /* 全局自定义内页模板素材库：编辑器模板栏第一次渲染前先读回来 */
   try { await loadTplLib(); }
   catch (e) { console.warn('[Carnet] 模板库读取失败（忽略）：', e); }
+  /* 商店下载的字体在第一次渲染文字面板前注册，刷新后仍然可选、可导出。 */
+  try { await loadFontLibrary(); }
+  catch (e) { console.warn('[Carnet] 字体库读取失败（忽略）：', e); }
   /* 加密手帐的本机钥匙缓存：先读回来，打开书时才能用记住的密钥静默解密。
      ⚠️ 只在用户交互时按需解锁，启动时不把书本解成明文——磁盘和内存都尽量保持密文。 */
   try { await loadLockKeys(); }

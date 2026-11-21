@@ -3,8 +3,9 @@
  * ---------------------------------------------------------------------
  * ① 纯 JS MD5（UTF-8）：保密问题的答案 → 32 位小写 hex，作为密钥材料
  * ② WebCrypto：PBKDF2-SHA256（12 万次，随机 salt）把密钥材料派生成 AES-GCM 256 密钥
- * ③ 「信封」：整本手帐的内容（文字 / 图片 / 封面图 / 模板图 / DIY 草稿…）一次加密，
- *    外壳只留书名、封面配色图案、装帧、页数这些**书架要用来认书**的明文元数据
+ * ③ 「信封」：封面以外的正文（文字 / 页内图片 / 模板素材 / DIY 草稿…）一次加密；
+ *    外壳留书名、**整张封面 cover（封面图 / 封底图 / 书脊片都在内）**、装帧、页数这些
+ *    **书架要用来认书**的明文元数据 —— 加密本锁着时也能在书架上照常显示完整封面
  * ④ 本机钥匙缓存 carnet_lock_keys_v1：解锁一次后这台设备自动解密，磁盘与导出文件始终是密文；
  *    「立即上锁」把它忘掉，重新变回需要输密钥
  * ⑤ 解锁 / 设置 / 换密钥 / 取消加密 / 上锁的弹窗与守卫
@@ -160,34 +161,30 @@ async function verifyLockKey(lock, km) {
 
 /* ==================== 信封：seal / unseal ====================
    明文 j  ↔  信封 { 明文元数据外壳, lock, enc }。
-   · enc.data = AES-GCM(JSON.stringify(去掉 lock/enc 的整本手帐))，一次加密覆盖全部内容；
-   · 外壳只留书架要用的：书名 / 封面配色图案 / 装帧 / 彩带 / 模板 / 页数空壳。
-     照片封面 cover.img、封面草稿 diym、封面内侧图片、自定义书脊片 cover.spineImg、
-     封底图 cover.backImg、tplImg / tplImgs 都不进外壳，
-     一并卷进密文里 —— 锁着的书在书架上就是一张纯色 / 图案封面。
+   · enc.data = AES-GCM(JSON.stringify(去掉 lock/enc/cover 的整本手帐))，一次加密覆盖全部内容；
+   · 外壳留书架要用的：书名 / **整张封面 cover（含照片 / DIY 草稿 / 封底 / 书脊片）** /
+     装帧 / 彩带 / 模板 / 页数空壳。封面按用户要求不加密：锁着的书在书架上照常显示封面，
+     只有封面以外的正文内容（pages / 图片 / 文字 / 模板素材 tplImg / tplImgs）进密文。
    · pages 留一组空对象只为保持页数（书脊厚度、页数角标、normalizeJournal 的结构校验）。 */
 function journalHasLock(j) { return !!(j && j.lock && j.lock.v); }
 function lockIsSealed(j) { return !!(j && j.enc && j.enc.data && journalHasLock(j)); }
 function lkPayload(j) {
   const p = { ...j };
   delete p.lock; delete p.enc;
+  /* 封面按用户要求不加密：整张 cover 随外壳明文走，密文里不再重复存一份。
+     解密时 unsealJournal() 会把外壳的 cover 合回明文。 */
+  delete p.cover;
   return p;
 }
 function lkShell(j, lock, enc) {
-  const cv = j.cover || {};
-  const ins = (cv.inside && typeof cv.inside === 'object')
-    ? { mode: cv.inside.mode, color: cv.inside.color, pick: cv.inside.pick } : undefined;
   return {
     id: j.id, name: j.name, created: j.created,
     style: j.style, ribbon: j.ribbon, template: j.template, tplFit: j.tplFit, pageBg: j.pageBg,
-    /* ⚠️ 这里只挑外观字段，绝不能写 ...cv —— 会把 cover.img / diym / inside.img /
-       backImg 一起带出来。backMode='follow' 不含敏感图片，可以留在外壳里让锁着的本子
-       也知道自己设了封底；backMode='image' 一律不进外壳（没有图就当没设封底）。 */
-    cover: {
-      type: cv.type, value: cv.value, pattern: cv.pattern, patColor: cv.patColor,
-      texture: cv.texture, radius: cv.radius, groove: cv.groove, inside: ins,
-      backMode: cv.backMode === 'follow' ? 'follow' : undefined
-    },
+    /* ⚠️ 封面整张明文带出（含 cover.img / diym / inside.img / backImg / spineImg）：
+       用户要求加密本在书架上照常显示封面，封面不算「内容」，只有正文进密文。
+       coverHTML / backFaceOf / spineImgOf 读的每个封面字段都必须在这里，缺一个就会
+       出现「锁着时封面变纯色、解密后才冒出来」的旧毛病。 */
+    cover: { ...(j.cover || {}) },
     pages: (Array.isArray(j.pages) ? j.pages : []).map(() => ({})),
     lock, enc
   };
@@ -226,7 +223,11 @@ async function unsealJournal(env, km) {
   /* 导入时 normalizeJournal 会给信封换个新 id，密文里存的还是导出那台的旧 id。
      不解开封就把 id 跟过来，同一份文件导两次会得到两本 id 一样的手帐。 */
   plain.id = env.id;
-  return { ...plain, lock: env.lock };           // 内容回原样，只把锁的配置带回来
+  /* 封面不加密：新信封的密文里没有 cover，得从明文外壳合回来；
+     旧信封（cover 还进密文的年代）plain.cover 存在且是完整那张，优先用它，
+     免得被外壳里的旧版简化封面盖掉。 */
+  const cover = plain.cover || env.cover || {};
+  return { ...plain, cover, lock: env.lock };     // 内容回原样，只把锁的配置带回来
 }
 /* 按 id 拿回 state 里当前那一本（解锁会替换对象，旧引用会失效） */
 function lkById(id) {
@@ -654,17 +655,51 @@ async function lockRelock(j) {
   }
 }
 
-/* 触屏软键盘：只在真的聚焦到输入框时才把面板顶到上半屏。
+/* 触屏软键盘：聚焦输入框才把面板顶到上半屏，键盘一收起就回居中。
    ⚠️ 延后 180ms 加 .kb，等 pointerup / click 派发完 —— 若同步加，面板瞬移后
       mouseup 会落在遮罩上，被「点外面关闭」误判关掉（取色盘 .kb 踩过同一个坑）。
-   ⚠️ 用 focusin 委托而不是逐个 input 绑：换密钥 tab 会重画 #lkFields，
-      新生成的 input 没有监听器也会漏掉。blur 时不摘 .kb，避免打字中途反复跳。 */
+   ⚠️ 用 focusin / focusout 委托而不是逐个 input 绑：换密钥 tab 会重画 #lkFields，
+      新生成的 input 没有监听器也会漏掉。
+   ⚠️ 收起有两条路径，缺一条弹窗就会一直吊在上半屏（用户报的毛病）：
+      ① 点别处 → focusout；② 点输入法「完成」只收键盘、输入框还聚焦着 → visualViewport 回涨。 */
+const lkKbCoarse = () => !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+const lkKbInField = () => {
+  const a = document.activeElement;
+  return !!(a && a.matches && a.matches('input, textarea') && a.closest && a.closest('#lockBody'));
+};
+const lkKbRaise = () => {
+  clearTimeout(lkKbTimer);
+  lkKbTimer = setTimeout(() => {
+    if ($('#lockMask').classList.contains('show') && lkKbInField()) $('#lockMask').classList.add('kb');
+  }, 180);
+};
+const lkKbDrop = () => { clearTimeout(lkKbTimer); $('#lockMask').classList.remove('kb'); };
 $('#lockBody').addEventListener('focusin', e => {
   if (!e.target.matches || !e.target.matches('input, textarea')) return;
-  if (!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches)) return;
-  clearTimeout(lkKbTimer);
-  lkKbTimer = setTimeout(() => $('#lockMask').classList.add('kb'), 180);
+  if (lkKbCoarse()) lkKbRaise();
 });
+$('#lockBody').addEventListener('focusout', () => {
+  if (!lkKbCoarse()) return;
+  clearTimeout(lkKbTimer);
+  /* 两个输入框之间切换（换密钥 tab / 两次输密码）别回落，等焦点真的离开整个弹窗再摘 */
+  lkKbTimer = setTimeout(() => { if (!lkKbInField()) $('#lockMask').classList.remove('kb'); }, 240);
+});
+/* 输入法「完成」键往往只收键盘、不 blur：用 core.js 算好的键盘高度兜底。
+   只在「先看到键盘弹起、再看到归零」时摘 .kb，避免弹出动画中途误判把面板放回原处。 */
+if (window.visualViewport) {
+  let kbWasUp = false;
+  window.visualViewport.addEventListener('resize', () => {
+    if (!$('#lockMask').classList.contains('kb') && !lkKbInField()) return;
+    const kb = typeof window.__kbHeight === 'function' ? window.__kbHeight() : 0;
+    if (kb > 60) {
+      kbWasUp = true;
+      /* 收起后又点回同一个输入框不会再有 focusin，这里补一次抬升 */
+      if (lkKbCoarse() && lkKbInField() && !$('#lockMask').classList.contains('kb')) lkKbRaise();
+      return;
+    }
+    if (kbWasUp) { kbWasUp = false; lkKbDrop(); }
+  });
+}
 
 /* 遮罩点外面关闭；Esc 也关（解锁框取消＝不打开书） */
 $('#lockMask').addEventListener('click', e => { if (e.target === $('#lockMask')) closeLockPanel(); });

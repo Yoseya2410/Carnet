@@ -76,6 +76,12 @@ async function readEnFace(k) {
   if (k in __enFaceCache) return __enFaceCache[k];
   const f = (EN_FONTS.find(x => x.k === k) || {}).face;
   if (!f) return (__enFaceCache[k] = '');
+  /* 商店下载字体已在 font-library.js 里转成 data，导出与静态随包字体共用一道内嵌。 */
+  if (f.data) {
+    return (__enFaceCache[k] = `@font-face{font-family:'${f.family}';`
+      + `src:url(${f.data}) format('${f.format || 'woff2'}');`
+      + `font-display:block;font-weight:400;font-style:normal;}`);
+  }
   try {
     const r = await fetch(EN_FACE_BASE + f.file);
     if (!r.ok) throw new Error('HTTP ' + r.status);

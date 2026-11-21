@@ -1090,12 +1090,21 @@ function spineFromOf(j) {
   const v = (j && j.cover && j.cover.spineFrom) || '';
   return (v === 'upload' || v === 'crop') ? v : '';
 }
+/* 笔记本的独立书脊 = 封面彩带色。单层书架与商店 3D 预览必须同源：
+   有自定义书脊片 / 封面图时仍优先用图片；否则 classic 的非透明彩带就是书脊，
+   不能再把封面图案铺到书脊上。其它装帧没有彩带，继续跟随封面。 */
+function spineRibbonOf(j) {
+  const cv = (j && j.cover) || {};
+  return !spineImgOf(j) && !cv.img && bookHasRibbon(j) && !ribbonIsNone(j && j.ribbon)
+    ? ribbonSpine(j.ribbon) : '';
+}
 /* 书脊底色唯一源：主页 spineItemHTML 与编辑器效果预览都吃这一份。
-   自定义书脊片按书脊高矮拉伸铺满（上传的本就是一条竖长图，跟着每本书的长短走）；
-   没设过时沿用封面的图 / 底色，跟加这个功能之前一模一样。 */
+   自定义书脊片按书脊高矮拉伸铺满（上传的本就是一条竖长图，跟着每本书的长短走）。 */
 function spineBackdrop(j) {
   const sp = spineImgOf(j);
   if (sp) return `background-image:url('${sp}');background-size:100% 100%;background-position:center;`;
+  const rb = spineRibbonOf(j);
+  if (rb) return `background:${rb};`;
   const cv = (j && j.cover) || {};
   return cv.img
     ? `background-image:url('${cv.img}');background-size:cover;background-position:center;`
@@ -1107,8 +1116,9 @@ function spineBackdrop(j) {
                    'image'    = 设了封底，用 cover.backImg 这张单独的图。
    cover.backImg：base64 位图（跟 cover.img / spineImg 同一道白名单）。
    cover.backFrom：'upload' | 'split'，只记来源给设置面板显示，渲染一概不认。
-   ⚠️ 这三个字段都要跟着源文件导出 / 导入；加密本里 backImg 是敏感图片，
-      跟 cover.img 一样只进密文，lkShell 的白名单不带它。
+   ⚠️ 这三个字段都要跟着源文件导出 / 导入；加密本里封面整张不加密，
+      backImg / backMode / backFrom 跟 cover.img 一样随 lkShell 明文外壳走，
+      锁着时封底也能照常显示。
    ⚠️ hasBackCover() 是「能不能翻到封底」的唯一判据：'image' 但图被洗掉了
       （导入脏数据 / 锁着的空壳）一律退回「没设封底」，免得合上之后是一片空白。 */
 const BACK_MODES = ['follow', 'image'];

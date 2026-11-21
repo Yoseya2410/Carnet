@@ -101,6 +101,9 @@
         <button data-page-node-id="zrncdmC3d2DPEIgoyyf1WC" class="icon-btn" id="searchBtn" title="搜索">
           <svg data-page-node-id="yIMO7QMGQ6BRk9lq4YplO1" fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-width="1.9" viewBox="0 0 24 24" width="18"><circle data-page-node-id="2WivIOLGEdSDBIZMIVFTYX" cx="11" cy="11" r="7"/><path data-page-node-id="RMhp6YTnOX7mhQ3UC7QXaF" d="M16.6 16.6L21 21"/></svg>
         </button>
+        <a class="icon-btn" id="storeBtn" href="store.html" title="手账本商店" aria-label="手账本商店">
+          <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24" width="18" aria-hidden="true"><path d="M3 21l18 0"/><path d="M3 7v1a3 3 0 0 0 6 0v-1m0 1a3 3 0 0 0 6 0v-1m0 1a3 3 0 0 0 6 0v-1h-18l2 -4h14l2 4"/><path d="M5 21l0 -10.15"/><path d="M19 21l0 -10.15"/><path d="M9 21v-4a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v4"/></svg>
+        </a>
         <button data-page-node-id="ZprSjdR9uuAHGJaH4Don5w" class="icon-btn" id="menuBtn" title="菜单">
           <svg data-page-node-id="qqYrtA84ILldFEMIrCmkfX" fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-width="1.9" viewBox="0 0 24 24" width="18"><path data-page-node-id="VUAiEaZaDFY2nqgiXX4Zw5" d="M4 7h16M4 12h16M4 17h16"/></svg>
         </button>
@@ -163,6 +166,10 @@
          桌面端仍是上面那条 .topbar / .actionbar；两套 DOM 并存，事件互不干扰。
          ⚠️ 不放在 .topbar 里：那条是 z-index:5 层叠上下文，书架滚动时还会整块淡出。 -->
     <div class="mbar" id="mHomeBar">
+
+      <a class="m-round" id="mStore" href="store.html" title="手账本商店" aria-label="手账本商店">
+        <svg fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24" width="20" aria-hidden="true"><path d="M3 21l18 0"/><path d="M3 7v1a3 3 0 0 0 6 0v-1m0 1a3 3 0 0 0 6 0v-1m0 1a3 3 0 0 0 6 0v-1h-18l2 -4h14l2 4"/><path d="M5 21l0 -10.15"/><path d="M19 21l0 -10.15"/><path d="M9 21v-4a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v4"/></svg>
+      </a>
 
       <!-- 常态只留搜索 + 菜单两颗：分享 / 删除默认都不显示。
            搜索按钮短按开搜索、长按直接进多选。 -->
@@ -239,11 +246,11 @@
           <button data-page-node-id="AML" class="am-side" data-side="L">左页</button>
           <button data-page-node-id="AMR" class="am-side" data-side="R">右页</button>
         </div>
-        <button data-page-node-id="AMpage" data-addact="page"><svg data-page-node-id="AMpageIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><path data-page-node-id="AMpageP1" d="M7 4.5h7l4 4V19a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 7 19V5a.5.5 0 0 1 0-.5z"/><path data-page-node-id="AMpageP2" d="M14 4.5V8.5h4"/></svg><!--pnid:J6Mm35le86Y66zkaOEgbtd-->添加页<span data-page-node-id="AMpageP" class="am-p"></span></button>
-        <button data-page-node-id="AMimg" data-addact="img"><svg data-page-node-id="AMimgIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><rect data-page-node-id="AMimgR" height="14" rx="2" width="16" x="4" y="5"/><path data-page-node-id="AMimgP1" d="M4 15l4-4 4 4 3-3 5 5"/><circle data-page-node-id="AMimgC" cx="9" cy="9" r="1.2"/></svg><!--pnid:1jWXATsjyDjflrECmEcdnl-->添加图片<span data-page-node-id="AMimgP" class="am-p"></span></button>
+        <button data-page-node-id="AMpage" data-addact="page"><svg data-page-node-id="AMpageIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><path d="M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0"/><path d="M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0"/><path d="M3 6l0 13"/><path d="M12 6l0 13"/><path d="M21 6l0 13"/></svg><!--pnid:J6Mm35le86Y66zkaOEgbtd-->添加页<span data-page-node-id="AMpageP" class="am-p"></span></button>
+        <button data-page-node-id="AMimg" data-addact="img"><svg data-page-node-id="AMimgIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><path d="M15 8h.01"/><path d="M12.5 21h-6.5a3 3 0 0 1 -3 -3v-12a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v6.5"/><path d="M3 16l5 -5c.928 -.893 2.072 -.893 3 0l4 4"/><path d="M14 14l1 -1c.67 -.644 1.45 -.824 2.182 -.54"/><path d="M16 19h6"/><path d="M19 16v6"/></svg><!--pnid:1jWXATsjyDjflrECmEcdnl-->添加图片<span data-page-node-id="AMimgP" class="am-p"></span></button>
         <button data-page-node-id="AMspread" data-addact="spread"><svg data-page-node-id="AMspreadIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><rect data-page-node-id="AMspreadR1" height="14" rx="1.6" width="7.4" x="3.2" y="5"/><rect data-page-node-id="AMspreadR2" height="14" rx="1.6" width="7.4" x="13.4" y="5"/><path data-page-node-id="AMspreadP1" d="M3.2 15.6l2.6-2.6 2.4 2.4"/><path data-page-node-id="AMspreadP2" d="M13.4 15.6l2.6-2.6 2.4 2.4"/></svg><!--pnid:AMspreadTx-->跨页图片<span data-page-node-id="AMspreadP" class="am-p"></span></button>
-        <button data-page-node-id="AMtext" data-addact="text"><span data-page-node-id="AMtextIco" class="am-t"><!--pnid:daEy0hddPu4xJt9odUGyku-->T</span><!--pnid:wmvfMHu0bJp1J0W4jKw40h-->添加文字<span data-page-node-id="AMtextP" class="am-p"></span></button>
-        <button data-page-node-id="AMsticker" data-addact="sticker"><svg data-page-node-id="AMstickerIco" fill="none" height="16" stroke="currentColor" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><path data-page-node-id="AMstickerP1" d="M12 3.4l2.2 4.7 5.1.5-3.9 3.4 1.1 5L12 14.6l-4.5 2.6 1.1-5-3.9-3.4 5.1-.5z"/><path data-page-node-id="AMstickerP2" d="M5.4 19.8h5.2"/></svg><!--pnid:AMstickerTx-->贴纸<span data-page-node-id="AMstickerP" class="am-p"></span></button>
+        <button data-page-node-id="AMtext" data-addact="text"><svg data-page-node-id="AMtextIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><path d="M3 5a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M17 5a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M3 19a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M17 19a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M5 7v10"/><path d="M7 5h10"/><path d="M7 19h10"/><path d="M19 7v10"/><path d="M10 10h4"/><path d="M12 14v-4"/></svg><!--pnid:wmvfMHu0bJp1J0W4jKw40h-->添加文字<span data-page-node-id="AMtextP" class="am-p"></span></button>
+        <button data-page-node-id="AMsticker" data-addact="sticker"><svg data-page-node-id="AMstickerIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><path d="M6 4h12a2 2 0 0 1 2 2v7h-5a2 2 0 0 0 -2 2v5h-7a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2"/><path d="M20 13v.172a2 2 0 0 1 -.586 1.414l-4.828 4.828a2 2 0 0 1 -1.414 .586h-.172"/></svg><!--pnid:AMstickerTx-->贴纸<span data-page-node-id="AMstickerP" class="am-p"></span></button>
         <button data-page-node-id="AMbg" data-addact="bg"><svg data-page-node-id="AMbgIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><path data-page-node-id="AMbgP1" d="M12 21a9 9 0 110-18c4.97 0 9 3.58 9 8 0 1.5-1.23 2.5-2.5 2.5H17a2 2 0 00-1.42 3.42A1.94 1.94 0 0114 18.5c0-1.1-.9-2-2-2h-.5"/><circle data-page-node-id="AMbgC1" cx="7.6" cy="11.2" fill="currentColor" r=".85" stroke="none"/><circle data-page-node-id="AMbgC2" cx="10.6" cy="6.8" fill="currentColor" r=".85" stroke="none"/><circle data-page-node-id="AMbgC3" cx="15.6" cy="7.6" fill="currentColor" r=".85" stroke="none"/></svg><!--pnid:AMbgTx-->本页底色<span data-page-node-id="AMbgP" class="am-p"></span></button>
         <button data-page-node-id="AMdel" class="am-del" data-addact="del"><svg data-page-node-id="AMdelIco" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><path data-page-node-id="AMdelP1" d="M4.5 6.6h15"/><path data-page-node-id="AMdelP2" d="M9.6 6.6V4.9h4.8v1.7"/><path data-page-node-id="AMdelP3" d="M6.4 6.6l.9 11.9a1 1 0 001 .9h7.4a1 1 0 001-.9l.9-11.9"/><path data-page-node-id="AMdelP4" d="M10.4 10.4v5.6"/><path data-page-node-id="AMdelP5" d="M13.6 10.4v5.6"/></svg><!--pnid:AMdelTx-->删除本页<span data-page-node-id="AMdelP" class="am-p"></span></button>
       </div>
@@ -717,6 +724,13 @@
         </div>
       </div>
 
+      <div class="mn-cap">语言</div>
+      <div class="mn-card">
+        <button class="mn-row" id="mnLangBtn" type="button" aria-haspopup="dialog" aria-expanded="false">
+          <b>界面语言</b><span class="mn-val" id="mnLangVal" data-i18n-skip>简体中文</span><span class="mn-arr">›</span>
+        </button>
+      </div>
+
       <div class="mn-cap">导入</div>
       <div class="mn-card">
         <button class="mn-row" data-mnact="book"><b>将图片导入为手账本</b><span class="mn-arr">›</span></button>
@@ -732,7 +746,7 @@
         <label class="mn-row"><b>单层书架台面</b><span class="mn-switch" id="mnPlinthSwitch"><input type="checkbox" id="mnPlinth" aria-label="显示单层书架台面"></span></label>
       </div>
 
-      <div class="mn-cap">实验性功能</div>
+      <div class="mn-cap" id="mnExpCap">实验性功能</div>
       <div class="mn-card">
         <label class="mn-row"><b>新视觉风格</b><span class="mn-switch" id="mnMuiSwitch"><input type="checkbox" id="mnMui" aria-label="新视觉风格"></span></label>
         <label class="mn-row"><b>使用 WebGL 渲染</b><span class="mn-switch" id="mnGlSwitch"><input type="checkbox" id="mnGl" aria-label="使用 WebGL 渲染"></span></label>
@@ -748,6 +762,18 @@
       <div class="mn-card">
         <button class="mn-row" data-mnact="help"><b>帮助和反馈</b><span class="mn-arr">›</span></button>
       </div>
+    </div>
+  </div>
+
+  <!-- 语言弹窗：从菜单里的「界面语言」那一行 Morph 展开，选项名保持各自语言的写法 -->
+  <div class="addmenu lang-pop" id="langPop" role="dialog" aria-label="选择语言">
+    <div class="lp-list" data-i18n-skip>
+      <button class="lp-opt" data-lang="zhCN" type="button"><span>简体中文</span><i>✓</i></button>
+      <button class="lp-opt" data-lang="zhTW" type="button"><span>繁體中文</span><i>✓</i></button>
+      <button class="lp-opt" data-lang="en" type="button"><span>English</span><i>✓</i></button>
+      <button class="lp-opt" data-lang="ja" type="button"><span>日本語</span><i>✓</i></button>
+      <button class="lp-opt" data-lang="fr" type="button"><span>Français</span><i>✓</i></button>
+      <button class="lp-opt" data-lang="es" type="button"><span>Español</span><i>✓</i></button>
     </div>
   </div>
 
@@ -926,9 +952,9 @@
           <div class="diy-bar-group">
             <div class="diy-bar-cap">添加</div>
             <div class="diy-bar-grid">
-              <button data-diyact="image" title="添加图片"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M4 17.5l5-5 3.6 3.6 3-3 4.4 4.4"/></svg><span>＋ 图片</span></button>
-              <button data-diyact="text" title="添加文字"><svg viewBox="0 0 24 24"><path d="M5 6.5V5h14v1.5M12 5v14M9 19h6"/></svg><span>＋ 文字</span></button>
-              <button data-diyact="sticker" title="添加贴纸"><svg viewBox="0 0 24 24"><path d="M4 4h16v10l-6 6H4z"/><path d="M14 20v-6h6"/></svg><span>＋ 贴纸</span></button>
+              <button data-diyact="image" title="添加图片"><svg viewBox="0 0 24 24"><path d="M15 8h.01"/><path d="M12.5 21h-6.5a3 3 0 0 1 -3 -3v-12a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v6.5"/><path d="M3 16l5 -5c.928 -.893 2.072 -.893 3 0l4 4"/><path d="M14 14l1 -1c.67 -.644 1.45 -.824 2.182 -.54"/><path d="M16 19h6"/><path d="M19 16v6"/></svg><span>＋ 图片</span></button>
+              <button data-diyact="text" title="添加文字"><svg viewBox="0 0 24 24"><path d="M3 5a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M17 5a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M3 19a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M17 19a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M5 7v10"/><path d="M7 5h10"/><path d="M7 19h10"/><path d="M19 7v10"/><path d="M10 10h4"/><path d="M12 14v-4"/></svg><span>＋ 文字</span></button>
+              <button data-diyact="sticker" title="添加贴纸"><svg viewBox="0 0 24 24"><path d="M6 4h12a2 2 0 0 1 2 2v7h-5a2 2 0 0 0 -2 2v5h-7a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2"/><path d="M20 13v.172a2 2 0 0 1 -.586 1.414l-4.828 4.828a2 2 0 0 1 -1.414 .586h-.172"/></svg><span>＋ 贴纸</span></button>
             </div>
           </div>
           <div class="diy-bar-group">
@@ -959,6 +985,9 @@
   <script src="assets/frame-gold.js" defer></script>
   <!-- 书架铆钉贴图（内嵌 dataURL）：WebGL 实验层要采样它，必须排在 gl-lab.js 之前 -->
   <script src="assets/shelf-rivet.js" defer></script>
+  <!-- 多语言：统一词条表 + 运行时，必须排在所有业务脚本前，动态文案才能第一时间被接住 -->
+  <script src="src/i18n-data.js" defer></script>
+  <script src="src/i18n.js" defer></script>
   <!-- Springboard 物理动效 / 长按震动：与 Genie 共用同一份库懒加载 -->
   <script src="src/motion.js" defer></script>
   <!-- 菜单 Genie Effect 接入层：@web-kits/springboard 的本地离线打包由它在
@@ -974,6 +1003,8 @@
   <script src="src/io-import.js" defer></script>
   <script src="src/io-example.js" defer></script>
   <script src="src/io-photobook.js" defer></script>
+  <!-- 商店下载字体：启动时注册到文字面板，导出走同一套 EN_FONTS -->
+  <script src="src/font-library.js" defer></script>
   <script src="src/state.js" defer></script>
   <script src="src/home-view.js" defer></script>
   <script src="src/carousel.js" defer></script>

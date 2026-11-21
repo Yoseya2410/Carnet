@@ -256,9 +256,14 @@ function spineItemHTML(j, i) {
      不再叠封面图案与材质，否则窄条会被那些层糊成一片。底色唯一源见 visuals.js
      的 spineBackdrop —— 主页与编辑器效果预览共用，没设过时跟封面同源。 */
   const custom = !!spineImgOf(j);
-  const pat = (custom || j.cover.img) ? '' : patternStyle(j.cover.pattern, j.cover);
-  /* 书脊是一条窄条，材质贴片按 px 铺才不会被"封面宽百分比"缩成一片糊 */
-  const tex = custom ? '' : textureStyle(j.cover, true);
+  const ribboned = !!spineRibbonOf(j);
+  /* 商店商品在 3D 详情里展示的是纯色书脊；导入后也不把封面图案 / 材质铺上去。
+     其它手帐保留原来的封面图案书脊。 */
+  const storePlain = !!j.fromStore;
+  const pat = (custom || ribboned || storePlain || j.cover.img) ? '' : patternStyle(j.cover.pattern, j.cover);
+  /* 彩带书脊与封面左侧一样是纯色平带，不叠封面图案 / 材质。
+     其它书脊是一条窄条，材质贴片按 px 铺才不会被"封面宽百分比"缩成一片糊 */
+  const tex = (custom || ribboned || storePlain) ? '' : textureStyle(j.cover, true);
   const name = esc(j.name);
   /* ⚠️ 渲染一律不带选中态 —— 单层书架默认谁都不选中：
      抬高 + 下方预览只由鼠标悬停驱动（见 spineSetHover 与 home-events 的 pointerover / pointerout），
@@ -479,7 +484,40 @@ function togglePick(i) {
   try { navigator.vibrate && navigator.vibrate(8); } catch (_) {}
 }
 
-function renderHome() {
+/* 三种视图各自保留已经画好的 DOM。普通 renderHome() 代表数据 / 布局可能变了，
+   会让另外两种视图失效；纯粹的模式切换则只显示目标视图，不再重建整套封面。 */
+const homeViewReady = { shelf: false, spine: false, carousel: false };
+let homeViewRaf = 0, homeSpinePlinth = null;
+function homeViewCanReuse(view) {
+  return !!homeViewReady[view] &&
+    (view !== 'spine' || homeSpinePlinth === !!state.prefs.spinePlinth);
+}
+function reuseHomeView(view) {
+  if (view === 'shelf') {
+    /* 原来的整块重画会顺带清掉悬停 / 触摸态；复用时只清这些临时 class。 */
+    if (typeof shelfUnpick === 'function') shelfUnpick();
+    if (typeof shelfClearTouched === 'function') shelfClearTouched(null);
+    return;
+  }
+  if (view === 'spine') {
+    spineSetHover(-1);
+    requestAnimationFrame(() => {
+      const el = $(`#spineRow .spine-item[data-i="${state.sel}"]`);
+      if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest', inline: 'center' });
+      if (state.prefs.spinePlinth) syncSpinePlinth();
+    });
+    return;
+  }
+  /* 隐藏时尺寸为 0，重新显示后再量一次并吸附到当前那本。 */
+  requestAnimationFrame(() => layoutCarousel(true));
+}
+function renderHome(opt) {
+  if (homeViewRaf) { cancelAnimationFrame(homeViewRaf); homeViewRaf = 0; }
+  const switching = !!(opt && opt.modeSwitch);
+  if (!switching) {
+    homeViewReady.shelf = homeViewReady.spine = homeViewReady.carousel = false;
+    homeSpinePlinth = null;
+  }
   /* 末页环衬的主色要读封面像素：在书架这一步就先把当前这本算好，
      等用户翻到最后一页时缓存多半已命中，不会看到补色那一帧 */
   primeEndpaper(cur());
@@ -490,7 +528,9 @@ function renderHome() {
   $('#carouselWrap').hidden = view !== 'carousel';
   $('#shelfWrap').hidden = !shelfMode;
   $('#spineWrap').hidden = !spineMode;
-  if (shelfMode) {
+  if (switching && homeViewCanReuse(view)) {
+    reuseHomeView(view);
+  } else if (shelfMode) {
     renderShelf();
   } else if (spineMode) {
     renderSpineShelf();
@@ -498,6 +538,8 @@ function renderHome() {
     $('#carousel').innerHTML = state.journals.map((j, i) => bookItemHTML(j, i)).join('');
     requestAnimationFrame(() => layoutCarousel(true));
   }
+  homeViewReady[view] = true;
+  if (spineMode) homeSpinePlinth = !!state.prefs.spinePlinth;
   /* 两种书架都把名称放在书籍本身或下方详情里，顶部不再重复。
      计数胶囊同理：1 / N 只服务「一次一本」的左右滑动，两种书架一屏就能看全，
      再挂一个页码反而是重复信息（2026-11-15）。hidden 由这里统一管，
@@ -517,11 +559,23 @@ function syncViewToggle() {
   if (box) box.dataset.vt = state.prefs.view;      // 白色圆钮滑到哪一格（CSS 只管位移）
   $$('#viewToggle button').forEach(b => b.classList.toggle('on', b.dataset.vt === state.prefs.view));
 }
-function setView(v) {
+function setView(v, opt) {
   if (!['carousel', 'shelf', 'spine'].includes(v)) return;
   if (state.prefs.view === v) { syncViewToggle(); return; }
   state.prefs.view = v;
   syncViewToggle();
   savePrefs();
-  renderHome();
+  if (opt && opt.defer && !homeViewCanReuse(v)) {
+    /* 首次构建可能有很多封面：先让按钮滑动画完整走出第一帧，下一帧再换内容。
+       连续点击只保留最后一次；已有缓存的视图直接复用，不额外等待。 */
+    if (homeViewRaf) cancelAnimationFrame(homeViewRaf);
+    homeViewRaf = requestAnimationFrame(() => {
+      homeViewRaf = requestAnimationFrame(() => {
+        homeViewRaf = 0;
+        renderHome({ modeSwitch: true });
+      });
+    });
+    return;
+  }
+  renderHome({ modeSwitch: true });
 }

@@ -236,6 +236,9 @@
   opacity:0;transition:opacity .25s,transform .25s;backdrop-filter:blur(4px);z-index:3
 }
 .gear:hover{transform:rotate(35deg)}
+/* 左右滑动（轮播）里点编辑按钮只是想进编辑器，图标再转一下是多余的动效；
+   书架那档已被 .shelf-books .book-item .gear{transform:none} 压掉，这里补上轮播这一档。 */
+.carousel .book-item .gear:hover{transform:none}
 .cover-badge{
   position:absolute;left:calc(8.5% + 9px);bottom:9px;font-size:11px;padding:3px 8px;
   border-radius:999px;background:rgba(0,0,0,.34);color:#fff;letter-spacing:.05em;backdrop-filter:blur(4px)

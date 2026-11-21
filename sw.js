@@ -5,10 +5,10 @@
  * 关闭 PWA 时页面会 unregister 本 SW 并 postMessage 让仍在控制页面的
  * worker 立即停止拦截（disabled=true），所以关掉后不需要刷新就恢复在线直连。
  * ===================================================================== */
-const CACHE = 'carnet-pwa-v27';
+const CACHE = 'carnet-pwa-v35';
 
 const SHELL = [
-  './', './index.html', './manifest.webmanifest',
+  './', './index.html', './store.html', './manifest.webmanifest',
   './assets/pwa-icon-192.png', './assets/pwa-icon-512.png',
   './assets/frame-gold.js', './assets/shelf-rivet.js',
   './assets/frame-gold.jpg', './assets/shelf-rivet.png',
@@ -32,6 +32,8 @@ const SHELL = [
   './assets/font/en/SpecialElite-Regular.woff2',
   './assets/vendor/pdf.min.js', './assets/vendor/pdf.worker.min.js',
   './assets/vendor/springboard.js',
+  './assets/font/store/Caveat.woff2', './assets/font/store/BebasNeue-Regular.woff2',
+  './assets/font/store/Caveat-OFL.txt', './assets/font/store/BebasNeue-OFL.txt',
   './style/base.css', './style/controls.css', './style/home.css',
   './style/book-style.css', './style/reader.css', './style/image-tools.css',
   './style/text.css', './style/page-bg.css', './style/scrub.css',
@@ -39,7 +41,8 @@ const SHELL = [
   './style/confirm.css', './style/book-anim.css', './style/view-toggle.css',
   './style/shelf.css', './style/spine-shelf.css', './style/menus.css',
   './style/decor.css', './style/background.css', './style/diy-cover.css',
-  './style/lock.css', './style/m-home.css',
+  './style/lock.css', './style/m-home.css', './style/store.css',
+  './src/i18n-data.js', './src/i18n.js',
   './src/motion.js', './src/menu-genie.js', './src/core.js', './src/visuals.js', './src/storage.js', './src/lock.js',
   './src/io-export.js', './src/io-doc.js', './src/io-share.js',
   './src/io-import.js', './src/io-example.js', './src/io-photobook.js',
@@ -50,6 +53,10 @@ const SHELL = [
   './src/editor.js', './src/home-events.js', './src/spine-openfx.js', './src/reader-flow.js',
   './src/scrub.js', './src/system.js', './src/main.js',
   './src/swipe-back.js', './src/gl-lab.js', './src/pwa.js', './src/m-home.js',
+  './src/store.js', './src/store-cloud.js', './src/font-library.js',
+  './store/manifest.json', './store/mint-notes.json', './store/apricot-dream.json',
+  './store/sea-salt.json', './store/iris-square.json', './store/night-stars.json',
+  './store/cherry-dots.json', './store/daily-doodles.lbl', './store/paper-marks.lbl',
   './example/manifest.json', './example/UCAS.json',
   './example/花之法典.json', './example/冷少!.json', './example/日志.json'
 ];
@@ -91,21 +98,39 @@ self.addEventListener('fetch', event => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
-  /* 导航：优先拿最新版 HTML，断网时回退缓存的首页。
-     ⚠️ 只更新 index.html 这一份，缓存里的脚本 / 样式仍按版本名整体升级。 */
+  /* 导航：优先拿最新版 HTML，断网时回退当前页的缓存；首页与商店各自更新自己的缓存，
+     不能把 store.html 的响应写到 index.html 键上。 */
   if (req.mode === 'navigate') {
     event.respondWith((async () => {
       try {
         const res = await fetch(req);
         if (res && res.ok) {
           const cache = await caches.open(CACHE);
-          cache.put(indexURL(), res.clone());
+          cache.put(req, res.clone());
         }
         return res;
       } catch (e) {
         return (await caches.match(req))
           || (await caches.match(indexURL()))
           || new Response('离线且没有缓存的首页', { status: 503 });
+      }
+    })());
+    return;
+  }
+
+  /* 商店目录网络优先：手动上架只改 manifest / JSON，不应因为 PWA 缓存一直看到旧清单。
+     离线时仍回退到最近一次缓存；新商品至少在线打开过一次后才会进入运行时缓存。 */
+  if (url.pathname.includes('/store/')) {
+    event.respondWith((async () => {
+      try {
+        const res = await fetch(req);
+        if (res && res.ok) {
+          const cache = await caches.open(CACHE);
+          cache.put(req, res.clone());
+        }
+        return res;
+      } catch (e) {
+        return (await caches.match(req)) || new Response('', { status: 504 });
       }
     })());
     return;

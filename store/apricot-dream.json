@@ -1,0 +1,36 @@
+{
+  "app": "carnet",
+  "version": 1,
+  "store": {
+    "id": "apricot-dream",
+    "code": "APRICOT DREAM",
+    "description": "柔和杏桃色硬壳与空白内页，留给文字、照片和自由拼贴。"
+  },
+  "journal": {
+    "id": "store-apricot-dream",
+    "name": "杏桃",
+    "style": "hardcover",
+    "cover": {
+      "img": null,
+      "radius": 6,
+      "type": "gradient",
+      "value": "linear-gradient(145deg,#f7cfba,#df9078)",
+      "pattern": "none",
+      "texture": "paper"
+    },
+    "ribbon": "#8b493d",
+    "template": "blank",
+    "tplImg": "",
+    "tplImgs": [],
+    "tplFit": "cover",
+    "pageBg": "",
+    "pages": [
+      {"images":[],"texts":[]},{"images":[],"texts":[]},{"images":[],"texts":[]},{"images":[],"texts":[]},
+      {"images":[],"texts":[]},{"images":[],"texts":[]},{"images":[],"texts":[]},{"images":[],"texts":[]},
+      {"images":[],"texts":[]},{"images":[],"texts":[]},{"images":[],"texts":[]},{"images":[],"texts":[]},
+      {"images":[],"texts":[]},{"images":[],"texts":[]},{"images":[],"texts":[]},{"images":[],"texts":[]}
+    ],
+    "created": 0,
+    "pagesN": 16
+  }
+}

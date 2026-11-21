@@ -414,7 +414,7 @@
   function ensureSwitch() {
     let card = null;
     $$('#homeMenu .mn-cap').some(n => {
-      if (n.textContent.trim() !== '实验性功能') return false;
+      if (n.id !== 'mnExpCap' && n.dataset.mnCap !== 'exp') return false;
       card = n.nextElementSibling; return true;
     });
     if (!card || !card.classList.contains('mn-card')) return;

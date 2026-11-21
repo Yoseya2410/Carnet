@@ -104,9 +104,7 @@ html:not(.mui-off) #home.m-carousel #mCarouselMeta{
 }
 .mc-dots i.on::before{width:22px;background:#171a21}
 .mc-dots i.mini::before{width:4px;height:4px}
-@keyframes mcFade{from{opacity:0}to{opacity:1}}
-.mc-dots.mc-roll > i:first-child,
-.mc-dots.mc-roll > i:last-child{animation:mcFade .26s ease}
+/* 最左 / 最右两颗点不做淡入过场 —— 用户 11-22 定稿：窗口推进时那一下会闪。 */
 /* 电脑端：#mCarouselMeta 挂在 .mbar 里，桌面 .mbar 默认 display:none，
    这里只把容器放出来、其它移动端浮层按钮继续藏；计数胶囊与分页点重复，一并收掉。
    ⚠️ 这条 media 含 1025px：muiCss() 开时保持桌面条件、关时变 all，
@@ -161,6 +159,7 @@ html:not(.mui-off) #home.m-carousel #mCarouselMeta{
   }
   .m-round:active{transform:scale(.94)}
   .m-round svg{display:block}
+  #mStore{left:20px}
   #mSearch{right:74px}
   #mMenu{right:20px}
   /* 多选态左上那颗分享：主页常态完全不显示 */
@@ -197,6 +196,7 @@ html:not(.mui-off) #home.m-carousel #mCarouselMeta{
     position:absolute;left:5px;top:5px;width:46px;height:46px;border-radius:50%;
     transform:translateX(var(--ms-x)) scale(var(--ms-sx),var(--ms-sy));
     transform-origin:center center;
+    will-change:transform;
     transition:transform .3s cubic-bezier(.34,1.3,.5,1)
   }
   .ms-thumb{
@@ -373,6 +373,7 @@ html:not(.mui-off) #home.m-carousel #mCarouselMeta{
      左上独立分享圆钮，右上一条更窄的「垃圾桶 + 完成」胶囊，照参考图的比例。 */
   #home.m-picking #mSearch,
   #home.m-picking #mMenu,
+  #home.m-picking #mStore,
   #home.m-picking .m-switch,
   #home.m-picking .m-add{display:none}
   #home.m-picking .m-pick-share{display:grid}
@@ -443,7 +444,10 @@ html:not(.mui-off) #home.m-carousel #mCarouselMeta{
     background:rgba(18,20,32,.4)
   }
   #mask .modal{
-    width:100%;max-width:none;height:90dvh;max-height:90dvh;
+    width:100%;max-width:none;
+    /* 高度只认 core.js 锁在 --app-h 里的「键盘弹起前」视口高，
+       别用 dvh：软键盘一出现 dvh 就会缩，底部对齐的 sheet 会整块往下掉。 */
+    height:calc(var(--app-h,100dvh) * .9);max-height:calc(var(--app-h,100dvh) * .9);
     border-radius:24px 24px 0 0;padding:0 18px;
     /* 抬高 / 收起是同一个盒子的 height 过渡，中间没有两张面板交叉淡化 */
     transition:height .42s cubic-bezier(.22,.9,.28,1),max-height .42s cubic-bezier(.22,.9,.28,1);
@@ -743,6 +747,39 @@ html:not(.mui-off) #home.m-carousel #mCarouselMeta{
   font-size:12.5px !important;color:#40444f !important;white-space:nowrap
 }
 .mn-mini[disabled]{opacity:.4}
+/* ===== 语言弹窗：从「界面语言」那一行 Morph 展开的紧凑卡片 ===== */
+.lang-pop{
+  /* 不居中：left/top 由 i18n.js 按「界面语言」那一行动态落到点击位置附近。 */
+  position:fixed;top:0;left:0;margin:0;
+  width:min(206px,calc(100vw - 32px));height:max-content;max-height:min(360px,80dvh);
+  z-index:145;padding:7px;border-radius:15px;
+  background:rgba(255,255,255,.96);border:1px solid rgba(255,255,255,.9);
+  box-shadow:0 24px 60px -18px rgba(20,24,40,.38),inset 0 0 0 1px rgba(20,24,40,.04);
+  color:#20232c;transform-origin:center center
+}
+.lang-pop:not(.show){opacity:0;transform:scale(.94)}
+.lang-pop.show{display:flex;opacity:1;transform:none}
+.lp-list{
+  display:flex;flex-direction:column;gap:1px;overflow-y:auto;
+  max-height:min(300px,80dvh);scrollbar-width:none
+}
+.lp-list::-webkit-scrollbar{display:none}
+.lang-pop button.lp-opt{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  width:100%;padding:7px 10px;border-radius:9px;
+  color:#20232c;font-size:12.5px;background:transparent;white-space:nowrap
+}
+.lang-pop button.lp-opt:hover{background:rgba(20,24,40,.05)}
+.lang-pop button.lp-opt.on{background:rgba(17,19,24,.07);font-weight:600}
+.lp-opt i{font-style:normal;font-size:15px;color:#111318;opacity:0}
+.lp-opt.on i{opacity:1}
+/* Morph 副本：保持和落地后的浅色卡片同一张脸，别被通用 .addmenu 的深色玻璃接管 */
+[data-morph] .lang-pop{
+  background:rgba(255,255,255,.96)!important;color:#20232c!important;
+  -webkit-backdrop-filter:none;backdrop-filter:none;
+  box-shadow:0 24px 60px -18px rgba(20,24,40,.38)!important
+}
+[data-morph] .lang-pop button{color:#20232c!important}
 .mn-switch{position:relative;flex:0 0 44px;width:44px;height:26px;border-radius:99px;background:#d9dbe1;transition:background .2s}
 .mn-switch::after{
   content:"";position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;

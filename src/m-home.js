@@ -105,7 +105,9 @@
   /* 轮播模式：书名 / 页数 / 点状进度条钉在封面下方。
      ⚠️ carousel.js 的 snap() 直接写 #homeName / #homePages / #countPill，不走 syncHomeHead，
         所以用 MutationObserver 盯这几个节点，滑动换本时才跟得上；回调合帧，别一帧重画几次。 */
-  let mcLastFrom = -1, mcRollRaf = 0;
+  /* 黑条位置按「滑动方向」逐格推进，不从书号直接算 —— 这样往左滑必选前一个点，
+     不会中途卡住。mcLastSel 只用来判方向，mcShown 变了（增删本）就重新落位。 */
+  let mcOn = -1, mcLastSel = -1, mcShown = -1;
   function mSyncMeta() {
     /* 11-20：轮播信息区现在「只认开关、不认视口」—— 电脑端（isMobile() 为 false）
        只要新视觉风格开着，也要更新封面下方的书名 / 页数 / 分页点。
@@ -118,35 +120,34 @@
     name.classList.toggle('en', typeof homeNameIsEn === 'function' && homeNameIsEn(j && j.name));
     meta.textContent = j ? `${j.pages.length} 页` : '点右下角 ＋ 新建';
     /* 分页点与「选择装帧」的 .ns-dots 同款：圆点 7px、激活点是 22px 黑色长条。
-       ⚠️ 5 格窗口，每翻一本只把窗口往前推 **1 格**（绝不整窗跳 5 格 ——
-          那样第 6 本的长条会一下退回第 1 格，用户明确否决）。
-          黑条位置 = sel - from：
-            · 前 4 本依次落在第 1~4 格（第 4 本必须是第 4 个点）；
-            · 之后黑条停在倒数第二格，最后一格留给「右边还有更多」的小点；
-            · 滑到末尾窗口触顶，黑条自然走到最后一格收尾，全程不回头。
-          于是每翻一本：下一个点接力变黑条、左边少一个普通点（左端缩成小点）、
-          右边补一个小点，正是参考图那种滚动式 page control。
-       ⚠️ 也不要退回「以当前本居中」的 sel-2：那会让第 4 本落到第 3 点、长条永远不动。
-       ⚠️ 哪一侧还有没显示出来的书，就把那一侧最边上的点缩成 4px 小圆点（.mini）；
-          激活点优先，永远是长条，不会被缩小。
+       ⚠️ 黑条按**滑动方向**逐格走（mcOn + sign(sel 变化)），不从书号直接算，
+          所以往左滑一次必选前一个点、中途不会卡住（用户 11-22 定稿）。
+          两端留白（用户 11-22 定稿）：前面还有书就最少停在第 2 点，
+          第 1 个点专留给真正的第 1 本；后面还有书最多到倒数第 2 点，
+          最后一个点专留给真正的末本。
+          窗口 from 仍按书号推进，只用来算 .mini 边缘小点（那边还有没有书）。
+       ⚠️ 激活点优先，永远是长条，不会被 mini 缩小。
        ⚠️ 节点只在「点数变了」时重建，之后只 toggle class：
           每次 innerHTML 重排成新节点的话 width 的 transition 根本没有起始帧，
           圆点 → 长条的动画就永远不会播（选择装帧那套 nsPickAt 就是这么做的）。 */
     const n = state.journals.length, WIN = 5;
     const shown = Math.min(n, WIN);
+    /* 黑条按滑动方向走（用户 11-22 定稿）：往左滑一次选前一个点，往右一次后一个点。
+       两端留白：前面还有书 → 保底第 2 点（第 1 点只给第 1 本）；
+                 后面还有书 → 封顶倒数第 2 点（最后一点只给末本）。 */
+    const hasEarlier = state.sel > 0, hasLater = state.sel < n - 1;
+    const floor = shown > 1 && hasEarlier ? 1 : 0;
+    const cap = shown > 1 && hasLater ? shown - 2 : shown - 1;
+    if (mcOn < 0 || mcShown !== shown) {
+      mcOn = clamp(state.sel - 1, floor, cap); mcShown = shown;
+    } else if (state.sel !== mcLastSel) {
+      mcOn = clamp(mcOn + Math.sign(state.sel - mcLastSel), floor, cap);
+    }
+    mcLastSel = state.sel;
     const from = n > WIN ? clamp(state.sel - (WIN - 2), 0, n - WIN) : 0;
     const leftMore = from > 0, rightMore = from + WIN < n;
-    /* 窗口推进一格时，整排点做一次「向左滑入」的过场：
-       新内容从右一格滑进来，左端那颗淡出、右端小点淡入，黑条在过场里接力到下一格。
-       ⚠️ 用 rAF 跨帧重启动画，不读 offsetWidth —— 轮播期间一次布局都别碰。 */
-    if (mcLastFrom >= 0 && from !== mcLastFrom) {
-      dots.classList.remove('mc-roll');
-      cancelAnimationFrame(mcRollRaf);
-      mcRollRaf = requestAnimationFrame(() => {
-        if (dots.isConnected) dots.classList.add('mc-roll');
-      });
-    }
-    mcLastFrom = from;
+    /* ⚠️ 别给最左 / 最右那两颗点加淡入过场（用户 11-22 定稿：会闪）。
+       窗口 from 变了只安静地更新 .mini，黑条该走哪一格走哪一格。 */
     const key = String(shown);
     if (dots.dataset.key !== key) {
       dots.innerHTML = '<i></i>'.repeat(shown);
@@ -157,7 +158,7 @@
     }
     const els = dots.children;
     for (let k = 0; k < shown; k++) {
-      const on = from + k === state.sel;
+      const on = k === mcOn;
       const mini = !on && ((k === 0 && leftMore) || (k === shown - 1 && rightMore));
       els[k].classList.toggle('on', on);
       els[k].classList.toggle('mini', mini);
@@ -253,9 +254,14 @@
       document.head.appendChild(s);
     })();
 
-    let st = null, holdT = 0;
+    let st = null, holdT = 0, previewAt = -1;
     const posOf = v => Math.max(0, VIEWS.indexOf(v)) * STEP;
-    function setX(p) { sw.style.setProperty('--ms-x', p.toFixed(1) + 'px'); }
+    function setX(p) {
+      const q = Math.round(p * 10) / 10;
+      if (sw._x === q) return;
+      sw._x = q;
+      sw.style.setProperty('--ms-x', q.toFixed(1) + 'px');
+    }
     function setSpin(p) {
       /* 6° 量化：conic-gradient 每变一次就得重画整圈，别每帧都写 */
       const d = Math.round(p / 6) * 6 + 200;
@@ -265,9 +271,22 @@
     }
     function preview(p) {
       const near = clamp(Math.round(p / STEP), 0, VIEWS.length - 1);
+      if (previewAt === near) return;
+      previewAt = near;
       btns.forEach((b, i) => b.classList.toggle('on', i === near));
       ghosts.forEach(row => row.forEach((g, i) => g.classList.toggle('on', i === near)));
     }
+    /* 高频 pointermove 只记录最后位置；位移、色散、图标与 WebGL 每帧最多更新一次。 */
+    const moveQ = frameQueue(dx => {
+      const s = st;
+      if (!s || !s.liquid) return;
+      const raw = s.base + dx;
+      /* 两端橡皮筋：拖过头只跟 0.25 倍，松手靠目标格吸附弹回 */
+      s.pos = raw < 0 ? raw * .25
+        : raw > STEP * 2 ? STEP * 2 + (raw - STEP * 2) * .25 : raw;
+      setX(s.pos); setSpin(s.pos); preview(s.pos);
+      if (s.gl && window.LiquidGlass) window.LiquidGlass.frame(s.pos, true);
+    });
     function release() {
       const LG = window.LiquidGlass;
       if (LG && sw.classList.contains('gl-on')) {
@@ -277,7 +296,8 @@
       sw.classList.remove('liquid', 'dragging');
       sw.style.removeProperty('--ms-x');
       sw.style.removeProperty('--ms-spin');
-      sw._spin = null;
+      sw._x = sw._spin = null;
+      previewAt = -1;
     }
     function liquidOn() {
       if (!st) return;
@@ -328,16 +348,12 @@
         return;
       }
       if (!st.moved) { st.moved = true; sw.classList.add('dragging'); }
-      const raw = st.base + dx;
-      /* 两端橡皮筋：拖过头只跟 0.25 倍，松手靠目标格吸附弹回 */
-      st.pos = raw < 0 ? raw * .25
-        : raw > STEP * 2 ? STEP * 2 + (raw - STEP * 2) * .25 : raw;
-      setX(st.pos); setSpin(st.pos); preview(st.pos);
-      if (st.gl && window.LiquidGlass) window.LiquidGlass.frame(st.pos, true);
+      moveQ.push(dx);
     }, { passive: true });
     const end = e => {
       if (!st || (e.pointerId !== undefined && e.pointerId !== st.id)) return;
-      const s = st; st = null;
+      moveQ.flush();                         // 松手位置不能被尚未执行的那一帧丢掉
+      const s = st; st = null; moveQ.cancel();
       clearTimeout(holdT);
       swallowClick();
       try { sw.releasePointerCapture(e.pointerId); } catch (_) {}
@@ -352,7 +368,7 @@
          吸附到目标格，同时 scale 收回 46px 圆钮，不会瞬移。 */
       release();
       const target = VIEWS[idx];
-      if (target !== state.prefs.view) setView(target); else mSync();
+      if (target !== state.prefs.view) setView(target, { defer: true }); else mSync();
     };
     sw.addEventListener('pointerup', end);
     sw.addEventListener('pointercancel', end);
@@ -360,7 +376,7 @@
     sw.addEventListener('click', e => {
       if (sw._swallowClick) { sw._swallowClick = false; return; }
       const b = e.target.closest('button[data-mv]');
-      if (b) setView(b.dataset.mv);
+      if (b) setView(b.dataset.mv, { defer: true });
     });
   })();
 
@@ -728,7 +744,7 @@
   function ensureMuiSwitch() {
     let card = null;
     [...document.querySelectorAll('#homeMenu .mn-cap')].some(n => {
-      if (n.textContent.trim() !== '实验性功能') return false;
+      if (n.id !== 'mnExpCap' && n.dataset.mnCap !== 'exp') return false;
       card = n.nextElementSibling; return true;
     });
     if (!card || !card.classList.contains('mn-card')) return !!$('#mnMui');

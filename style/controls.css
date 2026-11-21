@@ -8,6 +8,9 @@
 /* ============ 通用控件 ============ */
 .icon-btn{
   width:42px;height:42px;border-radius:50%;display:grid;place-items:center;
+  /* 商店入口是 <a class="icon-btn">，不重置 color 就会吃到浏览器 a:visited 的紫色，
+     SVG 的 stroke="currentColor" 跟着变；显式 inherit 与旁边的 <button> 一致。 */
+  color:inherit;
   background:var(--glass);border:1px solid var(--glass-bd);
   backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
   font-size:17px;transition:transform .18s,background .18s;
