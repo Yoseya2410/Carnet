@@ -1045,6 +1045,9 @@ html:not(.mui-off) #home.m-carousel #mCarouselMeta{
 }
 .bg-light [data-morph] .addmenu{background:#fff!important}
 .sb-push-running{will-change:transform}
+/* 推移动画期间真实视图整体隐藏；WebGL 模式下 gl-lab 显式把 .screw 设成
+   visibility:visible，继承的 hidden 盖不住，会跟副本里的铆钉叠成双份。 */
+.sb-push-hidden .shelf-board .screw{visibility:hidden!important}
 @media (prefers-reduced-motion:reduce){
   .sb-push-running{will-change:auto}
 }

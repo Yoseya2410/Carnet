@@ -209,8 +209,12 @@
     return true;
   }
 
-  /* ---- push：三种主页展示模式的方向性推移 + 30% 视差 ---- */
+  /* ---- push：三种主页展示模式沿同一条水平线推移 ----
+     旧视图整幅移出、新视图从反方向整幅移入：任意一帧两块画面首尾相接，
+     不叠在同一块区域。方向由三模式的排列顺序决定 ——
+     从左格切到右格：旧画面向左出、新画面从右进；反过来则完全镜像。 */
   let pushRun = null;
+  let pendingPush = null;
   function captureView(el) {
     if (!el || el.hidden || !el.getClientRects().length) return null;
     const r = el.getBoundingClientRect();
@@ -218,53 +222,102 @@
     copy.querySelectorAll('[id]').forEach(n => n.removeAttribute('id'));
     copy.hidden = false;
     copy.style.cssText += ';position:fixed;left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width +
-      'px;height:' + r.height + 'px;margin:0;z-index:18;pointer-events:none;animation:none;transition:none;';
+      'px;height:' + r.height + 'px;margin:0;z-index:4;pointer-events:none;animation:none;transition:none;';
+    /* 副本会留在源视图原来的父层（#home）里，z-index:4 压住普通 wrap、
+       让给 z-index:5 的顶栏 / 底栏。自定义属性仍按计算值带一份兜底。 */
+    const cs = getComputedStyle(el);
+    for (let i = 0; i < cs.length; i++) {
+      const name = cs.item(i);
+      if (name && name.slice(0, 2) === '--') {
+        const value = cs.getPropertyValue(name);
+        if (value) copy.style.setProperty(name, value.trim());
+      }
+    }
     copy.setAttribute('aria-hidden', 'true');
     copy.dataset.motionClone = 'view';
     const srcCv = el.querySelectorAll('canvas'), dstCv = copy.querySelectorAll('canvas');
     for (let i = 0; i < Math.min(srcCv.length, dstCv.length); i++) {
       try { const c = dstCv[i].getContext('2d'); c && c.drawImage(srcCv[i], 0, 0); } catch (_) {}
     }
-    return { copy, rect: r };
+    /* 书架可能正停在中间某一排：clone 不继承 scrollTop，推移时要补回去 */
+    return { copy, rect: r, scrollTop: el.scrollTop, scrollLeft: el.scrollLeft };
+  }
+  function stopPush() {
+    const rec = pushRun;
+    if (!rec) return;
+    pushRun = null;
+    try { rec.a && rec.a.cancel(); rec.b && rec.b.cancel(); } catch (_) {}
+    if (rec.old) rec.old.remove();
+    if (rec.fresh) rec.fresh.remove();
+    if (rec.el) {
+      rec.el.style.visibility = '';
+      rec.el.classList.remove('sb-push-hidden');
+    }
   }
   function pushView(snapshot, incoming, direction) {
     if (!snapshot || !incoming || incoming.hidden || reduced() || !SB || !hasWAAPI) {
       if (snapshot) snapshot.copy.remove();
       return false;
     }
-    if (pushRun) {
-      try { pushRun.a.cancel(); pushRun.b.cancel(); } catch (_) {}
-      if (pushRun.old) pushRun.old.remove();
-      if (pushRun.el) {
-        pushRun.el.classList.remove('sb-push-running');
-        pushRun.el.style.transform = ''; pushRun.el.style.opacity = '';
-      }
-      pushRun = null;
-    }
-    const app = $('#app') || document.body, old = snapshot.copy;
-    app.appendChild(old);
-    const width = Math.max(1, window.innerWidth), dir = direction < 0 ? -1 : 1;
+    stopPush();
+    /* 新旧两块画面都用同规格的 fixed 副本，并且都挂回源视图的父层：
+       改挂 #app 会丢掉 #home 上的 class / 后代选择器，轮播封面因此缩一圈，
+       动画落地换回真实视图时会「从小变大」跳一下。同父层、同尺寸、同曲线
+       反向平移，接缝始终在一条线上。 */
+    const old = snapshot.copy, freshSnap = captureView(incoming);
+    if (!freshSnap) { old.remove(); return false; }
+    const fresh = freshSnap.copy;
+    const width = Math.max(1, Math.round(snapshot.rect.width || freshSnap.rect.width || window.innerWidth));
+    const dir = direction < 0 ? -1 : 1;
     const spring = SB.uikit.navigation.spring;
     const progress = springProgress(spring, 42);
-    const states = progress.map(p => SB.push(width, p));
-    incoming.classList.add('sb-push-running');
-    const rec = { el: incoming, old, a: null, b: null };
+    const app = incoming.parentNode || $('#app') || document.body;
+    app.appendChild(old);
+    app.appendChild(fresh);
+    old.scrollTop = snapshot.scrollTop || 0;
+    old.scrollLeft = snapshot.scrollLeft || 0;
+    fresh.scrollTop = freshSnap.scrollTop || 0;
+    fresh.scrollLeft = freshSnap.scrollLeft || 0;
+    incoming.style.visibility = 'hidden';
+    /* gl-lab 把铆钉写成 visibility:visible，继承的 hidden 压不住它：
+       不额外压这一层，原位会留一整排铆钉，跟副本里那排重叠成双份。 */
+    incoming.classList.add('sb-push-hidden');
+    old.classList.add('sb-push-running');
+    fresh.classList.add('sb-push-running');
+    const rec = { el: incoming, old, fresh, a: null, b: null };
     pushRun = rec;
-    const finish = () => {
-      if (pushRun !== rec) return;
-      incoming.classList.remove('sb-push-running');
-      incoming.style.transform = ''; incoming.style.opacity = '';
-      old.remove(); pushRun = null;
-    };
-    rec.a = play(incoming, states.map(s => ({
-      transform: `translate3d(${(dir * s.incoming).toFixed(2)}px,0,0)`
+    const finish = () => { if (pushRun === rec) stopPush(); };
+    /* 0 → 1 的同一条曲线喂给两块画面：
+       old 从原位走到 ±屏宽，fresh 从 ∓屏宽走到原位，接缝恒在一条线上。 */
+    rec.a = play(fresh, progress.map(p => ({
+      transform: `translate3d(${(-dir * width * (1 - p)).toFixed(2)}px,0,0)`
     })), springDuration(spring), finish);
-    rec.b = play(old, states.map(s => ({
-      transform: `translate3d(${(dir * s.outgoing).toFixed(2)}px,0,0)`,
-      opacity: String(1 - .18 * s.dimming)
+    rec.b = play(old, progress.map(p => ({
+      transform: `translate3d(${(dir * width * p).toFixed(2)}px,0,0)`
     })), springDuration(spring));
     if (!rec.a || !rec.b) { finish(); return false; }
     return true;
+  }
+  function dropPending() {
+    const p = pendingPush;
+    if (!p) return;
+    pendingPush = null;
+    if (p.timer) clearTimeout(p.timer);
+    if (p.snap) p.snap.copy.remove();
+  }
+  function finishPending(visible, viewIndex) {
+    const pending = pendingPush;
+    if (!pending) return;
+    pendingPush = null;
+    if (pending.timer) clearTimeout(pending.timer);
+    if (!pending.snap) return;
+    const next = visible(), nextIndex = viewIndex(next);
+    if (!next || nextIndex === pending.oldIndex || $('#reader').classList.contains('show')) {
+      pending.snap.copy.remove();
+      return;
+    }
+    /* 目标在左：旧画面右移出、新画面从左进（dir=1）；目标在右则镜像 */
+    pushView(pending.snap, next, pending.oldIndex > nextIndex ? 1 : -1);
   }
 
   /* ---- zoom：只给开合书第二段生成几何帧，第一段抬起与业务相位不动 ---- */
@@ -370,19 +423,42 @@
     };
   }
   function init() {
-    /* setView 需要在调用前抓旧画面，单独包装以保留快照。 */
+    const order = ['#shelfWrap', '#spineWrap', '#carouselWrap'];
+    const visible = () => order.map($).find(el => el && !el.hidden) || null;
+    const viewIndex = el => order.indexOf(el && '#' + el.id);
+    const viewFor = v => $(v === 'shelf' ? '#shelfWrap' : v === 'spine' ? '#spineWrap' : '#carouselWrap');
+
+    /* setView 的 defer 分支把真正的内容构建推后两帧：快照要留到 renderHome
+       换完视图再消费，否则抓到的是「旧画面 + 旧画面」，不会有推移。 */
+    const rawRenderHome = window.renderHome;
+    if (typeof rawRenderHome === 'function' && !rawRenderHome.__motionWrapped) {
+      const wrappedRender = function () {
+        const result = rawRenderHome.apply(this, arguments);
+        if (arguments[0] && arguments[0].modeSwitch && pendingPush) {
+          try { finishPending(visible, viewIndex); } catch (_) { dropPending(); }
+        }
+        return result;
+      };
+      wrappedRender.__motionWrapped = true;
+      window.renderHome = wrappedRender;
+    }
+
     const rawSetView = window.setView;
     if (typeof rawSetView === 'function' && !rawSetView.__motionWrapped) {
-      const order = ['#shelfWrap', '#spineWrap', '#carouselWrap'];
-      const visible = () => order.map($).find(el => el && !el.hidden) || null;
       const wrapped = function () {
-        const old = visible(), snap = old ? captureView(old) : null;
-        const oldIndex = order.indexOf(old && '#' + old.id);
+        const old = visible(), target = viewFor(arguments[0]);
+        if (!old || !target || old === target || $('#reader').classList.contains('show')) {
+          return rawSetView.apply(this, arguments);
+        }
+        /* 连切时先收掉上一轮：旧副本和半途的动画都不能叠到新画面上 */
+        stopPush(); dropPending();
+        pendingPush = { snap: captureView(old), oldIndex: viewIndex(old), timer: 0 };
         const result = rawSetView.apply(this, arguments);
-        const next = visible(), nextIndex = order.indexOf(next && '#' + next.id);
-        if (!old || !next || old === next || !$('#reader').classList.contains('show')) {
-          if (old !== next) pushView(snap, next, nextIndex >= oldIndex ? 1 : -1);
-        } else if (snap) snap.copy.remove();
+        if (arguments[1] && arguments[1].defer) {
+          if (pendingPush) pendingPush.timer = setTimeout(dropPending, 1200);
+        } else if (pendingPush) {
+          finishPending(visible, viewIndex);
+        }
         return result;
       };
       wrapped.__motionWrapped = true;
