@@ -1,53 +1,48 @@
-/* Carnet · 云端商品只读接口。商品发布 / 修改由云端管理面完成，客户端无写权限。 */
+/* Carnet · 商店云端接口：对接 Backend/server.js，商品与三类资源全部来自云端。 */
 (function () {
   'use strict';
-  if (!window.WorkBuddyCloud) return;
-  const cloud = window.WorkBuddyCloud.createWorkBuddyCloud({
-    endpoint: 'https://carnet-store.app.workbuddy.host',
-    oauthRelayBaseUrl: 'https://www.workbuddy.cn/v2/as/genie-baas/oauth',
-    publishableKey: 'wbpk_40yH2WOhelnV7suMdfeKra_EI8K6Noj9SRjLyGUDHSOAnHfhEU2jGxw'
-  });
-  /* 后期上传素材时，云端可以只存文件地址；这里按类型把 .lbl / JSON 文件取回再交给商店归一化。 */
-  async function linkedPayload(base, key, url) {
-    if (!url || base[key]) return base;
+  const cfg = Object.assign({
+    apiBase: '', allowLocalFallback: false, refreshOnUpdate: true
+  }, window.CARNET_STORE_CONFIG || {});
+  const base = String(cfg.apiBase || '').replace(/\/+$/, '');
+  const listeners = new Set();
+  let eventSource = null;
+
+  function api(path) { return base + path; }
+  async function loadProducts() {
+    const res = await fetch(api('/api/products'), { cache: 'no-store' });
+    if (!res.ok) throw new Error('backend-http-' + res.status);
+    const data = await res.json();
+    const list = Array.isArray(data) ? data : (data && data.products);
+    if (!Array.isArray(list)) throw new Error('backend-payload');
+    return list;
+  }
+  function connectEvents() {
+    if (!cfg.refreshOnUpdate || eventSource || typeof EventSource === 'undefined') return;
     try {
-      const res = await fetch(new URL(String(url), document.baseURI).href, { cache: 'no-cache' });
-      if (!res.ok) throw new Error('asset-http-' + res.status);
-      const data = await res.json();
-      const value = key === 'pack'
-        ? (data.pack || (data.app === 'carnet-stickers' ? data : null))
-        : data[key];
-      return value ? { ...base, [key]: value } : base;
+      eventSource = new EventSource(api('/api/events'));
+      eventSource.addEventListener('products', () => {
+        listeners.forEach(fn => {
+          try { fn(); }
+          catch (e) { console.warn('[store] 热更新回调失败：', e); }
+        });
+      });
+      /* EventSource 自带重连，这里不主动关闭。 */
+      eventSource.onerror = () => {};
     } catch (e) {
-      console.warn('[store] 云端素材文件读取失败：' + url, e);
-      return base;
+      console.warn('[store] 无法订阅云端热更新：', e);
     }
   }
   window.CarnetStoreCloud = {
-    async loadProducts() {
-      const { data, error } = await cloud.database
-        .from('store_products')
-        .select('id,type,name,code,description,payload,sort_order')
-        .eq('status', 'published')
-        .order('sort_order', { ascending: true })
-        .limit(200);
-      if (error) throw error;
-      return Promise.all((data || []).map(async row => {
-        const payload = row.payload && typeof row.payload === 'object' ? row.payload : {};
-        let p = {
-          id: String(row.id), type: row.type,
-          code: String(row.code || 'CARNET'),
-          description: String(row.description || ''),
-          ...payload
-        };
-        if (p.type === 'journal' && !p.journal && p.journalUrl)
-          p = await linkedPayload(p, 'journal', p.journalUrl);
-        if (p.type === 'stickers' && !p.pack && p.packUrl)
-          p = await linkedPayload(p, 'pack', p.packUrl);
-        if (p.type === 'font' && !p.font && p.fontUrl)
-          p = await linkedPayload(p, 'font', p.fontUrl);
-        return p;
-      }));
-    }
+    /* 关掉本地清单兜底：云端不可用时直接报错，不显示旧商品。 */
+    strictRemote: !cfg.allowLocalFallback,
+    loadProducts,
+    subscribe(fn) {
+      if (typeof fn !== 'function') return () => {};
+      listeners.add(fn);
+      connectEvents();
+      return () => listeners.delete(fn);
+    },
+    get apiBase() { return base; }
   };
 })();

@@ -922,23 +922,12 @@ function currentAddPage() {
   }
   return clamp(state.page, 0, n - 1);
 }
-/* 菜单上标出目标页码 + 双页时的「左页 / 右页」切换条 */
+/* 双页时的「左页 / 右页」切换条：标出两侧页码、点亮当前目标侧。
+   （菜单项标题后面那截「· 第 N 页」小字已按 11-22 定稿去掉：
+    index.html 里的 .am-p 占位壳连同样式一并删了，别再往回加。） */
 function updateAddMenuHint() {
   const j = cur(); if (!j) return;
   const p = currentAddPage();
-  const ok = !!j.pages[p];
-  $$('#addMenu .am-p').forEach(s => {
-    const btn = s.closest('button');
-    const act = btn && btn.dataset.addact;
-    if (act === 'spread') {                                  // 跨页图占两页：标出它将落在哪一跨页
-      const at = ok ? spreadInsertIndex(p) : -1;
-      s.textContent = at >= 0 ? `· 插到第 ${at + 1}–${at + 2} 页` : '';
-      return;
-    }
-    // 「加一页」说的是插在哪一页后面，其余两项说的是加到哪一页
-    s.textContent = ok ? (act === 'page'
-      ? '· 在第 ' + (p + 1) + ' 页后' : '· 第 ' + (p + 1) + ' 页') : '';
-  });
   const row = $('#amTarget'); if (!row) return;
   const two = state.mode === 'spread' && !isClosedView();
   const [a, b] = currentIndices();
@@ -992,7 +981,7 @@ function toggleAddMenu(force) {
   const show = force !== undefined ? force : !m.classList.contains('show');
   m.classList.toggle('show', show);
   const b = $('#rAdd'); if (b) b.classList.toggle('on', show);
-  if (show) updateAddMenuHint();      // 菜单里标出「· 第 N 页」
+  if (show) updateAddMenuHint();      // 双页时同步「左页 / 右页」切换条
   markAddTarget();
 }
 

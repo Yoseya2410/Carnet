@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#f4f4f1">
   <link rel="icon" type="image/png" href="assets/pwa-icon-192.png">
-  <title>Carnet · 手账本商店</title>
+  <title>Carnet · 商店</title>
   <link rel="stylesheet" href="style/home.css">
   <link rel="stylesheet" href="style/book-style.css">
   <link rel="stylesheet" href="style/store.css">
@@ -16,17 +16,17 @@
   <script src="src/storage.js" defer></script>
   <script src="src/home-view.js" defer></script>
   <script src="src/font-library.js" defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tencent-ai/workbuddy-cloud-sdk@dev/lib/index.global.js" defer></script>
+  <script src="src/store-config.js" defer></script>
   <script src="src/store-cloud.js" defer></script>
   <script src="src/store.js" defer></script>
 </head>
 <body>
   <div class="store-shell" id="storeShell">
     <header class="store-header">
-      <a class="store-back" href="index.html" title="返回书架" aria-label="返回书架">
+      <a class="store-back" href="index.html" target="_self" title="返回书架" aria-label="返回书架">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
       </a>
-      <a class="store-wordmark" href="index.html" aria-label="Carnet 首页">CARNET</a>
+      <a class="store-wordmark" href="index.html" target="_self" aria-label="Carnet 首页">CARNET STORE</a>
     </header>
 
     <main class="store-main">
@@ -37,7 +37,6 @@
       </nav>
       <div class="store-grid" id="storeGrid"></div>
       <p class="store-message" id="storeMessage">正在整理商品…</p>
-      <p class="store-source" id="storeSource">本地商品</p>
     </main>
   </div>
 
@@ -47,7 +46,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
         <span>返回商店</span>
       </button>
-      <span class="detail-header-brand">CARNET / STORE</span>
+      <span class="detail-header-brand">CARNET STORE</span>
     </header>
     <div class="detail-scroll">
       <div class="detail-layout">
@@ -71,7 +70,8 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7.5 10.5L12 15l4.5-4.5M4 16v4h16v-4"/></svg>
               <span>下载并导入</span>
             </button>
-            <a class="open-shelf" id="openShelf" href="index.html" hidden>返回书架查看</a>
+            <a class="open-shelf" id="openShelf" href="index.html" target="_self" hidden>返回书架查看</a>
+            <button class="remove-font-button" id="removeFontBtn" type="button" hidden>卸载已安装字体</button>
           </div>
           <p class="download-status" id="downloadStatus" role="status" aria-live="polite"></p>
           <p class="download-note">下载完成后，自动保存到本机对应素材库。</p>

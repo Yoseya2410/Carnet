@@ -1,5 +1,5 @@
 /* =====================================================================
- * Carnet · 手帐本编辑器 · 新建 / 编辑弹窗   （脚本 23 / 28）
+ * Carnet 编辑器 · 新建 / 编辑弹窗   （脚本 23 / 28）
  * ---------------------------------------------------------------------
  * ① 名称、封面底色、封面图案与图案色、封面图片、彩带色、内页模板、页数
  *    （封面纹理 / 自定义书脊 / 封面·书脊·封底三段设置都在「自定义封面 → 封面设置」，
@@ -507,6 +507,13 @@ const ED_SEC_HINT = {
 /* 唯一被锁死的小节：用了**普通上传**的封面图片，图案压在照片上不起作用，整段强制收起。
    DIY 封面也是 cover.img，但它正是从图案栏进去的 —— 不锁，用户还得回来改 / 切回内置图案 */
 function edSecLocked(key) { return key === 'pattern' && !!ed.temp.cover.img && !ed.temp.cover.diym; }
+/* 编辑弹窗的草稿副本：整本深拷贝。大本子（几十页图片）的 base64 数据可达数 MB，
+   JSON.parse(JSON.stringify(...)) 往返在手机上要上百毫秒——structuredClone 是原生实现，
+   同样一棵树明显更快；环境不支持（老浏览器）再退回 JSON 序列化。 */
+function cloneJournal(j) {
+  try { if (typeof structuredClone === 'function') return structuredClone(j); } catch (_) {}
+  return JSON.parse(JSON.stringify(j));
+}
 function openEditor(journal) {
   /* 加密本未解锁时先解密（编辑要读整本内容，不能拿空壳来改），解开后照用户意图重开编辑器。
      ⚠️ 解锁后的落地动作按**入口**分流，全靠各调用方自己的 done，守卫里不改道：
@@ -515,7 +522,7 @@ function openEditor(journal) {
         所以未解锁的书点编辑按钮、输完密码后就要进编辑弹窗，静默解锁时同样如此。 */
   if (journal && !guardUnlocked(journal, () => openEditor(cur()))) return;
   ed.isNew = !journal;
-  ed.temp = journal ? JSON.parse(JSON.stringify(journal)) : newJournal();
+  ed.temp = journal ? cloneJournal(journal) : newJournal();
   /* 非法色值回落默认彩带色；'none' 是合法的「透明」档，别把它归一化掉
      （色板要有选中态、预览封面要整列不画，点「完成」后原样写回数据） */
   ed.temp.ribbon = ribbonIsNone(ed.temp.ribbon) ? RIBBON_NONE : ribbonSpine(ed.temp.ribbon);
@@ -523,8 +530,15 @@ function openEditor(journal) {
   $('#edTitle').textContent = ed.isNew ? '新建手帐本' : '编辑手帐本';
   $('#edName').value = ed.temp.name;
   $('#edPages').value = ed.temp.pages.length;
-  buildEditor();
-  syncEditor();
+  /* 移动端新建停在第一步（选装帧）：#edForm 整块 display:none，300+ 节点的
+     表单构建 + 全量同步推迟到真正进第二步（ensureEditorBuilt，m-home.js 调）。
+     新换一份 ed.temp 就把构建标记抬回去，保证下次构建读到的是当时的数据。 */
+  if (window.MHome && MHome.isMobile() && !journal) {
+    edBuildPending = true;
+  } else {
+    buildEditor();
+    syncEditor();
+  }
   $('#mask').classList.add('show');
   $('#modal').scrollTop = 0;          // 每次打开都从最上面开始
   $('#mask').scrollTop = 0;
@@ -537,13 +551,35 @@ function closeEditor(after) {
   const mask = $('#mask'), genie = window.CarnetMenuGenie;
   const cb = typeof after === 'function' ? after : null;
   /* 返回 / 取消 / 完成 / Esc / 点遮罩共用这一条关闭链路，三个按钮的收回
-     动画完全一致。先让效果层接住当前画面，再摘 .show（业务状态立即完成）。
-     ⚠️ after（重绘书架 / toast）由 Genie 在动画落地后执行，恰好一次；
-        动画被打断、降级或 Genie 未加载时立即执行。紧跟在 closeEditor 后面
-        同步 renderHome 会在动画第一帧重绘主页，把收回动画盖掉。 */
-  if (mask.classList.contains('show') && genie) genie.closeEditor(cb);
-  else if (cb) cb();
-  mask.classList.remove('show');
+     动画完全一致。
+     移动端 Bottom Sheet：让「正在显示的真面板」自己滑出去 —— 不 cloneNode、
+     不换骨架。克隆整棵 #modal 再首绘，就是手机上「白板 / 骨架卡一下才消失」
+     的根源；真面板走 WAAPI 合成器逐帧下滑，内容与关闭前逐像素一致。
+     .show 的摘除与 renderHome / renderReader / toast 全部推迟到动画落地
+     （与桌面 Genie「落地才回调」同节奏）；动画被新的打开抢掉时不摘 .show，
+     收尾回调照给。侧滑返回自带收场手势，维持瞬时关闭。
+     ⚠️ after 由落地回调 / Genie 执行，恰好一次；动画降级或 Genie 未加载时
+        立即执行。 */
+  const M = window.CarnetMotion;
+  let mobileLive = false;
+  if (M && window.MHome && MHome.isMobile() && mask.classList.contains('show') &&
+      !(window.CarnetSwipeBack && CarnetSwipeBack.consuming)) {
+    /* ⚠️ PWA 的 sw.js 静态资源走缓存优先：版本交替的窗口里可能出现
+       「新 editor.js + 旧 motion.js」的组合。先认函数再调，旧 motion.js
+       没有这个 API 时直接落回原关闭链路（旧包装自己还会播克隆退场），
+       绝不能在这里抛错把关闭流程打断。 */
+    if (typeof M.dismissSheetLive === 'function') {
+      mobileLive = !!M.dismissSheetLive($('#modal'), {
+        onLand: () => { mask.classList.remove('show'); if (cb) cb(); },
+        onCancel: () => { if (cb) cb(); }
+      });
+    }
+  }
+  if (!mobileLive) {
+    if (mask.classList.contains('show') && genie) genie.closeEditor(cb);
+    else if (cb) cb();
+    mask.classList.remove('show');
+  }
 }
 /* 自定义「＋」色块直接追加到该组色块的末尾（同排显示，色值提示紧跟其后） */
 function appendCustomChip(boxSel, id, tipId, title) {
@@ -567,6 +603,12 @@ function tplTileImgs() {
   }
   return out;
 }
+/* 图片模板缩略图的铺法签名：base64 源（比长度 + 尾段）+ 铺法。
+   buildEditor 的 renderTplTiles 已把同一串样式写进 innerHTML，盖过签名后
+   紧随的 syncTplTiles 不再把几 MB 的 base64 cssText 原样重写一遍。 */
+function tplTileSig(src, fit) {
+  return src ? src.length + ':' + src.slice(-48) + '|' + fit : '|' + fit;
+}
 function renderTplTiles() {
   const box = $('#edTemplates'); if (!box) return;
   const imgs = tplTileImgs();
@@ -575,7 +617,7 @@ function renderTplTiles() {
     `<div class="tpl" data-tpl="${t.k}" title="${t.n}" style="background:#fffdf8">
       <div class="tplbg" style="position:absolute;inset:0;${tplStyle(t.k)}"></div><span>${t.n}</span></div>`).join('')
     + imgs.map((src, i) =>
-      `<div class="tpl tpl-img" data-tpl-img="${i}" title="自定义图片模板 ${i + 1}">
+      `<div class="tpl tpl-img" data-tpl-img="${i}" title="自定义图片模板 ${i + 1}" data-tsig="${tplTileSig(src, fit)}">
          <div class="tplbg" style="position:absolute;inset:0;${tplStyle('custom', { tplImg: src, tplFit: fit })}"></div>
          <i class="tpl-del" data-tpl-del="${i}" title="移除这张模板">×</i><span>模板 ${i + 1}</span></div>`).join('')
     + `<div class="tpl tpl-add" data-tpl="add" title="添加图片模板（可多选）">
@@ -586,6 +628,7 @@ function renderTplTiles() {
 function syncTplTiles() {
   const imgs = tplTileImgs();
   const cur = tplImgOf(ed.temp);
+  const fit = normTplFit(ed.temp.tplFit);
   $$('#edTemplates .tpl').forEach(s => {
     const i = s.dataset.tplImg;
     const on = i === undefined
@@ -593,9 +636,12 @@ function syncTplTiles() {
       : (ed.temp.template === 'custom' && imgs[Number(i)] === cur);
     s.classList.toggle('on', on);
     if (i !== undefined) {
+      const sig = tplTileSig(imgs[Number(i)], fit);
+      if (s.dataset.tsig === sig) return;      // 图源与铺法都没变：几 MB 的 cssText 别重写
+      s.dataset.tsig = sig;
       const bg = s.querySelector('.tplbg');
       if (bg) bg.style.cssText = 'position:absolute;inset:0;'
-        + tplStyle('custom', { tplImg: imgs[Number(i)], tplFit: normTplFit(ed.temp.tplFit) });
+        + tplStyle('custom', { tplImg: imgs[Number(i)], tplFit: fit });
     }
   });
   const fitBox = $('#edTplFit');
@@ -606,14 +652,22 @@ function syncTplTiles() {
     ? `已有 ${imgs.length} 张图片模板：点格子切换、点右上角 × 从模板库移除。模板存进本机模板库，下次打开或新建手帐本都能接着用，也会随这本一起导出。`
     : '点「＋」添加图片模板，可一次选多张；添加后立刻存进模板库，下次打开或新建手帐本都能继续用。';
 }
+/* 表单是否已按当前 ed.temp 构建过：移动端新建停在第一步时跳过构建，
+   置回 true（见 openEditor），进第二步前由 ensureEditorBuilt() 补齐 */
+let edBuildPending = true;
 function buildEditor() {
-  /* 装帧样式：每张卡里各放一个真封面（按各自的装订方式渲染），选样式时看到的就是成品 */
+  /* 装帧样式：每张卡里各放一个真封面（按各自的装订方式渲染），选样式时看到的就是成品。
+     盖上封面签名：紧随其后的第一次 syncEditor 不再原样重画这四张 */
   $('#edStyles').innerHTML = BOOK_STYLES.map(s => `
     <div class="sty" data-sty="${s.k}" title="${s.d}">
       <div class="sty-pv">${coverHTML({ ...ed.temp, style: s.k })}</div>
       <div class="sty-n">${s.n}</div>
       <div class="sty-d">${s.d}</div>
     </div>`).join('');
+  $$('#edStyles .sty').forEach(s => {
+    const pv = s.querySelector('.sty-pv');
+    if (pv) pv.dataset.cvsig = coverSig({ ...ed.temp, style: s.dataset.sty });
+  });
   $$('#edStyles .sty').forEach(s => s.onclick = () => {
     if (ed.temp.style === s.dataset.sty) return;
     ed.temp.style = normBookStyle(s.dataset.sty);
@@ -631,17 +685,22 @@ function buildEditor() {
   $('#edRibbons').innerHTML =
     `<div class="swatch ribbon-none" data-ribbon="${RIBBON_NONE}" title="透明（隐藏彩带，也不画书槽）"></div>`
     + RIBBONS.map(c => `<div class="swatch" data-ribbon="${c}" style="background:${c}"></div>`).join('');
-  /* 内置图案格 + 最后一格「自定义」。DIY 格不带 data-pat，所有按 data-pat 走的
+  /* DIY「自定义」格 + 内置图案格。DIY 格不带 data-pat，所有按 data-pat 走的
      绑定 / 同步都要用 :not(.diy-pat) 排除它，别把合成图预览刷成图案层。
      没做过封面时这一格是「白纸 + 中间一个＋」，标签写「自定义」；
-     做好之后 .has-img 换成合成图当缩略图，＋ 收起来。 */
-  $('#edPatterns').innerHTML = PATTERNS.map(p => `
+     做好之后 .has-img 换成合成图当缩略图，＋ 收起来。
+     摆位分端：移动端 DIY 格放第一个（手机上自定义是高频入口），
+     电脑端放最后一个（先挑内置图案，自定义兜底收尾）。 */
+  const diyCell =
+    `<div class="pat diy-pat" data-diy="1" title="自定义封面：加图片、文字、改底色">
+       <div class="pv" id="edDiyPv"></div><i class="pat-plus" id="edDiyPlus">＋</i><span>自定义</span>
+     </div>`;
+  const patCells = PATTERNS.map(p => `
     <div class="pat" data-pat="${p.k}" title="${p.n}">
       <i class="pspine"></i><div class="pv"></div><span>${p.n}</span>
-    </div>`).join('')
-    + `<div class="pat diy-pat" data-diy="1" title="自定义封面：加图片、文字、改底色">
-         <div class="pv" id="edDiyPv"></div><i class="pat-plus" id="edDiyPlus">＋</i><span>自定义</span>
-       </div>`;
+    </div>`).join('');
+  $('#edPatterns').innerHTML =
+    (window.MHome && MHome.isMobile()) ? diyCell + patCells : patCells + diyCell;
   /* 六档内置纸面 + 每张自定义图片模板 + 添加格，见 renderTplTiles() */
   renderTplTiles();
   // 绑定
@@ -823,6 +882,16 @@ function buildEditor() {
      那些控件每次 renderDiySheet() 重建，事件走 #diySheetBody 的委托，编辑器这里不绑。 */
   $('#edName').oninput = e => { ed.temp.name = e.target.value; };
   $('#edPages').oninput = e => { ed.temp.pagesN = clamp(parseInt(e.target.value) || 1, 1, 200); };
+  edBuildPending = false;
+}
+/* 表单还没按当前 ed.temp 构建过（移动端新建一直停在第一步）就补一次完整构建 + 同步。
+   返回 true = 这次真的构建并同步了，调用方可省掉紧随的 syncEditor()；
+   返回 false = 表单本来就是新的，改了数据后调用方仍需自己 syncEditor()。 */
+function ensureEditorBuilt() {
+  if (!edBuildPending) return false;
+  buildEditor();
+  syncEditor();
+  return true;
 }
 /* 改封面内侧的字段：没设过就先建一份草稿，别把 mode 丢失（缺省 auto 不写进数据，
    一旦用户动过这个小节就落一份完整的 inside 对象） */
@@ -843,8 +912,26 @@ function syncCustomSwatch(boxSel, tipSel, value, presets) {
   box.style.background = custom ? hex : '';
   $(tipSel).textContent = custom ? hex.toUpperCase() : '自定义';
 }
+/* coverHTML 输出依赖的全部字段压成一个签名：底色 / 图案 / 图案色 / 纹理 / 圆角 /
+   彩带 / 装帧 / 书槽开关 / DIY 标记 / 封面图。封面图是几 MB 的 base64，整串比对
+   本身就不便宜——只比长度 + 尾段 48 字符（DIY 合成换图必然连长度带尾段一起变）。
+   syncEditor 常常一次打开里连跑几遍，预览 / 装帧卡签名没变就不重画，
+   打开弹窗 / 拖圆角滑杆 / 折叠切换时能省掉最多 5 张封面的整块 innerHTML。 */
+function coverSig(j) {
+  const cv = j.cover || {}, img = cv.img;
+  return (j.style || '') + '|' + (j.ribbon || '') + '|' + (cv.value || '') + '|' +
+    (cv.pattern || '') + '|' + (cv.patColor || '') + '|' + (cv.texture || '') + '|' +
+    (cv.radius == null ? '' : cv.radius) + '|' + (cv.groove == null ? '' : cv.groove) + '|' +
+    (cv.diym ? 1 : 0) + '|' + (img ? img.length + ':' + img.slice(-48) : '');
+}
 function syncEditor() {
-  $('#edPreview').innerHTML = coverHTML(ed.temp);
+  {
+    const pv = $('#edPreview'), sig = coverSig(ed.temp);
+    if (pv.dataset.cvsig !== sig) {
+      pv.innerHTML = coverHTML(ed.temp);
+      pv.dataset.cvsig = sig;
+    }
+  }
   /* 圆角滑杆跟着当前本子走：切换装帧时默认档会变（精装 10 / 活页 16），
      没自定义过就只显示数值、禁用「默认」按钮，不往数据里写东西。 */
   {
@@ -854,11 +941,17 @@ function syncEditor() {
     if (v) v.textContent = r + 'px';
     if (btn) btn.disabled = ed.temp.cover.radius == null;
   }
-  /* 装帧样式：卡片里的封面预览要跟着当前底色 / 图案 / 彩带一起变，所以整块重画 */
+  /* 装帧样式：卡片里的封面预览要跟着当前底色 / 图案 / 彩带一起变；
+     签名没变的卡不重画（buildEditor 刚建好时会盖上签名，打开弹窗那遍直接跳过） */
   $$('#edStyles .sty').forEach(s => {
     s.classList.toggle('on', normBookStyle(ed.temp.style) === s.dataset.sty);
     const pv = s.querySelector('.sty-pv');
-    if (pv) pv.innerHTML = coverHTML({ ...ed.temp, style: s.dataset.sty });
+    if (!pv) return;
+    const sig = coverSig({ ...ed.temp, style: s.dataset.sty });
+    if (pv.dataset.cvsig !== sig) {
+      pv.innerHTML = coverHTML({ ...ed.temp, style: s.dataset.sty });
+      pv.dataset.cvsig = sig;
+    }
   });
   $$('#edColors .swatch:not(.custom)').forEach(s => s.classList.toggle('on', !ed.temp.cover.img && ed.temp.cover.value === s.dataset.color));
   $$('#edGrads .swatch:not(.custom)').forEach(s => s.classList.toggle('on', !ed.temp.cover.img && ed.temp.cover.value === s.dataset.grad));
@@ -1564,6 +1657,7 @@ function diyAddNote(color) {
 }
 /* ---- 底部工具面板 ---- */
 function diySheet(kind) {
+  if (kind && diyTape.t) diyDisarmTape();   // 开任意面板就退出待贴，免得手上还挂着一条没落的胶带
   const was = diy.sheet;
   /* 面板与纸面行内打字互斥：开文字面板先把正在打的字落盘（同阅读器 openTextSheet） */
   if (kind === 'text' && diy.editing) diyStopInline(true, true);
@@ -1814,6 +1908,7 @@ async function diyRenderCanvas(W) {
 /* ---- 打开 / 关闭独立页面 ---- */
 function openDiyCover() {
   if (!ed || !ed.temp) return;
+  if (diyTape.t) diyDisarmTape();
   const cv = ed.temp.cover;
   let d = normDiyCover(cv.diym);
   if (!d) {
@@ -1856,6 +1951,7 @@ function openDiyCover() {
   });
 }
 function closeDiyCover() {
+  if (diyTape.t) diyDisarmTape();
   diyCancelHold();
   diyStopInline(true, true);             // 行内正在打的字别丢
   diy.open = false; diy.drag = null; diy.swapId = null;
@@ -1869,6 +1965,7 @@ async function diyDone() {
   if (btn.disabled) return;
   btn.disabled = true;
   try {
+    if (diyTape.t) diyDisarmTape();
     diyCancelHold();
     diyStopInline(true, true);         // 点「完成」时还停在行内编辑：先把内容落进数据
     diyCommitRename();                 // 重命名没收尾的先存下
@@ -1932,6 +2029,127 @@ const diyPaintQ = frameQueue(v => {
   applyBox(el, v.o);                       // 与阅读器同一套盒子下发
   diyFitObjBar(el);                        // 拖动 / 缩放途中工具条一路跟着躲纸边
 });
+/* ---- 自定义封面的装饰胶带：跟阅读器一样按住拖出任意长度 ----
+   阅读器那套 armTape / tapeDrag 绑在 #paper 和 #tapeHint 上，DIY 是另一张纸，
+   所以这里复用 tapeSVG / TAPE_THICK_K / TAPE_MIN_LEN，自己做一份待贴状态。
+   ⚠️ 拖完就退出待贴并选中刚落的胶带，用户抬手即可拖四角再微调长度。 */
+const diyTape = { t: null, drag: null };
+function diyTapeUI() {
+  let hint = $('#diyTapeHint'), pv = $('#diyTapePreview');
+  if (!hint) {
+    hint = document.createElement('div');
+    hint.className = 'tape-hint'; hint.id = 'diyTapeHint'; hint.hidden = true;
+    hint.innerHTML = `<span class="tape-hint-tx">已选「<b id="diyTapeHintName">胶带</b>」· 在封面上按住并拖出一条直线</span>`
+      + `<button id="diyTapeCancel" title="退出贴胶带">取消</button>`;
+    $('#diyPage').appendChild(hint);
+    hint.querySelector('#diyTapeCancel').addEventListener('click', () => {
+      diyDisarmTape(); toast('已退出贴胶带');
+    });
+  }
+  if (!pv) {
+    pv = document.createElement('div');
+    pv.className = 'tape-preview'; pv.id = 'diyTapePreview'; pv.hidden = true;
+    $('#diyPage').appendChild(pv);
+  }
+  return { hint, pv };
+}
+function diyArmTape(t) {
+  const ui = diyTapeUI();
+  diyTape.t = t;
+  const nm = $('#diyTapeHintName'); if (nm) nm.textContent = t.n;
+  ui.hint.hidden = false;
+  diySheet('');                            // 收起贴纸面板，纸面才拖得到
+  toast('在封面上按住拖出一条胶带', 2200);
+}
+function diyDisarmTape() {
+  diyTape.t = null; diyTape.drag = null;
+  diyTapePreviewQ.cancel();
+  const ui = diyTapeUI();
+  ui.hint.hidden = true;
+  ui.pv.hidden = true; ui.pv.style.transform = '';
+}
+function diyTapeSnapshot() {
+  const d = diyTape.drag;
+  return { x0: d.x0, y0: d.y0, x1: d.x1, y1: d.y1, thick: d.rect.w * TAPE_THICK_K };
+}
+function diyPaintTapePreview(v) {
+  const pv = $('#diyTapePreview');
+  if (!pv || !diyTape.t) return;
+  const dx = v.x1 - v.x0, dy = v.y1 - v.y0, len = Math.hypot(dx, dy);
+  if (len < 2) { pv.hidden = true; return; }
+  const h = v.thick;
+  pv.hidden = false;
+  pv.style.width = len.toFixed(1) + 'px';
+  pv.style.height = h.toFixed(1) + 'px';
+  pv.style.backgroundImage = `url("${tapeSVG(diyTape.t.c, diyTape.t.p, Math.max(12, len), h)}")`;
+  /* transform-origin 在左侧中心：从起点沿拖动方向直线延伸，绝不成折线 */
+  pv.style.transform = `translate(${v.x0.toFixed(1)}px,${(v.y0 - h / 2).toFixed(1)}px) `
+    + `rotate(${Math.atan2(dy, dx).toFixed(4)}rad)`;
+}
+const diyTapePreviewQ = frameQueue(diyPaintTapePreview);
+function diyPlaceTape(len, rad) {
+  const d = diyTape.drag, t = diyTape.t;
+  if (!d || !t) return;
+  if (diyObjs().length >= DIY_MAX_OBJS) { toast('封面最多放 ' + DIY_MAX_OBJS + ' 个对象'); return; }
+  const r = d.rect, thick = r.w * TAPE_THICK_K;
+  const w = clamp(len / r.w, .06, 1.6), h = clamp(thick / r.h, .03, 1.4);
+  const cx = (d.x0 + d.x1) / 2 - r.left, cy = (d.y0 + d.y1) / 2 - r.top;
+  const im = {
+    id: uid(), src: tapeSVG(t.c, t.p, Math.max(12, len), Math.max(8, thick)),
+    x: clamp((cx - w * r.w / 2) / r.w, -.3, 1.1),
+    y: clamp((cy - h * r.h / 2) / r.h, -.3, 1.1),
+    w, h, rot: Math.round(rad * 180 / Math.PI), z: nextZ(diy.d), locked: false,
+    fr: 'none', frc: '', frw: 50
+  };
+  diy.d.images.push(im);
+  renderDiyPaper();
+  diySel({ k: 'img', id: im.id });         // 立刻露四角手柄，抬手就能改长度
+  toast('胶带已贴到封面 · 可拖四角再调长度', 2400);
+}
+$('#diyPaper').addEventListener('pointerdown', e => {
+  if (!diy.open || !diyTape.t || e.button > 0) return;
+  if (e.target.closest && e.target.closest('.objbar')) return;
+  e.preventDefault(); e.stopPropagation();  // 待贴时别让底下的图片 / 文字接走这一按
+  const r = $('#diyPaper').getBoundingClientRect();
+  diyTape.drag = {
+    id: e.pointerId, x0: e.clientX, y0: e.clientY, x1: e.clientX, y1: e.clientY,
+    rect: { left: r.left, top: r.top, w: r.width, h: r.height }
+  };
+  try { $('#diyPaper').setPointerCapture(e.pointerId); } catch (_) {}
+}, true);
+$('#diyPaper').addEventListener('pointermove', e => {
+  const d = diyTape.drag;
+  if (!d || d.id !== e.pointerId) return;
+  d.x1 = e.clientX; d.y1 = e.clientY;
+  diyTapePreviewQ.push(diyTapeSnapshot());
+  e.preventDefault(); e.stopPropagation();
+}, true);
+function diyEndTape(e) {
+  const d = diyTape.drag;
+  if (!d || d.id !== e.pointerId) return;
+  diyTapePreviewQ.flush();
+  try { $('#diyPaper').releasePointerCapture(e.pointerId); } catch (_) {}
+  const dx = d.x1 - d.x0, dy = d.y1 - d.y0, len = Math.hypot(dx, dy);
+  const pv = $('#diyTapePreview'); if (pv) pv.hidden = true;
+  /* ⚠️ drag 要留到 diyPlaceTape 之后才清：落胶带读的就是这次的起点 / 终点，
+     提前置空会让 diyPlaceTape 直接 return，看着像「拖了没贴上」。 */
+  if (len < TAPE_MIN_LEN) { diyTape.drag = null; toast('再拖长一点，胶带只能走直线', 1800); return; }
+  diyPlaceTape(len, Math.atan2(dy, dx));
+  diyDisarmTape();
+}
+$('#diyPaper').addEventListener('pointerup', diyEndTape, true);
+$('#diyPaper').addEventListener('pointercancel', e => {
+  if (diyTape.drag && diyTape.drag.id === e.pointerId) {
+    diyTapePreviewQ.cancel(); diyTape.drag = null;
+    const pv = $('#diyTapePreview'); if (pv) pv.hidden = true;
+  }
+}, true);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && diy.open && diyTape.t) {
+    e.preventDefault(); e.stopPropagation();
+    diyDisarmTape(); toast('已退出贴胶带');
+  }
+}, true);
 /* 长按 420ms 才解锁固定文字贴 → 版式态（阅读器 armTextHold 同款）。
    没按够就松手、或中途划开了都算单击；解锁后手指不用抬就能接着拖走。 */
 function diyCancelHold() { if (diy.hold) diy.hold.cleanup(); }
@@ -2347,7 +2565,7 @@ $('#diySheetBody').addEventListener('click', async e => {
   if (d.note) { diyAddNote(d.note); return; }
   if (d.tape) {
     const tp = TAPES.find(x => x.k === d.tape);
-    if (tp) diyAddSticker(tapeSVG(tp.c, tp.p), 30 / 120, -5.5);
+    if (tp) diyArmTape(tp);                // 不再落固定长度：到纸面上拖出想要的长度
     return;
   }
   if (d.mine) {

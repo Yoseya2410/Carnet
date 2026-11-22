@@ -1,6 +1,8 @@
 /* Carnet · 商店字体库：下载字体持久化、FontFace 注册、文字面板与导出共用。 */
 const FONT_LIB_KEY = 'carnet_font_lib';
 const FONT_LIB_MAX = 20;
+/* 记录每个字体对应的 FontFace，卸载时才能从 document.fonts 里真正摘掉。 */
+const registeredFaces = new Map();
 
 function fontFormatOf(f) {
   const v = String(f && f.format || '').toLowerCase();
@@ -26,7 +28,10 @@ async function registerFontRecord(rec) {
     style: 'normal', weight: rec.weight || '400'
   });
   await face.load();
+  const oldFace = registeredFaces.get(rec.family);
+  if (oldFace && typeof document.fonts.delete === 'function') document.fonts.delete(oldFace);
   document.fonts.add(face);
+  registeredFaces.set(rec.family, face);
   if (!EN_FONTS.some(f => f.k === rec.k)) {
     EN_FONTS.push({
       k: rec.k, n: rec.n || rec.en || rec.family, en: rec.en || rec.family,
@@ -67,4 +72,21 @@ async function installFontProduct(p) {
   const ok = await DB.set(FONT_LIB_KEY, list.concat(rec));
   if (!ok) throw new Error('font-storage');
   return { duplicate: false, record: rec, list: list.concat(rec) };
+}
+/* 卸载商店字体：删持久化记录、从 EN_FONTS 和 document.fonts 同时摘掉。 */
+async function uninstallFontProduct(p) {
+  const f = p && p.font;
+  if (!f || !f.family) throw new Error('invalid-font-product');
+  const old = await DB.get(FONT_LIB_KEY);
+  const list = Array.isArray(old) ? old : [];
+  const next = list.filter(x => !(x && (x.storeId === p.id || x.k === f.k || x.family === f.family)));
+  if (next.length === list.length) return { duplicate: true, list };
+  const ok = await DB.set(FONT_LIB_KEY, next);
+  if (!ok) throw new Error('font-storage');
+  const idx = EN_FONTS.findIndex(x => x.k === f.k || x.family === f.family);
+  if (idx >= 0) EN_FONTS.splice(idx, 1);
+  const face = registeredFaces.get(f.family);
+  if (face && typeof document.fonts.delete === 'function') document.fonts.delete(face);
+  registeredFaces.delete(f.family);
+  return { removed: true, list: next, family: f.family };
 }

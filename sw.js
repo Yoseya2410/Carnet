@@ -5,7 +5,7 @@
  * 关闭 PWA 时页面会 unregister 本 SW 并 postMessage 让仍在控制页面的
  * worker 立即停止拦截（disabled=true），所以关掉后不需要刷新就恢复在线直连。
  * ===================================================================== */
-const CACHE = 'carnet-pwa-v38';
+const CACHE = 'carnet-pwa-v51';
 
 const SHELL = [
   './', './index.html', './store.html', './manifest.webmanifest',
@@ -32,8 +32,8 @@ const SHELL = [
   './assets/font/en/SpecialElite-Regular.woff2',
   './assets/vendor/pdf.min.js', './assets/vendor/pdf.worker.min.js',
   './assets/vendor/springboard.js',
-  './assets/font/store/Caveat.woff2', './assets/font/store/BebasNeue-Regular.woff2',
-  './assets/font/store/Caveat-OFL.txt', './assets/font/store/BebasNeue-OFL.txt',
+  './store/font/Caveat.woff2', './store/font/BebasNeue-Regular.woff2',
+  './store/license/Caveat-OFL.txt', './store/license/BebasNeue-OFL.txt',
   './style/base.css', './style/controls.css', './style/home.css',
   './style/book-style.css', './style/reader.css', './style/image-tools.css',
   './style/text.css', './style/page-bg.css', './style/scrub.css',
@@ -53,10 +53,10 @@ const SHELL = [
   './src/editor.js', './src/home-events.js', './src/spine-openfx.js', './src/reader-flow.js',
   './src/scrub.js', './src/system.js', './src/main.js',
   './src/swipe-back.js', './src/gl-lab.js', './src/pwa.js', './src/m-home.js',
-  './src/store.js', './src/store-cloud.js', './src/font-library.js',
-  './store/manifest.json', './store/mint-notes.json', './store/apricot-dream.json',
-  './store/sea-salt.json', './store/iris-square.json', './store/night-stars.json',
-  './store/cherry-dots.json', './store/daily-doodles.lbl', './store/paper-marks.lbl',
+  './src/store.js', './src/store-config.js', './src/store-cloud.js', './src/font-library.js',
+  './store/manifest.json', './store/Template/mint-notes.json', './store/Template/apricot-dream.json',
+  './store/Template/sea-salt.json', './store/Template/iris-square.json', './store/Template/night-stars.json',
+  './store/Template/cherry-dots.json', './store/Sticker/daily-doodles.lbl', './store/Sticker/paper-marks.lbl',
   './example/manifest.json', './example/UCAS.json',
   './example/花之法典.json', './example/冷少!.json', './example/日志.json'
 ];

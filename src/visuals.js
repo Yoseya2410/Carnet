@@ -9,7 +9,7 @@
  *    EN_FONTS 后 17 档是项目自带的 woff2，face 字段供导出内嵌用）
  * ⑤ 内页底色色阶 PAPER_RAMPS、三级取值 pageBgOf，以及面板预览用的 pageBgShown
  * ⑥ 全项目共用的尺寸与阈值：PAGE_RATIO / PAGE_W_DEFAULT / LUM_DARK / 封面翻口圆角
- * ⑦ 装帧样式 BOOK_STYLES（笔记本 / 活页 / 方形画册 / 精装书）与内页比例 pageRatioOf
+ * ⑦ 装帧样式 BOOK_STYLES（精装书 / 方形画册 / 活页手帐 / 笔记本）与内页比例 pageRatioOf
  * ⑧ 图片边框 FRAMES：边框盒样式 frameBoxStyle / 图片样式 frameImgStyle /
  *    凹陷的凹面柔影 frameInsetHTML（三者屏幕与导出共用，改一处四边同源）
  * ⑨ 活页封面内侧 coverInsideStyle（自动主色 / 与封面一致 / 自定义）、书槽开关 coverGrooveOn
@@ -613,15 +613,15 @@ const BOOK_STYLES = [
    ⚠️ 活页的封面比例**不是另写一个 B6**：它是「内页 + 封面内侧露边 + 半道中缝」算出来的
      （95×(1+padX+gap/2) : 170×(1+2×padY)），所以封面与封面内侧永远一样大。
      padX / padY / gap 三个系数同时供 reader-view.js 的 layoutBook 与 reader.css 的露边使用。 */
-  { k: 'classic',  n: '笔记本',   d: '硬壳 · 书脊彩带',  asp: 148 / 210, pageAsp: 148 / 210, pageHScale: 1, padX: 0, padY: 0, gap: 0, rings: 0, ribbon: true },
-  { k: 'personal', n: '活页手帐', d: '六孔金属环 · 可换页',
-    asp: (95 * (1 + .18 + .06 / 2)) / (170 * (1 + 2 * .025)),
-    pageAsp: 95 / 170, pageHScale: 1 / (1 + 2 * .025), padX: .18, padY: .025, gap: .06, rings: 6, ribbon: false },
-  { k: 'square',   n: '方形画册', d: '方开本 · 硬壳',    asp: 1,        pageAsp: 1,        pageHScale: 1, padX: 0, padY: 0, gap: 0, rings: 0, ribbon: false },
   /* 精装书（2026-11-11 新增）：跟笔记本同为 A5 硬壳，但**没有彩带**、书槽常显且更宽。
      ⚠️ asp 必须跟 book-style.css 的 .cover 默认 aspect-ratio(148/210) 一致：
         改这里却不动 CSS，主页封面和阅读器 layoutBook 会算出两种不同的比例。 */
-  { k: 'hardcover', n: '精装书', d: '硬壳 · 立体书槽',  asp: 148 / 210, pageAsp: 148 / 210, pageHScale: 1, padX: 0, padY: 0, gap: 0, rings: 0, ribbon: false }
+  { k: 'hardcover', n: '精装书', d: '硬壳 · 立体书槽',  asp: 148 / 210, pageAsp: 148 / 210, pageHScale: 1, padX: 0, padY: 0, gap: 0, rings: 0, ribbon: false },
+  { k: 'square',   n: '方形画册', d: '方开本 · 硬壳',    asp: 1,        pageAsp: 1,        pageHScale: 1, padX: 0, padY: 0, gap: 0, rings: 0, ribbon: false },
+  { k: 'personal', n: '活页手帐', d: '六孔金属环 · 可换页',
+    asp: (95 * (1 + .18 + .06 / 2)) / (170 * (1 + 2 * .025)),
+    pageAsp: 95 / 170, pageHScale: 1 / (1 + 2 * .025), padX: .18, padY: .025, gap: .06, rings: 6, ribbon: false },
+  { k: 'classic',  n: '笔记本',   d: '硬壳 · 书脊彩带',  asp: 148 / 210, pageAsp: 148 / 210, pageHScale: 1, padX: 0, padY: 0, gap: 0, rings: 0, ribbon: true },
 ];
 const BOOK_STYLE_DEFAULT = 'classic';
 /* 已下线的档位：老数据里存的这个值要转成现在的某一档，不能直接落回 classic

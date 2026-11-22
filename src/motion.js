@@ -104,6 +104,9 @@
     sheetClones.delete(el);
     try { old.anim && old.anim.cancel(); } catch (_) {}
     old.node.remove();
+    /* 动画被新的打开 / 新的关闭抢掉时也要补落地回调：否则迟到的业务收尾
+       （重绘书架 / toast）会被整个吞掉，书架就停在旧内容上。 */
+    if (old.onLand) { const f = old.onLand; old.onLand = null; f(); }
   }
   function cancelSheet(el) {
     if (!el) return;
@@ -146,18 +149,19 @@
     sheetRuns.set(el, a);
     return true;
   }
-  function dismissSheet(el) {
+  function dismissSheet(el, options) {
+    const opt = options || {};
     if (!el || el.hidden || reduced() || !SB || !hasWAAPI || !el.getClientRects().length) return false;
     cancelSheet(el);
     const r = el.getBoundingClientRect();
     if (!r.width || !r.height) return false;
-    /* 移动端新建手账本：退场动画先 cloneNode(true) 整棵 #modal，300+ 节点的
-       #edForm 是逐帧重绘大头。懒加载开关开着时，在同一个同步任务里把真表单
-       临时换成轻骨架给克隆用，克隆完立刻换回 —— 真节点、值、监听器都不动，
-       用户也看不见骨架。异常走 finally，绝不让表单落在内存里。 */
+    /* 移动端编辑器 sheet（新建 / 编辑都算）：退场动画先 cloneNode(true) 整棵
+       #modal，300+ 节点的 #edForm 是逐帧重绘大头。懒加载开关开着时，在同一个
+       同步任务里把真表单临时换成轻骨架给克隆用，克隆完立刻换回 —— 真节点、
+       值、监听器都不动，用户也看不见骨架。异常走 finally，绝不让表单落在内存里。 */
     let lazyParked = false;
     try {
-      if (el.id === 'modal' && typeof ed !== 'undefined' && ed && ed.isNew &&
+      if (el.id === 'modal' && typeof ed !== 'undefined' && ed &&
           window.CarnetLazyLoad && window.CarnetLazyLoad.on)
         lazyParked = window.CarnetLazyLoad.parkSheetForClone(el);
     } catch (_) {}
@@ -198,14 +202,76 @@
     const frames = progress.map(v => ({
       transform: `translate3d(0,${(SB.sheetTop(screenH, top, 1 - v) - top).toFixed(2)}px,0)`
     }));
-    const rec = { node, anim: null };
+    const rec = { node, anim: null, onLand: typeof opt.onLand === 'function' ? opt.onLand : null };
     const finish = () => {
       if (sheetClones.get(el) !== rec) return;
       sheetClones.delete(el); node.remove();
+      /* 落地才执行业务收尾（renderHome / toast）：下滑的每一帧都要求主线程
+         闲出来，重绘跟在第一帧后会把 sheet 冻在原地（「白板卡一下才滑走」）。 */
+      if (rec.onLand) { const f = rec.onLand; rec.onLand = null; f(); }
     };
     rec.anim = play(panel, frames, springDuration(SB.uikit.sheet), finish);
     if (!rec.anim) { node.remove(); return false; }
     sheetClones.set(el, rec);
+    return true;
+  }
+
+  /* ---- dismissSheetLive：真面板自己滑出去（不克隆、不换骨架） ----------
+     cloneNode 方案在手机上要先克隆整棵 #modal 再做首次绘制，慢机上这一下
+     就是一帧都出不来 —— 用户看到的是白板 / 骨架卡在原地。让正在显示的真
+     面板直接播同一条 sheetTop 下滑（WAAPI 合成器逐帧，零重绘），内容与
+     关闭前逐像素一致。
+     业务收尾全部推迟：onLand = 动画自然落地（摘 .show + 重绘 / toast）；
+     onCancel = 动画被新的打开 / 更新的动画抢掉（.show 留给接管方，收尾
+     回调照给，书架不落旧数据）。
+     拖拽到一半松手也走这里：inline transform 的 dy 是加法合成（composite
+     'add'）的基底，面板从手指松开的位置继续滑到屏幕外。 */
+  function dismissSheetLive(el, options) {
+    const opt = options || {};
+    if (!el || el.hidden || reduced() || !SB || !hasWAAPI || !el.getClientRects().length) return false;
+    /* 已经在关：不要重启，让这一场走完（回调也只挂一次） */
+    if (el.classList.contains('sb-sheet-live')) return true;
+    const old = sheetRuns.get(el);
+    if (old) { try { old.cancel(); } catch (_) {} sheetRuns.delete(el); }
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height) return false;
+    const screenH = window.innerHeight, top = r.top;
+    const progress = springProgress(SB.uikit.sheet, 36);
+    const frames = progress.map(v => ({
+      transform: `translate3d(0,${(SB.sheetTop(screenH, top, 1 - v) - top).toFixed(2)}px,0)`
+    }));
+    el.classList.add('sb-sheet-running', 'sb-sheet-driven', 'sb-sheet-live');
+    el.style.pointerEvents = 'none';       // 下滑中的面板不再接事件，遮罩点击也不会二次触发
+    let ended = false;
+    /* 被接管（cancel 由别的动画发起）时只清自己的东西：sb-sheet-running /
+       driven 是接管方（sheet() 上滑）的入场守卫，不能碰 */
+    const cleanup = taken => {
+      el.style.pointerEvents = '';
+      el.style.transform = '';
+      el.classList.remove('sb-sheet-live', 'ns-dragging', 'ns-closing', 'ns-snapback');
+      if (!taken) el.classList.remove('sb-sheet-running', 'sb-sheet-driven');
+    };
+    const a = el.animate(frames, {
+      duration: springDuration(SB.uikit.sheet), easing: 'linear',
+      fill: 'both', composite: 'add'
+    });
+    a.onfinish = () => {
+      if (ended) return;
+      ended = true;
+      if (sheetRuns.get(el) === a) sheetRuns.delete(el);
+      cleanup(false);
+      try { a.cancel(); } catch (_) {}     // fill 站位到这一帧为止，摘 .show 前不脱节
+      if (typeof opt.onLand === 'function') opt.onLand();
+    };
+    a.oncancel = () => {
+      if (ended) return;
+      ended = true;
+      /* oncancel 是异步事件：sheet() 已经把 sheetRuns 换成新动画 → taken */
+      cleanup(sheetRuns.get(el) !== a);
+      if (sheetRuns.get(el) === a) sheetRuns.delete(el);
+      if (typeof opt.onCancel === 'function') opt.onCancel();
+    };
+    sheetRuns.set(el, a);
     return true;
   }
 
@@ -218,78 +284,75 @@
   function captureView(el) {
     if (!el || el.hidden || !el.getClientRects().length) return null;
     const r = el.getBoundingClientRect();
-    const copy = el.cloneNode(true);
-    copy.querySelectorAll('[id]').forEach(n => n.removeAttribute('id'));
-    copy.hidden = false;
-    copy.style.cssText += ';position:fixed;left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width +
-      'px;height:' + r.height + 'px;margin:0;z-index:4;pointer-events:none;animation:none;transition:none;';
-    /* 副本会留在源视图原来的父层（#home）里，z-index:4 压住普通 wrap、
-       让给 z-index:5 的顶栏 / 底栏。自定义属性仍按计算值带一份兜底。 */
-    const cs = getComputedStyle(el);
-    for (let i = 0; i < cs.length; i++) {
-      const name = cs.item(i);
-      if (name && name.slice(0, 2) === '--') {
-        const value = cs.getPropertyValue(name);
-        if (value) copy.style.setProperty(name, value.trim());
-      }
-    }
-    copy.setAttribute('aria-hidden', 'true');
-    copy.dataset.motionClone = 'view';
-    const srcCv = el.querySelectorAll('canvas'), dstCv = copy.querySelectorAll('canvas');
-    for (let i = 0; i < Math.min(srcCv.length, dstCv.length); i++) {
-      try { const c = dstCv[i].getContext('2d'); c && c.drawImage(srcCv[i], 0, 0); } catch (_) {}
-    }
-    /* 书架可能正停在中间某一排：clone 不继承 scrollTop，推移时要补回去 */
-    return { copy, rect: r, scrollTop: el.scrollTop, scrollLeft: el.scrollLeft };
+    /* 11-22 性能二轮：旧画面也不 cloneNode 了。三种视图互切时 renderHome
+       只把旧视图 hidden、从不动它的子树（重建的只会是目标视图），所以推移
+       期间直接让真元素出文档流当旧画面（见 pushView），动画收尾 hidden 回去。
+       省掉一次全视图克隆 + 一笔 canvas 逐个 drawImage + 克隆子树的排版与绘制
+       —— 书多的书架上这正是切换主线程阻塞的大头。
+       scroll 位置在 display:none 一圈后可能被浏览器重置，抓下来推移时补回。 */
+    return { el, rect: r, scrollTop: el.scrollTop, scrollLeft: el.scrollLeft };
   }
   function stopPush() {
     const rec = pushRun;
     if (!rec) return;
     pushRun = null;
     try { rec.a && rec.a.cancel(); rec.b && rec.b.cancel(); } catch (_) {}
-    if (rec.old) rec.old.remove();
-    if (rec.fresh) rec.fresh.remove();
+    if (rec.old) {
+      /* 旧画面是真元素：摘掉推移期的内联定位与类，还原 renderHome 给的隐藏态 */
+      rec.old.classList.remove('sb-push-outgoing');
+      rec.old.style.cssText = rec.oldCss || '';
+      rec.old.hidden = true;
+    }
     if (rec.el) {
       rec.el.style.visibility = '';
+      /* sb-push-running 挂在真视图上：WAAPI 已 cancel，类不摘会一直压着
+         指针事件和 z-index。sb-push-hidden 是旧「克隆入场」方案的残留，顺手清。 */
+      rec.el.classList.remove('sb-push-running');
       rec.el.classList.remove('sb-push-hidden');
     }
   }
   function pushView(snapshot, incoming, direction) {
     if (!snapshot || !incoming || incoming.hidden || reduced() || !SB || !hasWAAPI) {
-      if (snapshot) snapshot.copy.remove();
       return false;
     }
     stopPush();
-    /* 新旧两块画面都用同规格的 fixed 副本，并且都挂回源视图的父层：
-       改挂 #app 会丢掉 #home 上的 class / 后代选择器，轮播封面因此缩一圈，
-       动画落地换回真实视图时会「从小变大」跳一下。同父层、同尺寸、同曲线
-       反向平移，接缝始终在一条线上。 */
-    const old = snapshot.copy, freshSnap = captureView(incoming);
-    if (!freshSnap) { old.remove(); return false; }
-    const fresh = freshSnap.copy;
-    const width = Math.max(1, Math.round(snapshot.rect.width || freshSnap.rect.width || window.innerWidth));
+    /* 新旧两块画面同父层、同尺寸、同曲线反向平移，接缝恒在一条线上。
+       11-22 性能二轮：旧画面同样用真元素（不再 cloneNode，见 captureView）——
+       renderHome 刚把它 hidden，这里摘掉 hidden、原地转成 absolute 覆盖层，
+       推移完 stopPush 再 hidden 回去。z-index:4 与旧克隆方案一致：
+       新画面（.sb-push-running，z 5）永远压在上面。真元素还免掉了 canvas
+       拷贝（画面里的 canvas 是活的），且不会出现两份重复 id。 */
+    const old = snapshot.el;
+    const r = incoming.getBoundingClientRect();
+    if (!r.width || !r.height) return false;
+    const width = Math.max(1, Math.round(snapshot.rect.width || r.width || window.innerWidth));
     const dir = direction < 0 ? -1 : 1;
     const spring = SB.uikit.navigation.spring;
     const progress = springProgress(spring, 42);
-    const app = incoming.parentNode || $('#app') || document.body;
-    app.appendChild(old);
-    app.appendChild(fresh);
+    const rec = { el: incoming, old, oldCss: old.style.cssText, a: null, b: null };
+    pushRun = rec;
+    old.hidden = false;
     old.scrollTop = snapshot.scrollTop || 0;
     old.scrollLeft = snapshot.scrollLeft || 0;
-    fresh.scrollTop = freshSnap.scrollTop || 0;
-    fresh.scrollLeft = freshSnap.scrollLeft || 0;
-    incoming.style.visibility = 'hidden';
-    /* gl-lab 把铆钉写成 visibility:visible，继承的 hidden 压不住它：
-       不额外压这一层，原位会留一整排铆钉，跟副本里那排重叠成双份。 */
-    incoming.classList.add('sb-push-hidden');
-    old.classList.add('sb-push-running');
-    fresh.classList.add('sb-push-running');
-    const rec = { el: incoming, old, fresh, a: null, b: null };
-    pushRun = rec;
+    old.style.cssText += ';position:absolute;inset:0;margin:0;z-index:4;pointer-events:none;' +
+      'animation:none;transition:none;';
+    old.classList.add('sb-push-outgoing');
+    /* .sb-push-running 同时给真视图：抬到旧画面（z-index:4）之上、
+       动画期间挡住指针事件；落地 / 中断由 stopPush 摘掉。 */
+    incoming.classList.add('sb-push-running');
+    /* shelf / spine 的 wrap 自带 fadeIn 入场（display:none → block 必重播）：
+       推移开始前把它跳到末态，别让滑进来的画面半透明地叠在旧画面上。
+       finish() 只是提前到末态、不摘 animation-name，落地后不会重播闪一下。
+       旧画面同样会重播 fadeIn（刚从 hidden 里放出来），内联 animation:none 压住。 */
+    try {
+      incoming.getAnimations().forEach(a => {
+        try { if (a.animationName === 'fadeIn') a.finish(); } catch (_) {}
+      });
+    } catch (_) {}
     const finish = () => { if (pushRun === rec) stopPush(); };
     /* 0 → 1 的同一条曲线喂给两块画面：
-       old 从原位走到 ±屏宽，fresh 从 ∓屏宽走到原位，接缝恒在一条线上。 */
-    rec.a = play(fresh, progress.map(p => ({
+       old 从原位走到 ±屏宽，fresh 从 ∓屏宽走到原位。 */
+    rec.a = play(incoming, progress.map(p => ({
       transform: `translate3d(${(-dir * width * (1 - p)).toFixed(2)}px,0,0)`
     })), springDuration(spring), finish);
     rec.b = play(old, progress.map(p => ({
@@ -303,7 +366,7 @@
     if (!p) return;
     pendingPush = null;
     if (p.timer) clearTimeout(p.timer);
-    if (p.snap) p.snap.copy.remove();
+    /* 快照只持引用不持副本（真元素方案），这里只剩计时器要清 */
   }
   function finishPending(visible, viewIndex) {
     const pending = pendingPush;
@@ -313,7 +376,6 @@
     if (!pending.snap) return;
     const next = visible(), nextIndex = viewIndex(next);
     if (!next || nextIndex === pending.oldIndex || $('#reader').classList.contains('show')) {
-      pending.snap.copy.remove();
       return;
     }
     /* 目标在左：旧画面右移出、新画面从左进（dir=1）；目标在右则镜像 */
@@ -424,7 +486,10 @@
   }
   function init() {
     const order = ['#shelfWrap', '#spineWrap', '#carouselWrap'];
-    const visible = () => order.map($).find(el => el && !el.hidden) || null;
+    /* 推移进行中，被推出去的旧画面也是「未 hidden」的真元素，要排除掉 ——
+       否则连切时它会被误当成当前视图抓去当快照（rect 还带着进行中的位移） */
+    const visible = () => order.map($).find(el => el && !el.hidden &&
+      !el.classList.contains('sb-push-outgoing')) || null;
     const viewIndex = el => order.indexOf(el && '#' + el.id);
     const viewFor = v => $(v === 'shelf' ? '#shelfWrap' : v === 'spine' ? '#spineWrap' : '#carouselWrap');
 
@@ -467,10 +532,9 @@
     wrap('openEditor', null, function () {
       if (window.MHome && MHome.isMobile() && $('#mask').classList.contains('show')) sheet($('#modal'), true);
     });
-    wrap('closeEditor', function () {
-      const skip = window.CarnetSwipeBack && CarnetSwipeBack.consuming;
-      if (!skip && window.MHome && MHome.isMobile() && $('#mask').classList.contains('show')) dismissSheet($('#modal'));
-    });
+    /* closeEditor 的移动端退场已由 editor.js 直接调 dismissSheet（带 onLand 落地回调），
+       不再在这里包装 —— 之前靠 DOMContentLoaded 后 wrap，而 init 走 setTimeout(0)
+       可能抢在 editor.js 定义 closeEditor 之前跑，wrap 会静默落空，退场动画时有时无。 */
     [
       ['openTextSheet', 'closeTextSheet', '#tsheet'],
       ['openBgSheet', 'closeBgSheet', '#bgsheet'],
@@ -491,13 +555,17 @@
       };
     }
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
-  else setTimeout(init, 0);
+  /* init 必须等全部 defer 脚本跑完（closeEditor / setView 等都定义完了）再接最外层。
+     defer 执行阶段 readyState 已是 'interactive'，走 setTimeout(0) 会和后面
+     defer 脚本的任务抢跑 —— 抢赢了就包不到函数（静默落空）。统一挂
+     DOMContentLoaded：它一定在所有 defer 脚本之后触发。 */
+  if (document.readyState === 'complete') setTimeout(init, 0);
+  else document.addEventListener('DOMContentLoaded', init, { once: true });
 
   window.CarnetMotion = {
     load, haptic, rubberBand, decay, decayVelocity,
     lib: () => SB,
-    sheet, dismissSheet, cancelSheet,
+    sheet, dismissSheet, dismissSheetLive, cancelSheet,
     zoomFrames,
     morphOpen, morphClose,
     status: () => ({ ready: !!SB, reduced: reduced(), pushing: !!pushRun, morphing: !!morphRun })

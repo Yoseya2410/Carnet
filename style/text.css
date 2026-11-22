@@ -77,8 +77,8 @@
 .addmenu button svg{flex:none;opacity:.9;transform:scale(1.15)}
 .addmenu button svg[width="16"]{width:20px;height:20px;transform:none}
 .addmenu .am-t{font-weight:800;font-family:Georgia,"Times New Roman",serif;width:20px;font-size:17px;text-align:center}
-.addmenu .am-p{font-size:11px;opacity:.6;margin-left:5px;letter-spacing:.02em}
-.addmenu .am-p:empty{display:none}
+/* （菜单项标题后面的「· 第 N 页」小字已删：.am-p 占位壳和这条样式一并去掉，
+   updateAddMenuHint 只剩双页时的「左页 / 右页」切换条要管） */
 /* 菜单里的分组线：一口气放五项以上时，把「对本子做的事」和「设置 / 帮助」分开 */
 .addmenu .am-sep{height:1px;margin:5px 8px;background:rgba(255,255,255,.14);flex:none}
 /* 双页模式下选「加到哪一页」 */

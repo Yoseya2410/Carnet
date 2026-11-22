@@ -259,7 +259,9 @@
   box-shadow:0 10px 22px -10px rgba(20,22,40,.55)
 }
 .actionbar .icon-btn:hover{background:rgba(255,255,255,.26)}
-.actionbar .icon-btn.danger{color:var(--accent-on-dark)}
+/* 删除是危险动作：垃圾桶图标单独特成红色（跟 .pick-btn.danger 同一套危险色），
+   别跟分享 / 新建的白图标混成一色 */
+.actionbar .icon-btn.danger{color:#ff8f8f}
 /* 浅色背景：玻璃换成**白**玻璃、图标换深色，不然白图标贴在浅玻璃上看不清
    （以前按键是近乎不透明的白色圆钮，什么背景都不用管；改毛玻璃后必须补这套）。
    ⚠️ tint 必须是白色半透明，不能拿深色压 —— 深色叠在按钮上就是一坨灰黑块，不是玻璃 */
@@ -270,7 +272,7 @@
   backdrop-filter:blur(1px) saturate(150%);-webkit-backdrop-filter:blur(16px) saturate(150%)
 }
 #home.bg-light .actionbar .icon-btn:hover{background:rgba(255,255,255,.46)}
-#home.bg-light .actionbar .icon-btn.danger{color:#111318}
+#home.bg-light .actionbar .icon-btn.danger{color:#b8302b}
 
 /* 主页按钮不画白色焦点框：base.css 那条全局 :focus-visible 会在按钮被点击 / 聚焦后
    临时套一圈 2px 白框，浅底上很突兀、失焦又消失 —— 用户不要这个「选中的白色框」。

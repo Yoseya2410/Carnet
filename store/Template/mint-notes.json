@@ -1,0 +1,36 @@
+{
+  "app": "carnet",
+  "version": 1,
+  "store": {
+    "id": "mint-notes",
+    "code": "MINT NOTES",
+    "description": "清新薄荷绿配细格纸页，浅色书脊适合日程、清单与每日记录。"
+  },
+  "journal": {
+    "id": "store-mint-notes",
+    "name": "薄荷",
+    "style": "classic",
+    "cover": {
+      "img": null,
+      "radius": 10,
+      "type": "gradient",
+      "value": "linear-gradient(145deg,#a9cfbd,#5f8c78)",
+      "pattern": "grid",
+      "patColor": "#f4fff9",
+      "texture": "cloth"
+    },
+    "ribbon": "#f3e7d0",
+    "template": "grid",
+    "tplImg": "",
+    "tplImgs": [],
+    "tplFit": "cover",
+    "pageBg": "",
+    "pages": [
+      {"images":[],"texts":[]},{"images":[],"texts":[]},{"images":[],"texts":[]},{"images":[],"texts":[]},
+      {"images":[],"texts":[]},{"images":[],"texts":[]},{"images":[],"texts":[]},{"images":[],"texts":[]},
+      {"images":[],"texts":[]},{"images":[],"texts":[]},{"images":[],"texts":[]},{"images":[],"texts":[]}
+    ],
+    "created": 0,
+    "pagesN": 12
+  }
+}

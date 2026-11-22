@@ -603,6 +603,17 @@ function shTab(name) {
   $$('#tsTabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === sh.tab));
   $$('#tsPanes .ts-pane').forEach(p => p.classList.toggle('on', p.dataset.pane === sh.tab));
 }
+/* 英文字体按钮：商店下载的字体由 main.js 异步载入 EN_FONTS 后重画一次，
+   否则 buildSheet() 在脚本加载时只画一次，字体库还没读完就定型了。 */
+function renderEnFontButtons() {
+  const box = $('#tsEnFonts');
+  if (!box) return;
+  box.innerHTML = EN_FONTS.map(f =>
+    `<button data-ef="${f.k}" title="${f.hint || f.n}" style="${f.css ? 'font-family:' + f.css : ''}">${enFontLabel(f)}</button>`).join('');
+  const t = shCur();
+  if (t) $$('#tsEnFonts button').forEach(b => b.classList.toggle('on', b.dataset.ef === (t.fontEn || '')));
+}
+window.addEventListener('carnet-fonts-ready', renderEnFontButtons);
 function buildSheet() {
   const tabs = $('#tsTabs');
   if (!tabs) return;
@@ -616,8 +627,7 @@ function buildSheet() {
   /* 英文字体：自带档直接把字体原名用该字体渲染出来（enFontLabel，按钮整体套了对应字族），
      前四档系统字体仍走中文名 + Aa 样例。中文风格说明留在 title 里，鼠标停上去还能看。
      开面板这一刻 17 档会触发 woff2 下载（合计约 890KB，缓存后只拉一次，首屏不受影响）。 */
-  $('#tsEnFonts').innerHTML = EN_FONTS.map(f =>
-    `<button data-ef="${f.k}" title="${f.hint || f.n}" style="${f.css ? 'font-family:' + f.css : ''}">${enFontLabel(f)}</button>`).join('');
+  renderEnFontButtons();
   $('#tsColors').innerHTML = TEXT_COLORS.map(c =>
     `<button data-c="${c}" style="background:${c}" title="${c}"></button>`).join('')
     + '<button class="custom" data-c="__custom" title="自定义颜色"></button>';

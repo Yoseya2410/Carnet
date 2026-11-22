@@ -34,6 +34,29 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
 .store-source{margin:28px 0 0;text-align:center;font-size:10px;letter-spacing:.1em;color:#929292}
 .store-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:50px 30px}
 .store-message{margin:70px 0;text-align:center;font-size:13px;line-height:1.8;color:var(--store-muted)}
+/* 手账本：四个板块各占一行，卡片横向滚动，触屏直接左右滑。 */
+.store-grid.as-rows{display:block}
+.store-group{margin:0 0 58px}
+.store-group:last-child{margin-bottom:0}
+.store-group-head{display:flex;align-items:center;gap:14px;margin:0 0 20px}
+.store-group-head h2{margin:0;font-size:15px;font-weight:600;letter-spacing:.16em;white-space:nowrap}
+.store-group-rule{flex:1;height:1px;background:var(--store-line)}
+.store-group-count{font-family:"Courier New",monospace;font-size:11px;letter-spacing:.1em;color:#8a8a8a}
+.store-group-more{font-size:14px;line-height:1;color:#8a8a8a}
+.store-group-row{
+  display:flex;gap:18px;overflow-x:auto;overflow-y:hidden;
+  scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;
+  padding:4px 0 18px;margin:-4px 0 -18px;
+  scrollbar-width:thin;scrollbar-color:#c9c9c4 transparent
+}
+.store-group-row::-webkit-scrollbar{height:5px}
+.store-group-row::-webkit-scrollbar-thumb{background:#c9c9c4;border-radius:9px}
+.store-group-row.dragging{cursor:grabbing;scroll-snap-type:none;user-select:none}
+.store-group-row.dragging .store-card{pointer-events:none}
+.store-group-row .store-card{flex:0 0 230px;scroll-snap-align:start}
+.store-group-row .store-card-preview{height:280px}
+.store-group-row .store-card .cover{--cover-w:148px;--cr-scale:.63}
+.store-group-row:focus-visible{outline:2px solid #111;outline-offset:2px}
 .store-card{position:relative;min-width:0;padding:0;background:transparent;text-align:center}
 .store-card-preview{
   position:relative;height:310px;display:grid;place-items:center;background:transparent;
@@ -120,6 +143,9 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
 .download-button.busy svg{animation:storeDownload 1s ease-in-out infinite}
 @keyframes storeDownload{50%{transform:translateY(3px)}}
 .open-shelf{font-size:12px;letter-spacing:.08em;border-bottom:1px solid #111;padding-bottom:4px}
+.remove-font-button{min-width:210px;min-height:44px;padding:10px 20px;border:1px solid #d6b4b4;border-radius:2px;background:transparent;color:#8b2828;font-size:12px;letter-spacing:.08em;transition:background .18s,color .18s}
+.remove-font-button:hover:not(:disabled){background:#8b2828;color:#fff}
+.remove-font-button:disabled{cursor:default;opacity:.5}
 .download-status{min-height:20px;margin:18px 0 0;font-size:12px;line-height:1.6;color:#333}
 .download-status.error{color:#8b2828}
 .download-note{margin:8px 0 0;font-size:11px;line-height:1.7;color:#929292}
@@ -128,6 +154,7 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
 @media (min-width:1400px){.book-3d{--cover-w:250px}.detail-info{padding-left:64px;padding-right:64px}}
 @media (max-width:900px){
   .store-grid{gap:38px 18px}.store-card-preview{height:280px}.store-card .cover{--cover-w:138px}
+  .store-group{margin-bottom:48px}.store-group-row .store-card{flex-basis:200px}.store-group-row .store-card-preview{height:250px}.store-group-row .store-card .cover{--cover-w:132px}
   .detail-layout{grid-template-columns:minmax(0,1.15fr) minmax(300px,.85fr)}
   .detail-info{padding:46px 30px}.detail-visual{padding:28px 24px}.book-3d{--cover-w:190px}
   .detail-info h2{font-size:34px}
@@ -138,6 +165,9 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
   .store-intro h1{font-size:32px}.store-subtitle{font-size:12px;margin-top:14px}.store-kicker{font-size:9px;margin-bottom:13px}
   .store-tabs{margin:-12px 0 28px;gap:5px}.store-tabs button{min-width:0;padding:9px 17px;font-size:12px}
   .store-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:32px 10px}
+  .store-group{margin-bottom:40px}.store-group-head{margin-bottom:14px}.store-group-head h2{font-size:14px}
+  .store-group-row .store-card{flex-basis:160px}.store-group-row .store-card-preview{height:200px}.store-group-row .store-card .cover{--cover-w:104px;--cr-scale:.49}
+  .store-group-row .store-card-name{margin-top:10px;font-size:14px}.store-group-row .store-card-meta{font-size:8px;margin-top:4px}
   .store-card-preview{height:236px}.store-card .cover{--cover-w:112px;--cr-scale:.48}
   .store-card:hover .store-card-preview{background:transparent}.store-card:hover .cover{transform:none}
   .store-card-name{margin-top:12px;font-size:14px}.store-card-meta{font-size:8px;margin-top:5px}
@@ -155,7 +185,8 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
   .detail-description{margin-top:20px;font-size:13px}.detail-actions{margin-top:26px}
   .download-button{width:100%;min-height:50px}.open-shelf{align-self:center}
 }
-@media (max-width:350px){.store-card-preview{height:210px}.store-card .cover{--cover-w:98px}.store-main{padding-left:12px;padding-right:12px}}
+@media (max-width:350px){.store-card-preview{height:210px}.store-card .cover{--cover-w:98px}.store-main{padding-left:12px;padding-right:12px}
+  .store-group-row .store-card{flex-basis:140px}.store-group-row .store-card .cover{--cover-w:86px}}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
 }

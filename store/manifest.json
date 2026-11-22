@@ -1,0 +1,25 @@
+{
+  "note": "手动上架：商品文件按类型放在 Template（手帐 JSON）、Sticker（贴纸 LBL）、font（字体 WOFF/WOFF2）三个子目录，字体授权 txt 单独放 license 目录；files 登记相对 store 目录的路径，字体可附 store / font 描述。普通 Carnet 手帐 JSON 与贴纸 .lbl 均可直接读取。",
+  "files": [
+    "Template/mint-notes.json",
+    "Template/apricot-dream.json",
+    "Template/sea-salt.json",
+    "Template/iris-square.json",
+    "Template/night-stars.json",
+    "Template/cherry-dots.json",
+    "Sticker/daily-doodles.lbl",
+    "Sticker/paper-marks.lbl",
+    {
+      "file": "font/Caveat.woff2",
+      "type": "font",
+      "store": {"id":"font-caveat","code":"CAVEAT","description":"轻松自然的英文手写字体，适合标题、日期和随手记下的短句。"},
+      "font": {"k":"store-caveat","n":"Caveat 手写","en":"Caveat","hint":"Caveat · 自然手写","family":"CarnetStoreCaveat","fallback":"'Comic Sans MS','Segoe Print'","format":"woff2","weight":"400 700"}
+    },
+    {
+      "file": "font/BebasNeue-Regular.woff2",
+      "type": "font",
+      "store": {"id":"font-bebas","code":"BEBAS NEUE","description":"窄长高对比的英文展示字体，适合封面标题和醒目标记。"},
+      "font": {"k":"store-bebas","n":"Bebas Neue 标题","en":"Bebas Neue","hint":"Bebas Neue · 窄体标题","family":"CarnetStoreBebas","fallback":"'Impact','Haettenschweiler'","format":"woff2","weight":"400"}
+    }
+  ]
+}

@@ -392,11 +392,14 @@ html:not(.mui-off) #home.m-carousel #mCarouselMeta{
     height:40px;flex:0 0 auto;border-radius:999px;display:flex;align-items:center;justify-content:center;
     color:#20232c;font-size:15px;letter-spacing:.02em
   }
-  .m-pickbar .mp-del{width:34px}
+  /* 垃圾桶特成红色（用户 11-22 定稿）：危险动作跟「完成」的黑字区分开，
+     色值跟桌面多选胶囊 .pick-btn.danger 浅底档的 #b8302b 同源 */
+  .m-pickbar .mp-del{width:34px;color:#b8302b}
   /* 多选胶囊里的垃圾桶：19 → 23px，34px 的圆里左右各留 5.5px，仍是几何居中 */
   .m-pickbar .mp-del svg{width:23px;height:23px}
   .m-pickbar .mp-done{font-weight:600}
   .m-pickbar button:active{background:rgba(20,24,40,.05)}
+  .m-pickbar .mp-del:active{background:rgba(214,55,55,.14)}
 
   /* 勾选框回到原来的**圆形**半透明圈（menus.css 的 .pick 就是这套：白边 + 选中深色渐变），
      这里只把它钉到封面左上角、略微放大，不再覆写 border-radius / 底色。 */
@@ -1044,10 +1047,16 @@ html:not(.mui-off) #home.m-carousel #mCarouselMeta{
   box-shadow:none!important
 }
 .bg-light [data-morph] .addmenu{background:#fff!important}
-.sb-push-running{will-change:transform}
-/* 推移动画期间真实视图整体隐藏；WebGL 模式下 gl-lab 显式把 .screw 设成
-   visibility:visible，继承的 hidden 盖不住，会跟副本里的铆钉叠成双份。 */
-.sb-push-hidden .shelf-board .screw{visibility:hidden!important}
+/* 推移动画期间的入场画面就是真视图本身（11-22 性能，不再克隆）：
+   relative + z-index:5 抬到旧画面 fixed 副本（z-index:4）之上，仍让给
+   更晚出现在 DOM 里的顶栏 / 底栏（同 5，后者胜）；动画期间挡住指针事件，
+   will-change 提前提升成合成层。落地 / 中断由 motion.js 的 stopPush 摘类。 */
+.sb-push-running{will-change:transform;position:relative;z-index:5;pointer-events:none}
+/* 11-22 性能二轮：被推出去的旧画面也是真视图本身了（不再克隆副本）——
+   motion.js 把它原地转成 absolute 覆盖层（z-index:4，内联写在元素上），
+   这里只补合成层提升，推移全程两块画面都走合成器、零主线程重绘。
+   落地 / 中断同样由 stopPush 摘类。 */
+.sb-push-outgoing{will-change:transform}
 @media (prefers-reduced-motion:reduce){
-  .sb-push-running{will-change:auto}
+  .sb-push-running,.sb-push-outgoing{will-change:auto}
 }

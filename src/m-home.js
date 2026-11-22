@@ -97,7 +97,8 @@
         b.classList.toggle('on', b.dataset.mv === sw.dataset.v));
     }
     const n = typeof pickedList === 'function' ? pickedList().length : 0;
-    /* ⚠️ 别给这两颗按钮上 disabled：参考图里垃圾桶与完成都是常亮的黑字黑图标，
+    /* ⚠️ 别给这两颗按钮上 disabled：垃圾桶红色 / 完成黑字，都常亮不置灰
+       （用户 11-22 定稿：删除按钮用红色图标，不再跟参考图的黑桶），
        没勾书时点一下由原有逻辑 toast 提示即可（#pickDelete / 分享菜单各自会拦）。 */
     const cnt = $('#mPickCount');
     if (cnt) cnt.textContent = n ? `已选 ${n} 本` : '选择手帐本';
@@ -512,7 +513,10 @@
    * ② 新建 / 编辑：两步式 Bottom Sheet
    * ------------------------------------------------------------------ */
   /* 第一步：大卡片横滑选装帧（照参考图），当前居中那张的名字写在标题下方、底下分页点。
-     预览用真正的封面 coverHTML，选到哪档看到的就是成品。 */
+     预览用真正的封面 coverHTML，选到哪档看到的就是成品。
+     ⚠️ 新建本第一次打开必须落在第一张（精装书）：BOOK_STYLES 的顺序就是展示顺序，
+        不能跟着 ed.temp.style 的默认 classic 跑到最后一张去。从第二步「返回」时
+        才按 ed.temp.style 定位，保留用户刚才选的那档。 */
   function nsPickAt(i) {
     const k = clamp(i, 0, BOOK_STYLES.length - 1);
     const sub = $('#edPickSub');
@@ -520,19 +524,29 @@
     $$('#edPickDots i').forEach((d, n) => d.classList.toggle('on', n === k));
     $$('#edPickCards .ns-card').forEach((c, n) => c.classList.toggle('on', n === k));
   }
-  function nsRenderPick() {
+  function nsRenderPick(startAtFirst) {
     const box = $('#edPickCards');
     if (!box || !ed.temp) return;
-    box.innerHTML = BOOK_STYLES.map(s => `
-      <button class="ns-card" data-ns-style="${s.k}">
-        <span class="ns-pv">${coverHTML({ ...ed.temp, style: s.k })}</span>
-        <b>${s.n}</b><small>${s.d}</small>
-      </button>`).join('');
-    const dots = $('#edPickDots');
-    if (dots) dots.innerHTML = BOOK_STYLES.map(() => '<i></i>').join('');
-    const curIdx = Math.max(0, BOOK_STYLES.findIndex(s => s.k === normBookStyle(ed.temp.style)));
+    if (startAtFirst && ed.temp.style !== BOOK_STYLES[0].k) ed.temp.style = BOOK_STYLES[0].k;
+    /* 四张卡的内容只跟封面数据有关（coverHTML({...ed.temp, style})），与选中哪档无关：
+       签名没变就不重建——新建弹窗每次打开都是同一份默认封面，
+       白画 4 张大封面卡再强制布局一次是打开路径上的固定开销。
+       选中态与分页点在下面 nsPickAt 里照常刷新。 */
+    const sig = coverSig(ed.temp);
+    if (box.dataset.pvsig !== sig) {
+      box.dataset.pvsig = sig;
+      box.innerHTML = BOOK_STYLES.map(s => `
+        <button class="ns-card" data-ns-style="${s.k}">
+          <span class="ns-pv">${coverHTML({ ...ed.temp, style: s.k })}</span>
+          <b>${s.n}</b><small>${s.d}</small>
+        </button>`).join('');
+      const dots = $('#edPickDots');
+      if (dots) dots.innerHTML = BOOK_STYLES.map(() => '<i></i>').join('');
+    }
+    const curIdx = startAtFirst ? 0
+      : Math.max(0, BOOK_STYLES.findIndex(s => s.k === normBookStyle(ed.temp.style)));
     nsPickAt(curIdx);
-    /* 把当前装帧滚到正中：容器左右有 padding，offsetLeft 已经把它算进去 */
+    /* 把要选择的那一张滚到正中：容器左右有 padding，offsetLeft 已经把它算进去 */
     const card = box.querySelectorAll('.ns-card')[curIdx];
     if (card) box.scrollLeft = card.offsetLeft - (box.clientWidth - card.clientWidth) / 2;
     if (!box.dataset.bound) {
@@ -569,23 +583,27 @@
   }
   const origOpenEditor = window.openEditor;
   window.openEditor = function (journal) {
-    const mask = $('#mask');
+    const mask = $('#mask'), mob = isMobile();
     /* 新建时先落到第一步，再让 origOpenEditor 加 .show ——
        否则打开那一帧会先按 90% 撑开再收下来，看得见一次跳动 */
-    if (isMobile() && mask && !journal) mask.classList.add('ns-setup', 'ns-pick');
+    if (mob && mask && !journal) mask.classList.add('ns-setup', 'ns-pick');
+    /* ed.fold 必须赶在 origOpenEditor 的 syncEditor 之前清掉：移动端是连续清单，
+       不吃桌面折叠状态 —— 清早了，包装尾部就不用再全量同步一遍 */
+    if (mob) ed.fold = {};
     origOpenEditor(journal);
     if (!mask) return;
-    if (!isMobile()) {
+    if (!mob) {
       mask.classList.remove('ns-pick', 'ns-setup');
       /* 桌面端新建 / 编辑都要显示左上返回按钮，把移动端留下的 inline display 清掉 */
       const b = $('#nsBack'); if (b) b.style.display = '';
       return;
     }
-    /* 编辑已有本：直接给 90% 的设置页；新建：先落在按内容定高的选样式页 */
+    /* 编辑已有本：直接给 90% 的设置页；新建：先落在按内容定高的选样式页。
+       表单同步已由 origOpenEditor（或进第二步时的 ensureEditorBuilt）做完，
+       这里不再重复跑一遍 —— 每遍 syncEditor 都要重画 5 张封面 + 全部色块与模板 */
     mask.classList.add('ns-setup');
-    ed.fold = {};                         // 移动端是连续清单，不吃桌面那套折叠状态
     if (!journal) {
-      nsRenderPick();
+      nsRenderPick(true);
       mask.classList.add('ns-pick');
       nsMeasurePick();
     } else {
@@ -593,7 +611,6 @@
     }
     const back = $('#nsBack');
     if (back) back.style.display = journal ? 'none' : '';
-    syncEditor();
     $('#modal').scrollTop = 0;
   };
   /* 右下黑色 ＋：走同一个 openEditor(null)，包装里会自动落到第一步 */
@@ -610,7 +627,10 @@
     mask.classList.remove('ns-pick');     // 同一个盒子从贴内容高度抬到 90%
     mask.classList.add('ns-setup');
     ed.fold = {};
-    syncEditor();
+    /* 第一步期间表单是延迟构建的：进第二步先补齐构建 + 同步（edBuildPending 被
+       openEditor 抬回去过，这里一定真的建）；从第二步返回过再进来时表单还在，
+       只需同步换装帧后的差异 */
+    if (!ensureEditorBuilt()) syncEditor();
     $('#modal').scrollTop = 0;
   });
   const nsBack = $('#nsBack');
@@ -628,6 +648,11 @@
   const maskEl = $('#mask');
   function nsCleanup() {
     const modal = $('#modal');
+    /* 真面板退场动画（sb-sheet-live）进行中：类名和 inline transform 都归
+       动画管 —— 这时候清掉 ns-dragging 会把 animation 从 none 翻回 nsUp，
+       下滑中的面板当场重放入场动画；动过 transform 会把面板拽回原位。
+       落地 / 被接管时由 motion.js 统一清理。 */
+    if (modal && modal.classList.contains('sb-sheet-live')) return;
     if (modal) {
       modal.classList.remove('ns-dragging', 'ns-closing', 'ns-snapback');
       modal.style.transform = '';
@@ -903,12 +928,12 @@
   if (deskMenu) deskMenu.onclick = mOpenMenu;
   const mnBack = $('#mnBack');
   if (mnBack) mnBack.onclick = () => closeMenus();
-  /* 品牌卡：点头像 / 名称 / 整块都进 yoseya.top */
+  /* 品牌卡：点头像 / 名称 / 整块都在新窗口进 yoseya.top，主窗口继续留在手账本。 */
   const mnBrand = $('#homeMenu .mn-brand');
   if (mnBrand) {
     const visitSite = () => {
       closeMenus();
-      window.location.href = 'https://yoseya.top';
+      window.open('https://yoseya.top', '_blank', 'noopener,noreferrer');
     };
     mnBrand.addEventListener('click', visitSite);
     mnBrand.addEventListener('keydown', e => {

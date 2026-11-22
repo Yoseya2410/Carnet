@@ -386,6 +386,18 @@ function syncSpinePlinth() {
      要按「第一根左边 → 最后一根右边」的真实中心摆，才永远托在书脚下。 */
   plinth.style.left = Math.round((a.left + b.right) / 2 - rr.left) + 'px';
 }
+/* 把当前选中的那根书脊横滚到 #spineScroll 可视范围中间（切换模式进单层书架用）。
+   ⚠️ 绝不能在这里用 scrollIntoView：模式切换的推移动画期间 #spineWrap 带着
+      translate3d 把页面撑宽，scrollIntoView 会连页面级滚动容器一起滚——
+      顶栏 / 底栏的按钮整排被推到屏幕左侧，再跟着弹簧滑回来，看起来就是
+      「切换时按钮从左往右移动」（2026-11-22 用户报告，改书排自己的 scrollLeft 修复）。
+   用 offsetLeft 而不是 getBoundingClientRect：后者会被进行中的推移 transform 带偏。 */
+function scrollSpineToCenter(i) {
+  const sc = $('#spineScroll'), row = $('#spineRow');
+  const el = row && row.querySelector(`.spine-item[data-i="${i}"]`);
+  if (!sc || !el) return;
+  sc.scrollLeft = Math.max(0, el.offsetLeft - (sc.clientWidth - el.offsetWidth) / 2);
+}
 function renderSpineShelf() {
   const row = $('#spineRow');
   if (!row) return;
@@ -416,10 +428,7 @@ function renderSpineShelf() {
   renderSpineDetail();
   if (typeof spineHoverRestore === 'function') requestAnimationFrame(spineHoverRestore);
   /* 从其它模式切回来时，当前那本可能排在屏幕外；只横移书排，不动整页 */
-  requestAnimationFrame(() => {
-    const el = $(`#spineRow .spine-item[data-i="${state.sel}"]`);
-    if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest', inline: 'center' });
-  });
+  requestAnimationFrame(() => scrollSpineToCenter(state.sel));
 }
 /* ==================== 书架多选导出 ==================== */
 /* 勾选用手帐本 id 记，不记下标 —— 中途增删或改顺序都不会认错人 */
@@ -502,8 +511,7 @@ function reuseHomeView(view) {
   if (view === 'spine') {
     spineSetHover(-1);
     requestAnimationFrame(() => {
-      const el = $(`#spineRow .spine-item[data-i="${state.sel}"]`);
-      if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest', inline: 'center' });
+      scrollSpineToCenter(state.sel);
       if (state.prefs.spinePlinth) syncSpinePlinth();
     });
     return;

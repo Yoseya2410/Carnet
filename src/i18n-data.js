@@ -98,9 +98,6 @@ window.CARNET_I18N_DATA = {
  "暂无手账本，请将 JSON 文件加入 store 目录并登记到 manifest.json。": {
   "zhCN": "暂无手账本，请将 JSON 文件加入 store 目录并登记到 manifest.json。", "zhTW": "暫無手帳本，請將 JSON 檔案加入 store 目錄並登記到 manifest.json。", "en": "No journals yet. Add JSON files to the store directory and list them in manifest.json.", "ja": "手帳がありません。store フォルダーに JSON を追加し、manifest.json に登録してください。", "fr": "Aucun carnet. Ajoutez les JSON dans store et déclarez-les dans manifest.json.", "es": "No hay diarios. Añade los JSON a store y regístralos en manifest.json."
  },
- "商店文件没能读取，请检查 store/manifest.json。": {
-  "zhCN": "商店文件没能读取，请检查 store/manifest.json。", "zhTW": "商店檔案沒能讀取，請檢查 store/manifest.json。", "en": "Could not read store files. Check store/manifest.json.", "ja": "ストアファイルを読み込めません。store/manifest.json を確認してください。", "fr": "Impossible de lire les fichiers. Vérifiez store/manifest.json.", "es": "No se pudieron leer los archivos. Comprueba store/manifest.json."
- },
  "正在整理商品…": {
   "zhCN": "正在整理商品…", "zhTW": "正在整理商品…", "en": "Preparing products…", "ja": "商品を準備しています…", "fr": "Préparation des produits…", "es": "Preparando productos…"
  },
@@ -122,8 +119,8 @@ window.CARNET_I18N_DATA = {
  "{0} 张贴纸": {
   "zhCN": "{0} 张贴纸", "zhTW": "{0} 張貼紙", "en": "{0} stickers", "ja": "{0} 枚のステッカー", "fr": "{0} autocollants", "es": "{0} pegatinas"
  },
- "这一分类暂时没有商品。": {
-  "zhCN": "这一分类暂时没有商品。", "zhTW": "這一分類暫時沒有商品。", "en": "No products in this category yet.", "ja": "このカテゴリーにはまだ商品がありません。", "fr": "Aucun produit dans cette catégorie pour le moment.", "es": "Aún no hay productos en esta categoría."
+ "暂无商品": {
+  "zhCN": "暂无商品", "zhTW": "暫無商品", "en": "No products", "ja": "商品がありません", "fr": "Aucun produit", "es": "No hay productos"
  },
  "已在贴纸库中": {
   "zhCN": "已在贴纸库中", "zhTW": "已在貼紙庫中", "en": "In sticker library", "ja": "ステッカーライブラリに追加済み", "fr": "Dans les autocollants", "es": "En la biblioteca de pegatinas"
@@ -145,6 +142,15 @@ window.CARNET_I18N_DATA = {
  },
  "已安装字体《{0}》": {
   "zhCN": "已安装字体《{0}》", "zhTW": "已安裝字體《{0}》", "en": "Installed font “{0}”", "ja": "フォント《{0}》をインストールしました", "fr": "Police « {0} » installée", "es": "Fuente «{0}» instalada"
+ },
+ "卸载已安装字体": {
+  "zhCN": "卸载已安装字体", "zhTW": "卸載已安裝字體", "en": "Uninstall font", "ja": "インストール済みフォントを削除", "fr": "Désinstaller la police", "es": "Desinstalar fuente"
+ },
+ "已卸载字体《{0}》": {
+  "zhCN": "已卸载字体《{0}》", "zhTW": "已卸載字體《{0}》", "en": "Uninstalled font “{0}”", "ja": "フォント《{0}》を削除しました", "fr": "Police « {0} » désinstallée", "es": "Fuente «{0}» desinstalada"
+ },
+ "卸载失败，请重试": {
+  "zhCN": "卸载失败，请重试", "zhTW": "卸載失敗，請重試", "en": "Uninstall failed. Please try again.", "ja": "削除に失敗しました。もう一度お試しください。", "fr": "Échec de la désinstallation. Réessayez.", "es": "Error al desinstalar. Inténtalo de nuevo."
  },
  "贴纸库最多 60 张，请先移除一些再下载。": {
   "zhCN": "贴纸库最多 60 张，请先移除一些再下载。", "zhTW": "貼紙庫最多 60 張，請先移除一些再下載。", "en": "The sticker library holds 60. Remove some before downloading.", "ja": "ステッカーは60枚までです。削除してからダウンロードしてください。", "fr": "La bibliothèque contient au maximum 60 autocollants. Supprimez-en avant de télécharger.", "es": "La biblioteca admite 60 pegatinas. Elimina algunas antes de descargar."
@@ -2781,13 +2787,13 @@ window.CARNET_I18N_DATA = {
   "es": "Activado · El móvil en vertical usa una pantalla de inicio y panel inferior propios; el escritorio no se ve afectado.",
   "zhCN": "已开启 · 手机竖屏使用独立主页与底部面板；电脑端不受影响"
  },
- "Carnet · 手帐本": {
-  "zhTW": "Carnet · 手帳本",
-  "en": "Carnet · Journal",
-  "ja": "Carnet · 手帳",
-  "fr": "Carnet · carnet",
-  "es": "Carnet · diario",
-  "zhCN": "Carnet · 手帐本"
+ "Carnet": {
+  "zhTW": "Carnet",
+  "en": "Carnet",
+  "ja": "Carnet",
+  "fr": "Carnet",
+  "es": "Carnet",
+  "zhCN": "Carnet"
  },
  "0 页": {
   "zhTW": "0 頁",
@@ -7772,5 +7778,45 @@ window.CARNET_I18N_DATA = {
   "ja": "言語を選択",
   "fr": "Choisir la langue",
   "es": "Seleccionar idioma"
+ },
+ "画册": {
+  "zhCN": "画册",
+  "zhTW": "畫冊",
+  "en": "Photo album",
+  "ja": "アルバム",
+  "fr": "Album photo",
+  "es": "Álbum"
+ },
+ "活页手账": {
+  "zhCN": "活页手账",
+  "zhTW": "活頁手帳",
+  "en": "Ring-bound journal",
+  "ja": "リング手帳",
+  "fr": "Carnet à anneaux",
+  "es": "Cuaderno de anillas"
+ },
+ "在封面上按住并拖出一条直线": {
+  "zhCN": "在封面上按住并拖出一条直线",
+  "zhTW": "在封面上按住並拖出一條直線",
+  "en": "Press and drag a straight line on the cover",
+  "ja": "表紙を押さえたまま直線をドラッグ",
+  "fr": "Appuyez et glissez une ligne droite sur la couverture",
+  "es": "Mantén pulsado y arrastra una línea recta en la portada"
+ },
+ "在封面上按住拖出一条胶带": {
+  "zhCN": "在封面上按住拖出一条胶带",
+  "zhTW": "在封面上按住拖出一條膠帶",
+  "en": "Press and drag to draw a tape on the cover",
+  "ja": "表紙を押さえたままドラッグしてテープを貼る",
+  "fr": "Appuyez et glissez pour poser un ruban sur la couverture",
+  "es": "Mantén pulsado y arrastra para colocar una cinta en la portada"
+ },
+ "胶带已贴到封面 · 可拖四角再调长度": {
+  "zhCN": "胶带已贴到封面 · 可拖四角再调长度",
+  "zhTW": "膠帶已貼到封面 · 可拖四角再調長度",
+  "en": "Tape added to the cover · drag a corner to adjust length",
+  "ja": "テープを表紙に貼りました · 四隅をドラッグして長さを調整",
+  "fr": "Ruban ajouté à la couverture · glissez un coin pour ajuster la longueur",
+  "es": "Cinta añadida a la portada · arrastra una esquina para ajustar la longitud"
  }
 };
