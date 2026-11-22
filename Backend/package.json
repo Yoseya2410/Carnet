@@ -1,0 +1,14 @@
+{
+  "name": "carnet-store-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Carnet 商店云端后端：商品目录、三类资源、热更新",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "catalog": "node tools/generate-catalog.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

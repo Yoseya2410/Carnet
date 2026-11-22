@@ -1,0 +1,17 @@
+{
+  "app": "carnet-stickers",
+  "version": 1,
+  "type": "stickers",
+  "store": {
+    "id": "paper-marks",
+    "code": "PAPER MARKS",
+    "description": "四枚纸张感标记，适合做索引、提醒和页面角落的小装饰。"
+  },
+  "name": "纸上标记",
+  "stickers": [
+    {"n":"书签","w":90,"h":120,"src":"data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2090%20120'%3E%3Cpath%20d='M15%208H75V112L45%2086L15%20112Z'%20fill='%238baec7'/%3E%3Cpath%20d='M28%2028H62'%20stroke='white'%20stroke-width='6'%20stroke-linecap='round'/%3E%3C/svg%3E"},
+    {"n":"便签","w":120,"h":110,"src":"data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20120%20110'%3E%3Cpath%20d='M8%208H112V110H8Z'%20fill='%23efe0a6'/%3E%3Cpath%20d='M25%2035H92M25%2055H82M25%2075H70'%20stroke='%238b7950'%20stroke-width='5'%20stroke-linecap='round'/%3E%3C/svg%3E"},
+    {"n":"叶片","w":120,"h":120,"src":"data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20120%20120'%3E%3Cpath%20d='M99%2018C48%2018%2020%2043%2024%2075C28%20104%2072%20107%2089%2074C101%2051%2099%2018%2099%2018Z'%20fill='%237da88e'/%3E%3Cpath%20d='M21%20104C40%2074%2061%2054%2087%2035'%20fill='none'%20stroke='%234d715d'%20stroke-width='5'%20stroke-linecap='round'/%3E%3C/svg%3E"},
+    {"n":"圆点","w":120,"h":120,"src":"data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20120%20120'%3E%3Ccircle%20cx='38'%20cy='38'%20r='24'%20fill='%23b8a6d9'/%3E%3Ccircle%20cx='82'%20cy='38'%20r='24'%20fill='%23f0b49c'/%3E%3Ccircle%20cx='38'%20cy='82'%20r='24'%20fill='%23f0b49c'/%3E%3Ccircle%20cx='82'%20cy='82'%20r='24'%20fill='%23b8a6d9'/%3E%3C/svg%3E"}
+  ]
+}

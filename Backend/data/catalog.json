@@ -1,0 +1,122 @@
+[
+  {
+    "id": "mint-notes",
+    "type": "journal",
+    "name": "薄荷",
+    "code": "MINT NOTES",
+    "description": "清新薄荷绿配细格纸页，浅色书脊适合日程、清单与每日记录。",
+    "sort_order": 1,
+    "status": "published",
+    "resource": "Template/mint-notes.json"
+  },
+  {
+    "id": "apricot-dream",
+    "type": "journal",
+    "name": "杏桃",
+    "code": "APRICOT DREAM",
+    "description": "柔和杏桃色硬壳与空白内页，留给文字、照片和自由拼贴。",
+    "sort_order": 2,
+    "status": "published",
+    "resource": "Template/apricot-dream.json"
+  },
+  {
+    "id": "sea-salt",
+    "type": "journal",
+    "name": "海盐",
+    "code": "SEA SALT",
+    "description": "海蓝布纹与六孔活页装帧，米色条纹配点阵内页，清爽也好规划。",
+    "sort_order": 3,
+    "status": "published",
+    "resource": "Template/sea-salt.json"
+  },
+  {
+    "id": "iris-square",
+    "type": "journal",
+    "name": "鸢尾",
+    "code": "IRIS SQUARE",
+    "description": "淡紫方形开本配菱格封面，适合照片、灵感剪贴和每一页的小小展览。",
+    "sort_order": 4,
+    "status": "published",
+    "resource": "Template/iris-square.json"
+  },
+  {
+    "id": "night-stars",
+    "type": "journal",
+    "name": "星夜",
+    "code": "NIGHT STARS",
+    "description": "深蓝精装封面落下金色星光，内页留白，收好夜晚想到的事。",
+    "sort_order": 5,
+    "status": "published",
+    "resource": "Template/night-stars.json"
+  },
+  {
+    "id": "cherry-dots",
+    "type": "journal",
+    "name": "樱桃",
+    "code": "CHERRY DOTS",
+    "description": "樱桃粉圆点封面与酒红书脊，点阵内页适合子弹笔记和随手涂鸦。",
+    "sort_order": 6,
+    "status": "published",
+    "resource": "Template/cherry-dots.json"
+  },
+  {
+    "id": "daily-doodles",
+    "type": "stickers",
+    "name": "日常小签",
+    "code": "DAILY DOODLES",
+    "description": "星星、爱心、对勾和小太阳，一组轻快的日常标记。",
+    "sort_order": 7,
+    "status": "published",
+    "resource": "Sticker/daily-doodles.lbl"
+  },
+  {
+    "id": "paper-marks",
+    "type": "stickers",
+    "name": "纸上标记",
+    "code": "PAPER MARKS",
+    "description": "四枚纸张感标记，适合做索引、提醒和页面角落的小装饰。",
+    "sort_order": 8,
+    "status": "published",
+    "resource": "Sticker/paper-marks.lbl"
+  },
+  {
+    "id": "font-caveat",
+    "type": "font",
+    "name": "Caveat 手写",
+    "code": "CAVEAT",
+    "description": "轻松自然的英文手写字体，适合标题、日期和随手记下的短句。",
+    "sort_order": 9,
+    "status": "published",
+    "resource": "font/Caveat.woff2",
+    "font": {
+      "k": "store-caveat",
+      "n": "Caveat 手写",
+      "en": "Caveat",
+      "hint": "Caveat · 自然手写",
+      "family": "CarnetStoreCaveat",
+      "fallback": "'Comic Sans MS','Segoe Print'",
+      "format": "woff2",
+      "weight": "400 700"
+    }
+  },
+  {
+    "id": "font-bebas",
+    "type": "font",
+    "name": "Bebas Neue 标题",
+    "code": "BEBAS NEUE",
+    "description": "窄长高对比的英文展示字体，适合封面标题和醒目标记。",
+    "sort_order": 10,
+    "status": "published",
+    "resource": "font/BebasNeue-Regular.woff2",
+    "font": {
+      "k": "store-bebas",
+      "n": "Bebas Neue 标题",
+      "en": "Bebas Neue",
+      "hint": "Bebas Neue · 窄体标题",
+      "family": "CarnetStoreBebas",
+      "fallback": "'Impact','Haettenschweiler'",
+      "format": "woff2",
+      "weight": "400"
+    }
+  }
+]
