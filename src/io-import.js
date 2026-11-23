@@ -42,7 +42,7 @@ function normalizeJournal(raw) {
     /* 彩带：'none' = 透明档（隐藏彩带且不画书槽），原样保留；
        其它空值 / 非法色值才回落到默认色，避免导入进来的封面左侧空一块 */
     ribbon: (ribbonIsNone(j.ribbon) ? RIBBON_NONE
-      : (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(String(j.ribbon || ''))
+      : (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(String(j.ribbon || ''))
         ? j.ribbon : RIBBON_FALLBACK)),
     /* 装帧样式（精装 / 活页 / Personal 活页 / 方形画册）：乱填的一律按精装 */
     style: normBookStyle(j.style),

@@ -103,11 +103,10 @@ function spineCropCommit() {
   c.height = Math.max(1, Math.round(sh * k));
   try {
     const cx = c.getContext('2d');
-    cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height);  // 透明 PNG 别转 JPEG 后发黑
+    /* 不铺白底：透明图裁出来的书脊必须继续透明，否则成品会出现白条 */
     cx.drawImage(img, sx, 0, sw, sh, 0, 0, c.width, c.height);
   } catch (_) { toast('裁切失败，换一张封面图试试'); return; }
-  let data = '';
-  try { data = c.toDataURL('image/jpeg', .9); } catch (_) {}
+  const data = canvasAlphaDataURL(c, .9);
   if (!isImgData(data)) { toast('裁切失败，换一张封面图试试'); return; }
   diy.spineImg = data;
   diy.spineFrom = 'crop';
@@ -121,8 +120,7 @@ async function diySpinePrepareCrop() {
   spCrop.busy = true;
   try {
     const c = await diyRenderCanvas(744);
-    let src = '';
-    try { src = c.toDataURL('image/jpeg', .92); } catch (_) { src = c.toDataURL('image/png'); }
+    const src = canvasAlphaDataURL(c, .92);
     if (!isImgData(src)) { toast('封面合成失败，换张图试试'); return false; }
     diy.spineSrc = src;
     spCrop.open = true;
@@ -325,11 +323,10 @@ function wrapCropData(img, sx, sw, sh) {
   c.height = Math.max(1, Math.round(sh * k));
   try {
     const cx = c.getContext('2d');
-    cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height);   // 透明 PNG 转 JPEG 别发黑
+    /* 三分出来的三段各自保透明：透明封面 / 封底不能被铺成白底 */
     cx.drawImage(img, sx, 0, sw, sh, 0, 0, c.width, c.height);
   } catch (_) { return ''; }
-  let d = '';
-  try { d = c.toDataURL('image/jpeg', .9); } catch (_) {}
+  const d = canvasAlphaDataURL(c, .9);
   return isImgData(d) ? d : '';
 }
 function wrapApply() {
@@ -367,7 +364,7 @@ $('#wrapFile').onchange = async e => {
 $('#wrapFrontFile').onchange = async e => {
   const [f] = await readPickedFiles(e);
   if (!f || !diy.open) return;
-  const src = await shrinkImageFile(f, 1200, { q: .9, bg: '#fff' });
+  const src = await shrinkImageFile(f, 1200, { q: .9, keepAlpha: true });
   if (!isImgData(src)) { toast('这张图读不出来，换一张试试'); return; }
   diyWrapFrontSet(src);
   renderDiyPaper(); diyWrapRefresh();
@@ -376,7 +373,7 @@ $('#wrapFrontFile').onchange = async e => {
 $('#wrapSpineFile').onchange = async e => {
   const [f] = await readPickedFiles(e);
   if (!f || !diy.open) return;
-  const src = await shrinkImageFile(f, 800, { q: .9, bg: '#fff' });
+  const src = await shrinkImageFile(f, 800, { q: .9, keepAlpha: true });
   if (!isImgData(src)) { toast('这张图读不出来，换一张试试'); return; }
   diy.spineImg = src; diy.spineFrom = 'upload'; spCrop.open = false;
   diyWrapRefresh();
@@ -385,7 +382,7 @@ $('#wrapSpineFile').onchange = async e => {
 $('#wrapBackFile').onchange = async e => {
   const [f] = await readPickedFiles(e);
   if (!f || !diy.open) return;
-  const src = await shrinkImageFile(f, 1200, { q: .9, bg: '#fff' });
+  const src = await shrinkImageFile(f, 1200, { q: .9, keepAlpha: true });
   if (!isImgData(src)) { toast('这张图读不出来，换一张试试'); return; }
   diy.backImg = src; diy.backFrom = 'upload'; diy.backMode = 'image';
   diyWrapRefresh();
@@ -418,12 +415,14 @@ function diyWrapCardsHTML() {
        <div class="wrap-btns">${btn('spine-pick', sp ? '换图' : '选择图片')}
        ${btn('spine-crop', '裁切封面', spCrop.open ? 'on' : '')}
        ${sp ? btn('spine-clear', '跟随封面') : ''}</div></div>`
-    /* 没设封底时缩略图不铺底色：铺了会让人误以为已经有封底了 */
+    /* 没设封底时缩略图不铺底色：铺了会让人误以为已经有封底了。
+       「图片」档按钮已撤：跟旁边「选择图片」完全重复（选完图自动进 image 档），
+       卡片上只留 不设 / 同封面 / 选图（已设图时变「换图」）。 */
     + `<div class="wrap-card">${mode
         ? thumb(mode === 'image' ? bk : front)
         : '<div class="wrap-thumb empty">未设置</div>'}
        <b>封底</b><small>${mode === 'image' ? '独立封底图' : mode === 'follow' ? '与封面一致' : '未设封底 · 不能往后合书'}</small>
-       <div class="wrap-btns">${modeBtn('', '不设')}${modeBtn('follow', '同封面')}${modeBtn('image', '图片')}
+       <div class="wrap-btns">${modeBtn('', '不设')}${modeBtn('follow', '同封面')}
        ${btn('back-pick', mode === 'image' && bk ? '换图' : '选择图片')}</div></div>`
     + `</div>`;
 }
@@ -581,12 +580,13 @@ function closeEditor(after) {
     mask.classList.remove('show');
   }
 }
-/* 自定义「＋」色块直接追加到该组色块的末尾（同排显示，色值提示紧跟其后） */
-function appendCustomChip(boxSel, id, tipId, title) {
+/* 自定义「＋」色块：默认追加到该组末尾；first=true 时插到该组最前面
+   （封面底色的纯色 / 渐变两行都把自定义放第一格）。
+   只放投票块本身，旁边不再挂「自定义 / 色值」文字——选中后色块自身就铺成那个颜色。 */
+function appendCustomChip(boxSel, id, title, first) {
   const box = $(boxSel); if (!box) return;
-  box.insertAdjacentHTML('beforeend',
-    `<div class="swatch custom" id="${id}" title="${title}"><span class="cus-ico">＋</span></div>`
-    + `<span class="cus-tip" id="${tipId}">自定义</span>`);
+  box.insertAdjacentHTML(first ? 'afterbegin' : 'beforeend',
+    `<div class="swatch custom" id="${id}" title="${title}"><span class="cus-ico">＋</span></div>`);
 }
 $('#mask').addEventListener('click', e => { if (e.target === $('#mask')) closeEditor(); });
 /* ---- 内页模板栏 ----
@@ -707,13 +707,17 @@ function buildEditor() {
   $$('#edColors .swatch:not(.custom)').forEach(s => s.onclick = () => { ed.temp.cover.value = s.dataset.color; ed.temp.cover.img = null; ed.temp.cover.type = 'solid'; syncEditor(); });
   $$('#edGrads .swatch:not(.custom)').forEach(s => s.onclick = () => { ed.temp.cover.value = s.dataset.grad; ed.temp.cover.img = null; ed.temp.cover.type = 'gradient'; syncEditor(); });
   $$('#edRibbons .swatch:not(.custom)').forEach(s => s.onclick = () => { ed.temp.ribbon = s.dataset.ribbon; syncEditor(); });
-  /* 自定义「＋」色块：直接接在预设色块后面，不再单起一行
-     （封面底色的自定义跟在「纯色」那组后面；渐变是另一组，不挂它） */
-  appendCustomChip('#edColors', 'edCoverCustom', 'edCoverTip', '自定义封面底色');
-  appendCustomChip('#edRibbons', 'edRibbonCustom', 'edRibbonTip', '自定义彩带颜色');
+  /* 自定义「＋」色块放第一格：封面底色的纯色行、渐变行都靠前。
+     彩带那行仍在末尾——它的首格是「透明」档，习惯不动。 */
+  appendCustomChip('#edColors', 'edCoverCustom', '自定义封面底色', true);
+  appendCustomChip('#edGrads', 'edGradCustom', '自定义渐变颜色', true);
+  appendCustomChip('#edRibbons', 'edRibbonCustom', '自定义彩带颜色');
   /* 自定义颜色：点 ＋ 打开取色盘，选好的颜色写进封面底色 / 彩带颜色 */
   $('#edCoverCustom').onclick = () => openColorPicker('自定义封面底色', ed.temp.cover.img ? '' : ed.temp.cover.value,
     hex => { ed.temp.cover.value = hex; ed.temp.cover.img = null; ed.temp.cover.type = 'solid'; syncEditor(); });
+  /* 第二行渐变也支持自定义：取一个主色，配成和预设同款的三段同色系渐变 */
+  $('#edGradCustom').onclick = () => openColorPicker('自定义渐变颜色', gradMainColor(ed.temp.cover.value),
+    hex => { ed.temp.cover.value = gradFromColor(hex); ed.temp.cover.img = null; ed.temp.cover.type = 'gradient'; syncEditor(); });
   /* 透明档不是色值，取色盘初值给空，别把 'none' 塞进 HSV 换算 */
   $('#edRibbonCustom').onclick = () => openColorPicker('自定义彩带颜色',
     /^#/.test(ed.temp.ribbon) ? ed.temp.ribbon : '',
@@ -730,7 +734,7 @@ function buildEditor() {
   $('#edPatColors').innerHTML =
     `<div class="swatch pat-auto" data-patcolor="" title="自动（跟随底色深浅）">自动</div>` +
     PAT_COLORS.map(c => `<div class="swatch" data-patcolor="${c}" style="background:${c}"></div>`).join('');
-  appendCustomChip('#edPatColors', 'edPatCustom', 'edPatTip', '自定义图案颜色');
+  appendCustomChip('#edPatColors', 'edPatCustom', '自定义图案颜色');
   $$('#edPatColors .swatch:not(.custom)').forEach(s => s.onclick = () => {
     const v = s.dataset.patcolor || '';
     if (v) ed.temp.cover.patColor = v; else delete ed.temp.cover.patColor;
@@ -836,7 +840,7 @@ function buildEditor() {
   /* ---- 活页封面内侧（内衬）：三档模式 + 自定义色板 / 内衬图 ---- */
   $('#edInsideColors').innerHTML = COLORS.map(c =>
     `<div class="swatch" data-incolor="${c}" style="background:${c}"></div>`).join('');
-  appendCustomChip('#edInsideColors', 'edInsideCus', 'edInsideCusTip', '自定义内衬颜色');
+  appendCustomChip('#edInsideColors', 'edInsideCus', '自定义内衬颜色');
   $('#edInsideModes').onclick = e => {
     const b = e.target.closest('button[data-inside]'); if (!b) return;
     edSetInside(v => { v.mode = normInsideMode(b.dataset.inside); });
@@ -903,14 +907,35 @@ function edSetInside(fn) {
 }
 /* 自定义色块：选了自定义颜色就把它显示成那个颜色（彩虹「＋」作占位），
    没选自定义色时清掉内联底色，落回 CSS 里的彩虹取色盘样式 */
-function syncCustomSwatch(boxSel, tipSel, value, presets) {
+function syncCustomSwatch(boxSel, value, presets) {
   const v = String(value || '').trim().toLowerCase();
-  const hex = /^#[0-9a-f]{6}$/.test(v) ? v : '';
+  const hex = /^#([0-9a-f]{6}|[0-9a-f]{8})$/.test(v) ? v : '';
   const custom = !!hex && !presets.some(c => String(c).toLowerCase() === hex);
   const box = $(boxSel);
   box.classList.toggle('on', custom);
   box.style.background = custom ? hex : '';
-  $(tipSel).textContent = custom ? hex.toUpperCase() : '自定义';
+}
+/* 从渐变串里抠出中段主色（60% 那一站），给取色盘当初值。
+   渐变格式与 GRADS 一致：linear-gradient(160deg,浅,主 60%,深)。 */
+function gradMainColor(g) {
+  const m = /,\s*(#[0-9a-f]{6}|#[0-9a-f]{8})\s*60%/i.exec(String(g || ''));
+  return m ? m[1] : '';
+}
+/* 主色 → 和预设同款的三段同色系渐变：中段是用户选的主色，
+   两头用 shade 提亮 / 压暗（±14%，观感贴近预设那几档）。 */
+function gradFromColor(hex) {
+  const base = /^#([0-9a-f]{6}|[0-9a-f]{8})$/i.test(String(hex || '')) ? hex : '#efa2b3';
+  return `linear-gradient(160deg,${shade(base, 14)},${base} 60%,${shade(base, -14)})`;
+}
+/* 渐变行的自定义色块：当前是「非预设的渐变」才高亮、铺成那条渐变；
+   纯色 / 预设渐变时落回彩虹＋占位（和纯色自定义块同步逻辑对称）。 */
+function syncGradCustomSwatch(boxSel, value, presets) {
+  const v = String(value || '').trim();
+  const isGrad = /^linear-gradient/i.test(v);
+  const custom = isGrad && !presets.some(g => String(g).toLowerCase() === v.toLowerCase());
+  const box = $(boxSel);
+  box.classList.toggle('on', custom);
+  box.style.background = custom ? v : '';
 }
 /* coverHTML 输出依赖的全部字段压成一个签名：底色 / 图案 / 图案色 / 纹理 / 圆角 /
    彩带 / 装帧 / 书槽开关 / DIY 标记 / 封面图。封面图是几 MB 的 base64，整串比对
@@ -956,17 +981,19 @@ function syncEditor() {
   $$('#edColors .swatch:not(.custom)').forEach(s => s.classList.toggle('on', !ed.temp.cover.img && ed.temp.cover.value === s.dataset.color));
   $$('#edGrads .swatch:not(.custom)').forEach(s => s.classList.toggle('on', !ed.temp.cover.img && ed.temp.cover.value === s.dataset.grad));
   $$('#edRibbons .swatch').forEach(s => s.classList.toggle('on', ed.temp.ribbon === s.dataset.ribbon));
-  /* 自定义色块：跟着当前颜色走，取到预设之外的颜色就高亮并给出色值 */
-  syncCustomSwatch('#edCoverCustom', '#edCoverTip', ed.temp.cover.img ? '' : ed.temp.cover.value, COLORS);
-  syncCustomSwatch('#edRibbonCustom', '#edRibbonTip', ed.temp.ribbon, RIBBONS);
+  /* 自定义色块：跟着当前颜色走，取到预设之外的颜色就把色块本身铺成那个颜色。
+     纯色行只认 hex，渐变行只认非预设的 linear-gradient，互不串台。 */
+  syncCustomSwatch('#edCoverCustom', ed.temp.cover.img ? '' : ed.temp.cover.value, COLORS);
+  syncGradCustomSwatch('#edGradCustom', ed.temp.cover.img ? '' : ed.temp.cover.value, GRADS);
+  syncCustomSwatch('#edRibbonCustom', ed.temp.ribbon, RIBBONS);
   /* 图案颜色：没选图案时整栏收起，选了图案才展开（图案都没选，颜色无从谈起） */
   const patOn = ed.temp.cover.pattern && ed.temp.cover.pattern !== 'none';
   $('#edPatColorWrap').classList.toggle('fold', !patOn);
   {
-    const pc = /^#[0-9a-fA-F]{6}$/i.test(String(ed.temp.cover.patColor || '')) ? ed.temp.cover.patColor.toLowerCase() : '';
+    const pc = /^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/i.test(String(ed.temp.cover.patColor || '')) ? ed.temp.cover.patColor.toLowerCase() : '';
     $$('#edPatColors .swatch:not(.custom)').forEach(s =>
       s.classList.toggle('on', (s.dataset.patcolor || '').toLowerCase() === pc));
-    syncCustomSwatch('#edPatCustom', '#edPatTip', pc, PAT_COLORS);
+    syncCustomSwatch('#edPatCustom', pc, PAT_COLORS);
   }
   /* 图案缩略图左侧那一列必须跟真封面同源（coverHTML）：
      有彩带（笔记本且不是透明档）→ 平色彩带；透明 / 书槽关 → 整列不画（不补压槽）；
@@ -1059,7 +1086,7 @@ function syncEditor() {
     const hasImg = isImgData(ins.img);
     $$('#edInsideColors .swatch:not(.custom)').forEach(s =>
       s.classList.toggle('on', !hasImg && normHex6(ins.color) === s.dataset.incolor));
-    syncCustomSwatch('#edInsideCus', '#edInsideCusTip', hasImg ? '' : ins.color, COLORS);
+    syncCustomSwatch('#edInsideCus', hasImg ? '' : ins.color, COLORS);
     const th = $('#edInsideThumb');
     if (th) {
       th.style.display = hasImg ? 'block' : 'none';
@@ -1174,7 +1201,7 @@ const diy = {
 };
 function diyBgOK(v) {
   const s = String(v || '').trim();
-  if (/^#[0-9a-fA-F]{6}$/.test(s)) return s.toLowerCase();
+  if (/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(s)) return s.toLowerCase();
   if (/^(linear|radial|conic)-gradient\([^"'<>;]{1,260}\)$/.test(s)) return s;
   return COLORS[0];
 }
@@ -1344,6 +1371,19 @@ function diySizePaper() {
   p.style.height = diy.H + 'px';
   diyPaperSkin();
 }
+/* 面板开合 / 舞台变高变矮后按新尺寸重排纸，但不重建 #diyContent：
+   对象坐标是百分比、字号挂在 --pw 上，CSS 变量一更新就自动跟着缩
+   （diyApplySideW 拖侧栏同款思路）。文字框贴合与工具条避让仍要重跑：
+   字号变了，框得重新量。原来开合面板走 renderDiyPaper() 全量重建，
+   这笔重活正好压在面板动画起步的那几帧上 —— 关面板「卡一下」的大头。 */
+function diyReflowPaper() {
+  if (!diy.open || !diy.d) return;
+  diySizePaper();
+  const p = $('#diyPaper');
+  p.style.setProperty('--pw', diy.W + 'px');
+  p.style.setProperty('--ph', diy.H + 'px');
+  diyFitAllTexts();
+}
 /* ---- 横屏侧栏宽度：拖左边缘改变，记在 localStorage（纯 UI 偏好，不进手帐数据）---- */
 const DIY_SIDE_KEY = 'carnet.diy.sideW';
 function diySideMax() { return Math.max(190, Math.min(560, window.innerWidth - 200)); }
@@ -1488,8 +1528,10 @@ function diyStopInline(commit, noRender) {
     diy.sel = null; diy.box = false;               // 跟阅读器 stopTextEdit 一样撤掉选中框
     const o = diyObjById(id);
     if (o) o.locked = true;                        // 编辑完自动固定，跟阅读器一致
-    diyDropEmptyText();                           // 空文字框当作没添加过
+    const dropped = diyDropEmptyText();            // 空文字框当作没添加过
     if (!noRender) renderDiyPaper();
+    /* 返回删了几条：diySheet 开面板走 noRender=true 时，调用方拿它决定要不要补一次重绘 */
+    return dropped;
   } finally { diy.stopping = false; }
 }
 /* ---- 文字框贴合内容 / 工具条避让 ----
@@ -1655,18 +1697,81 @@ function diyAddNote(color) {
   diySel({ k: 'txt', id: t.id });
   toast('便利贴已加到封面，双击写字');
 }
+/* ---- 面板收起：真正隐藏 + 清面板 + 重排纸，全部收在 diySheetHideNow 一处（幂等）----
+   关面板原来 = 同步撕掉面板 + 下一帧 requestAnimationFrame 全量重建纸面：
+   舞台瞬间拿回 45% 高度、纸却要等下一帧才重新量，画布先闪一帧旧尺寸再跳大，
+   重建重活又正好压在退场动画起步的帧上 —— 这就是关面板「卡一下」。
+   现在退场动画（motion.js 的克隆下滑 / 自己的 CSS 过渡）先播，
+   落地那一帧才做上面的重活，且跟 hidden 生效同帧，画布不闪旧尺寸。 */
+let diySheetCloseQ = 0;                       // 收起挂起时的兜底定时器 id，0 = 没挂起
+function diySheetClearClose() {               // 摘掉收起态（收尾 / 中途重开都走）
+  if (diySheetCloseQ) { clearTimeout(diySheetCloseQ); diySheetCloseQ = 0; }
+  const el = $('#diySheet');
+  if (el) {
+    el.classList.remove('closing');
+    el.style.visibility = '';                 // 克隆退场期间真面板靠它隐身占位
+    el.style.transform = '';
+    el.removeEventListener('transitionend', diySheetCloseDone);
+  }
+}
+function diySheetCloseDone(ev) {
+  if (ev.target !== $('#diySheet') || ev.propertyName !== 'transform') return;
+  diySheetHideNow();
+}
+function diySheetHideNow() {
+  diySheetClearClose();
+  const el = $('#diySheet');
+  if (!el || el.hidden) return;
+  /* 动画期间又开了别的面板：只复位占位，别把刚开的面板收掉 */
+  if (diy.sheet) return;
+  el.hidden = true;
+  $('#diySheetBody').innerHTML = '';
+  if (diy.open) diyReflowPaper();            // 舞台刚拿回面板占的高度，纸同帧重排，不闪旧尺寸
+}
+function diySheetBeginClose() {              // diy.sheet 已是 ''：有退场动画就先播，没有就直接收
+  const el = $('#diySheet');
+  if (!el || el.hidden || !diy.open) { diySheetHideNow(); return; }
+  if (diySheetCloseQ) return;                // 上一场收起还没落地，等它收尾
+  if (el.style.visibility === 'hidden') {
+    /* motion.js 克隆退场接管中：真面板已隐身占位，收尾等它的 onLand，这里只挂兜底 */
+    diySheetCloseQ = setTimeout(diySheetHideNow, 900);
+    return;
+  }
+  const dur = parseFloat(getComputedStyle(el).transitionDuration) || 0;
+  if (!dur) { diySheetHideNow(); return; }   // 没有过渡可演（横屏侧栏 / 减弱动态效果）：直接收
+  el.classList.add('closing');
+  el.addEventListener('transitionend', diySheetCloseDone);
+  diySheetCloseQ = setTimeout(diySheetHideNow, Math.round(dur * 1000) + 220);
+}
 /* ---- 底部工具面板 ---- */
 function diySheet(kind) {
   if (kind && diyTape.t) diyDisarmTape();   // 开任意面板就退出待贴，免得手上还挂着一条没落的胶带
   const was = diy.sheet;
-  /* 面板与纸面行内打字互斥：开文字面板先把正在打的字落盘（同阅读器 openTextSheet） */
-  if (kind === 'text' && diy.editing) diyStopInline(true, true);
+  /* 面板与纸面行内打字互斥：开文字面板先把正在打的字落盘（同阅读器 openTextSheet）。
+     diyStopInline 返回删掉的空文字框条数：真删了东西才重建纸面。 */
+  if (kind === 'text' && diy.editing && diyStopInline(true, true)) renderDiyPaper();
   if (!kind) diyCommitRename();            // 没按回车就关面板：重命名先收尾
   diy.sheet = kind || '';
   if (diy.sheet === 'text') diy.textId = diy.sel && diy.sel.k === 'txt' ? diy.sel.id : null;
-  $('#diySheet').hidden = !diy.sheet;
   $$('#diyBar button[data-diyact]').forEach(b =>
     b.classList.toggle('on', !!diy.sheet && b.dataset.diyact === diy.sheet));
+  if (diy.sheet) {
+    /* 收起动画还没落地就重开：先摘掉收起态（隐身 / 位移一清，面板自己滑回去） */
+    diySheetClearClose();
+    $('#diySheet').hidden = false;
+    renderDiySheet();
+    /* 竖屏：面板开 / 关会改变舞台高度，纸要重新量一次（文字字号挂在 --pw 上，跟着等比缩放）。
+       横屏：面板挂在右侧一竖条里、舞台尺寸不变，这次重量是空跑但无害；
+       横竖屏切换时的重量由文件末尾的 window.resize 监听负责。
+       ⚠️ 只重排不重建（diyReflowPaper）：别再走 renderDiyPaper 全量重建压慢开面板的起步帧。 */
+    if (was !== diy.sheet) requestAnimationFrame(() => {
+      if (!diy.open) return;
+      diyReflowPaper();
+    });
+  } else {
+    diy.layerDrag = null;
+    diySheetBeginClose();    // 能播退场动画就先播；重活全部推迟到落地帧（diySheetHideNow）
+  }
   if (was === 'text' && diy.sheet !== 'text') {
     /* 收面板：空的普通文字框当作没添加；其余默认固定住，只有「刚加的第一条」
        继续留在版式态，抬手就能拖走（阅读器 FRESH_TEXT_IDS 同款）。
@@ -1679,22 +1784,9 @@ function diySheet(kind) {
       t.locked = fresh ? false : true;
       if (fresh) diy.box = true;
     }
-    diyDropEmptyText();
-    renderDiyPaper();
+    /* 锁定态变了 / 空框真删了才重建纸面：原来无条件整页重建，关一次面板白画一遍 */
+    if (t || diyDropEmptyText()) renderDiyPaper();
   }
-  if (diy.sheet) renderDiySheet();
-  else {
-    diy.layerDrag = null;
-    /* 清空 body：否则隐藏的面板里还留着 #diyTextInput 等旧节点，重开面板时看着像还有个输入框 */
-    $('#diySheetBody').innerHTML = '';
-  }
-  /* 竖屏：面板开 / 关会改变舞台高度，纸要重新量一次（文字字号挂在 --pw 上，跟着等比缩放）。
-     横屏：面板挂在右侧一竖条里、舞台尺寸不变，这次重量是空跑但无害；
-     横竖屏切换时的重量由文件末尾的 window.resize 监听负责。 */
-  if (was !== diy.sheet) requestAnimationFrame(() => {
-    if (!diy.open) return;
-    diySizePaper(); renderDiyPaper();
-  });
 }
 function renderDiySheet() {
   const titles = { bg: '封面底色', cover: '封面设置', text: '编辑文字', sticker: '贴纸', layer: '图层', frame: '图片边框' };
@@ -1901,7 +1993,8 @@ async function diyRenderCanvas(W) {
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
   const cx = c.getContext('2d');
-  cx.fillStyle = '#fffdf8'; cx.fillRect(0, 0, W, H);
+  /* 别再铺 #fffdf8 白底：底色由 diyExportHTML 自己的 background 负责，
+     半透明底色 / 透明图才会保住通道，不会被额外烘一层白。 */
   cx.drawImage(im, 0, 0, W, H);
   return c;
 }
@@ -1971,9 +2064,8 @@ async function diyDone() {
     diyCommitRename();                 // 重命名没收尾的先存下
     diyDropEmptyText();                // 空文字框不进成品，也不进 cover.diym 草稿
     const c = await diyRenderCanvas(744);
-    let src;
-    try { src = c.toDataURL('image/jpeg', .92); }
-    catch (_) { src = c.toDataURL('image/png'); }
+    /* 有透明像素就存 PNG：DIY 里用半透明底色 / 透明贴图的成品不能再被压成白底 JPEG */
+    const src = canvasAlphaDataURL(c, .92);
     ed.temp.cover.img = src;
     ed.temp.cover.diym = JSON.parse(JSON.stringify(diy.d));
     ed.temp.cover.pattern = 'none';       // 自定义封面本身就有底图，不再叠图案
@@ -2382,7 +2474,12 @@ const sheetDrag = { on: false, id: 0, y0: 0, dy: 0 };
 function diySheetDragEnd(close) {
   const el = $('#diySheet'), head = $('#diySheet .diy-sheet-head');
   sheetDrag.on = false; sheetDrag.dy = 0;
-  if (el) { el.classList.remove('dragging'); el.style.transform = ''; }
+  if (el) {
+    el.classList.remove('dragging');
+    /* 收起时保留当前位移：退场动画（.closing 过渡 / motion.js 克隆）从这里接着滑出去，
+       克隆退场量的 rect 也带着这份位移。没过阈值则清掉，靠基础 transition 弹回原位。 */
+    if (!close) el.style.transform = '';
+  }
   if (head) head.classList.remove('grabbing');
   if (close) diySheet('');
 }
@@ -2460,10 +2557,9 @@ $('#diySheetBody').addEventListener('click', async e => {
   if (wb) {
     if (wb.dataset.backmode !== undefined) {
       const m = wb.dataset.backmode;
+      /* 只剩 不设 / 同封面 两颗档位钮：「图片」档由选图（back-pick → wrapBackFile）自动进入 */
       if (!m) { diy.backMode = ''; diy.backImg = ''; diy.backFrom = ''; }
       else if (m === 'follow') { diy.backMode = 'follow'; diy.backImg = ''; diy.backFrom = ''; }
-      else if (isImgData(diy.backImg)) diy.backMode = 'image';
-      else { $('#wrapBackFile').click(); return; }   // 选了「图片」但还没图：直接去选
       renderDiySheet(); return;
     }
     switch (wb.dataset.wrapact) {

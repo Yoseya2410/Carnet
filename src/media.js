@@ -212,13 +212,28 @@ function ensureImageHeights() {
       renderReader();
     });
 }
+/* canvas → dataURL 的唯一「保透明」出口：有透明像素就存 PNG，整张不透明才压 JPEG。
+   封面 / 书脊 / 封底 / 裁切 / DIY 合成全走这里 —— 透明区再也不会被烘成白底。
+   ⚠️ 取不到像素时保守按「有透明」处理（宁可文件大一点，也别把透明通道弄丢）。 */
+function canvasAlphaDataURL(c, q) {
+  let alpha = false;
+  try {
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    for (let i = 3; i < d.length; i += 4) { if (d[i] < 250) { alpha = true; break; } }
+  } catch (_) { alpha = true; }
+  try { return alpha ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', q || .88); }
+  catch (_) { return ''; }
+}
 /* 背景图没必要存原图：超过 maxSide 就等比缩一下再压成 JPEG，
    几 MB 的截图压完通常只有几百 KB，存 IndexedDB 不心疼。
-   opt = { q, bg }：q 是 JPEG 质量（默认 .82）、bg 是打底色（默认不打底）。
-   「将图片导入为手账本」那一路用更高质量，并先铺一层纸白 —— 透明 PNG 转 JPEG 会发黑 */
+   opt = { q, bg, keepAlpha }：q 是 JPEG 质量（默认 .82）、bg 是打底色（默认不打底）。
+   「将图片导入为手账本」那一路用更高质量，并先铺一层纸白 —— 透明 PNG 转 JPEG 会发黑。
+   ⚠️ keepAlpha:true 用于封面 / 书脊 / 封底：不铺底、有透明就存 PNG，
+      否则透明部分会被烘成白底（此前用户反馈的「自定义封面透明区变白」）。 */
 async function shrinkImageFile(input, maxSide, opt) {
   const q = (opt && opt.q) || .82;
   const bg = (opt && opt.bg) || '';
+  const keepAlpha = !!(opt && opt.keepAlpha);
   /* input 可以是 File，也可以是已经读好的 dataURL（移动端选图统一走 readPickedFiles） */
   const src = await readFileDataURL(input);
   if (!src) return null;
@@ -232,10 +247,12 @@ async function shrinkImageFile(input, maxSide, opt) {
       const c = document.createElement('canvas');
       c.width = w; c.height = h;
       const ctx = c.getContext('2d');
-      if (bg) { ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h); }
+      if (bg && !keepAlpha) { ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h); }
       ctx.drawImage(im, 0, 0, w, h);
-      try { res(c.toDataURL('image/jpeg', q)); }
-      catch (_) { res(src); }                 // 极端情况拿不到画布，退回原图
+      const out = keepAlpha ? canvasAlphaDataURL(c, q) : (() => {
+        try { return c.toDataURL('image/jpeg', q); } catch (_) { return ''; }
+      })();
+      res(out || src);                        // 极端情况拿不到画布，退回原图
     };
     im.src = src;
   });
@@ -262,13 +279,8 @@ async function packTemplateImage(input) {
       c.width = w; c.height = h;
       const cx = c.getContext('2d');
       cx.drawImage(im, 0, 0, w, h);
-      let alpha = false;
-      try {
-        const d = cx.getImageData(0, 0, w, h).data;
-        for (let i = 3; i < d.length; i += 4) { if (d[i] < 250) { alpha = true; break; } }
-      } catch (_) { alpha = true; }               // 取不到像素就保守按「有透明」处理
-      try { res(alpha ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', .88)); }
-      catch (_) { res(src); }                     // 拿不到画布时退回原图（仍是 base64）
+      const out = canvasAlphaDataURL(c, .88);
+      res(out || src);                            // 拿不到画布时退回原图（仍是 base64）
     };
     im.src = src;
   });

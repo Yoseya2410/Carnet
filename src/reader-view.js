@@ -352,7 +352,9 @@ function isBackView() { return viewIndex() === PAGE_BACK_COVER; }
    ⚠️ 书被上锁 / 封底图被导入洗掉时 hasBackCover() 为假，就老实退回封面。
    三个地方（renderReader / endFlip / 转屏）都走这一份，别各写一套。 */
 function clampViewIndex(v, max) {
-  if (v === PAGE_BACK_COVER && hasBackCover(cur())) return PAGE_BACK_COVER;
+  /* 移动端不展示封底：历史状态里残留的 -3 在重绘 / 转屏时夹回封面，
+     免得横竖屏切换后又冒出一张本端不该能到的封底。 */
+  if (v === PAGE_BACK_COVER && hasBackCover(cur()) && backCoverFlipAllowed()) return PAGE_BACK_COVER;
   return clamp(v, -1, Math.max(max, -1));
 }
 function renderReader(reuseFlipDOM) {
@@ -434,8 +436,9 @@ function renderReader(reuseFlipDOM) {
   $('#rName').textContent = j.name;
   $('#rPages').textContent = `${n} 页 · ${state.mode === 'spread' ? '双页' : '单页'}`;
   const pager = $('#pager');
-  /* 最后一页还能不能再往后翻：设了封底就留着「下一页」，点下去合上书显示封底 */
-  const canBack = hasBackCover(cur());
+  /* 最后一页还能不能再往后翻：只有电脑端 + 设了封底才留「下一页」；
+     移动端翻到最后一页就停（按钮禁用），封底仍在数据 / 导出里，只是这一端不展示。 */
+  const canBack = hasBackCover(cur()) && backCoverFlipAllowed();
   if (back) {
     pager.textContent = '封底';
     pager.classList.remove('jumpable');

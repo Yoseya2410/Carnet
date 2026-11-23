@@ -1179,14 +1179,6 @@ window.CARNET_I18N_DATA = {
   "es": "Sin cifrar",
   "zhCN": "未加密"
  },
- "<span class=\"cus-tip\" id=\"{0}\">自定义</span>": {
-  "zhTW": "<span class=\"cus-tip\" id=\"{0}\">自訂</span>",
-  "en": "<span class=\"cus-tip\" id=\"{0}\">Custom</span>",
-  "ja": "<span class=\"cus-tip\" id=\"{0}\">カスタム</span>",
-  "fr": "<span class=\"cus-tip\" id=\"{0}\">Personnaliser</span>",
-  "es": "<span class=\"cus-tip\" id=\"{0}\">Personalizado</span>",
-  "zhCN": "<span class=\"cus-tip\" id=\"{0}\">自定义</span>"
- },
  "<div class=\"swatch ribbon-none\" data-ribbon=\"{0}\" title=\"透明（隐藏彩带，也不画书槽）\"></div>": {
   "zhTW": "<div class=\"swatch ribbon-none\" data-ribbon=\"{0}\" title=\"透明（隱藏彩帶，也不畫書槽）\"></div>",
   "en": "<div class=\"swatch ribbon-none\" data-ribbon=\"{0}\" title=\"Transparent (hides the ribbon and does not draw the spine channels)\"></div>",
@@ -3067,6 +3059,14 @@ window.CARNET_I18N_DATA = {
   "fr": "Couleur de fond de couverture personnalisée",
   "es": "Color de fondo de portada personalizado"
  },
+ "自定义渐变颜色": {
+  "zhCN": "自定义渐变颜色",
+  "zhTW": "自訂漸變顏色",
+  "en": "Custom gradient color",
+  "ja": "カスタムグラデーション色",
+  "fr": "Couleur de dégradé personnalisée",
+  "es": "Color de degradado personalizado"
+ },
  "图片模板已达上限": {
   "zhCN": "图片模板已达上限",
   "zhTW": "圖片範本已達上限",
@@ -3715,13 +3715,13 @@ window.CARNET_I18N_DATA = {
   "fr": "PWA n'est pas pris en charge dans cet environnement : ouvrez avec https ou localhost",
   "es": "PWA no es compatible con este entorno: ábrelo con https o localhost"
  },
- "<div class=\"swatch custom\" id=\"bgCustom\" title=\"自定义颜色\"><span class=\"cus-ico\">＋</span></div><span class=\"cus-tip\" id=\"bgCustomTip\">自定义</span>": {
-  "zhCN": "<div class=\"swatch custom\" id=\"bgCustom\" title=\"自定义颜色\"><span class=\"cus-ico\">＋</span></div><span class=\"cus-tip\" id=\"bgCustomTip\">自定义</span>",
-  "zhTW": "<div class=\"swatch custom\" id=\"bgCustom\" title=\"自訂顏色\"><span class=\"cus-ico\">＋</span></div><span class=\"cus-tip\" id=\"bgCustomTip\">自訂</span>",
-  "en": "<div class=\"swatch custom\" id=\"bgCustom\" title=\"Custom color\"><span class=\"cus-ico\">＋</span></div><span class=\"cus-tip\" id=\"bgCustomTip\">Custom</span>",
-  "ja": "<div class=\"swatch custom\" id=\"bgCustom\" title=\"カスタムカラー\"><span class=\"cus-ico\">＋</span></div><span class=\"cus-tip\" id=\"bgCustomTip\">カスタム</span>",
-  "fr": "<div class=\"swatch custom\" id=\"bgCustom\" title=\"Couleur personnalisée\"><span class=\"cus-ico\">＋</span></div><span class=\"cus-tip\" id=\"bgCustomTip\">Personnalisé</span>",
-  "es": "<div class=\"swatch custom\" id=\"bgCustom\" title=\"Color personalizado\"><span class=\"cus-ico\">＋</span></div><span class=\"cus-tip\" id=\"bgCustomTip\">Personalizado</span>"
+ "<div class=\"swatch custom\" id=\"bgCustom\" title=\"自定义颜色\"><span class=\"cus-ico\">＋</span></div>": {
+  "zhCN": "<div class=\"swatch custom\" id=\"bgCustom\" title=\"自定义颜色\"><span class=\"cus-ico\">＋</span></div>",
+  "zhTW": "<div class=\"swatch custom\" id=\"bgCustom\" title=\"自訂顏色\"><span class=\"cus-ico\">＋</span></div>",
+  "en": "<div class=\"swatch custom\" id=\"bgCustom\" title=\"Custom color\"><span class=\"cus-ico\">＋</span></div>",
+  "ja": "<div class=\"swatch custom\" id=\"bgCustom\" title=\"カスタムカラー\"><span class=\"cus-ico\">＋</span></div>",
+  "fr": "<div class=\"swatch custom\" id=\"bgCustom\" title=\"Couleur personnalisée\"><span class=\"cus-ico\">＋</span></div>",
+  "es": "<div class=\"swatch custom\" id=\"bgCustom\" title=\"Color personalizado\"><span class=\"cus-ico\">＋</span></div>"
  },
  "多层书架模式": {
   "zhCN": "多层书架模式",
@@ -7818,5 +7818,21 @@ window.CARNET_I18N_DATA = {
   "ja": "テープを表紙に貼りました · 四隅をドラッグして長さを調整",
   "fr": "Ruban ajouté à la couverture · glissez un coin pour ajuster la longueur",
   "es": "Cinta añadida a la portada · arrastra una esquina para ajustar la longitud"
+ },
+ "透明度": {
+  "zhCN": "透明度",
+  "zhTW": "透明度",
+  "en": "Opacity",
+  "ja": "不透明度",
+  "fr": "Opacité",
+  "es": "Opacidad"
+ },
+ "透明度数值": {
+  "zhCN": "透明度数值",
+  "zhTW": "透明度數值",
+  "en": "Opacity value",
+  "ja": "不透明度の値",
+  "fr": "Valeur d'opacité",
+  "es": "Valor de opacidad"
  }
 };

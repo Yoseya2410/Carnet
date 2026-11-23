@@ -108,6 +108,74 @@
   document.addEventListener('focusout', () => { later(syncBars); setTimeout(sync, 60); });
 })();
 
+/* ==================== Bottom Sheet 输入法避让（统一层） ====================
+   移动端 #app 高度被锁死，键盘是「盖」在页面上的，贴底 sheet 的输入框会被挡住。
+   这里只消费上面那份 __kbHeight()，统一写根变量 --kb-lift，各 sheet 在 CSS 里
+   自己决定怎么吃（bottom / padding / transform）——不碰 sheet 的 transform，
+   免得跟 motion.js 的 WAAPI（composite:add）和拖拽手势互相覆盖。
+   ⚠️ #lockMask / #cpMask 是居中弹窗，已有各自的 .kb 方案，这里明确排除。 */
+(() => {
+  const SHEETS = '#tsheet,#bgsheet,#frsheet,#stsheet,#modal,#diySheet';
+  const FIELD = 'input:not([type=range]):not([type=file]),textarea,[contenteditable="true"]';
+  const coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  let timer = 0, wasUp = false, lift = 0;
+
+  const inSheet = el => !!(el && el.closest && el.closest(SHEETS));
+  const inField = () => inSheet(document.activeElement) &&
+    !!(document.activeElement.matches && document.activeElement.matches(FIELD));
+
+  /* 抬起来之后如果输入框还压在键盘下沿，手动补一次滚动。
+     不用 scrollIntoView：项目里已经踩过它在窄 bottom sheet 里只挪一点点的坑。 */
+  const scrollField = kb => {
+    const el = document.activeElement;
+    if (!el || !el.getBoundingClientRect) return;
+    const floor = window.innerHeight - kb - 10;
+    let box = el.parentElement;
+    while (box && box !== document.body) {
+      const st = getComputedStyle(box);
+      if (/(auto|scroll)/.test(st.overflowY) && box.scrollHeight > box.clientHeight + 2) {
+        const gap = el.getBoundingClientRect().bottom - floor;
+        if (gap > 0) box.scrollTop += gap + 12;
+        return;
+      }
+      box = box.parentElement;
+    }
+  };
+
+  const apply = px => {
+    const v = px > 4 ? px : 0;
+    if (v === lift) return;
+    lift = v;
+    document.documentElement.style.setProperty('--kb-lift', v + 'px');
+    if (v) requestAnimationFrame(() => scrollField(v));
+  };
+  const sync = () => apply(typeof window.__kbHeight === 'function' ? window.__kbHeight() : 0);
+
+  document.addEventListener('focusin', e => {
+    if (!coarse || !inSheet(e.target) || !(e.target.matches && e.target.matches(FIELD))) return;
+    clearTimeout(timer);
+    timer = setTimeout(sync, 180);          // 同 lock.js：避开 pointerup/click 落在遮罩上误关
+  });
+  document.addEventListener('focusout', () => {
+    if (!coarse) return;
+    clearTimeout(timer);
+    timer = setTimeout(() => { if (!inField()) apply(0); }, 240);  // 两个输入框之间切换不回落
+  });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', () => {
+      const kb = typeof window.__kbHeight === 'function' ? window.__kbHeight() : 0;
+      if (kb > 60) {                         // up→0 才归位，键盘动画中途不误判
+        wasUp = true;
+        if (coarse && inField()) sync();
+        return;
+      }
+      /* 点输入法「完成」时键盘会收起但 input 仍是 activeElement，
+         所以不能等 focusout：up→0 一律归位（同 lock.js 的状态机）。 */
+      if (wasUp) { wasUp = false; apply(0); }
+    });
+  }
+})();
+
 /* ==================== 工具 ==================== */
 /* ---- 高频回调逐帧合帧：全项目只此一份 ----
    pointermove / scroll / input 一秒能来上百次，来一次就同步写样式 + 读布局，
@@ -143,11 +211,12 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const enc = svg => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 function shade(hex, pct) {
-  let c = hex.replace('#', '');
-  if (c.length === 3) c = c.split('').map(x => x + x).join('');
-  const n = parseInt(c, 16);
+  let c = String(hex || '').replace('#', '');
+  if (c.length === 3 || c.length === 4) c = c.split('').map(x => x + x).join('');
+  const alpha = c.length === 8 ? c.slice(6, 8) : '';   // 八位色的 alpha 原样跟着走
+  const n = parseInt(c.slice(0, 6), 16);
   let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
   const f = v => clamp(Math.round(v + (pct / 100) * 255), 0, 255);
-  return '#' + ((1 << 24) + (f(r) << 16) + (f(g) << 8) + f(b)).toString(16).slice(1);
+  return '#' + ((1 << 24) + (f(r) << 16) + (f(g) << 8) + f(b)).toString(16).slice(1) + alpha;
 }
 

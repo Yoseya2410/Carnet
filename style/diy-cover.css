@@ -140,6 +140,9 @@
      再写一遍，竖屏移动端会把它固定成 height:45%（见末尾 portrait 块），
      横屏侧栏则由 @media (orientation:landscape) 顶成 max-height:none。 */
   flex:0 0 auto;position:relative;max-height:45%;display:flex;flex-direction:column;
+  /* 键盘弹起时只做视觉上移，不改 flex 高度（高度一动画布就会跟着重排）；
+     .closing 的 translateY(105%) !important 仍然优先，不冲突。 */
+  transform:translateY(calc(-1 * var(--kb-lift,0px)));
   color:#2b2f3d;background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(255,255,255,.95));
   border-top:1px solid rgba(40,44,66,.14);
   box-shadow:0 -12px 32px -18px rgba(30,32,48,.34)
@@ -452,8 +455,15 @@
     box-shadow:0 -18px 44px -16px rgba(30,32,48,.3)
   }
   .diy-sheet:not([hidden]){animation:diySheetIn .22s cubic-bezier(.22,.8,.3,1)}
-  /* 跟手下拉时别让滑入动画抢 transform；头部整条都是拖拽命中区 */
-  .diy-sheet.dragging{animation:none}
+  /* 收起也走动画：用 transition 而不是 keyframes —— 拖拽松手要能「从当前位移接着滑」，
+     keyframes 只能从关键帧起点重放。.closing 由 editor.js 挂上，滑出后 JS 才真正
+     hidden（清面板 / 重排纸的重活全推迟到落地那一帧）。
+     motion.js 的克隆退场接管时真面板靠 visibility 隐身占位，这条不参与，但留着：
+     库没就绪 / 桌面竖窄窗时它就是关闭动画本身。 */
+  .diy-sheet{transition:transform .22s cubic-bezier(.5,0,.75,.5),opacity .22s cubic-bezier(.5,0,.75,.5)}
+  /* 跟手下拉时别让过渡 / 滑入动画抢 transform；头部整条都是拖拽命中区 */
+  .diy-sheet.dragging{animation:none;transition:none}
+  .diy-sheet.closing{animation:none;pointer-events:none;transform:translateY(105%) !important;opacity:.5}
   .diy-sheet-head{
     position:relative;padding:18px 16px 8px;font-size:13.5px;
     touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none
@@ -468,6 +478,12 @@
 @keyframes diySheetIn{
   from{transform:translateY(16px);opacity:.55}
   to{transform:none;opacity:1}
+}
+/* 减弱动态效果：滑入 / 收起动画全关，开合退回瞬时显隐
+   （editor.js 探到 0s 过渡就直接收，不等兜底定时器）。
+   ⚠️ 必须排在竖屏块之后：media query 不加权重，全靠源顺序压过上面的动画 / 过渡。 */
+@media (prefers-reduced-motion:reduce){
+  .diy-sheet{animation:none !important;transition:none !important}
 }
 
 /* ============ 封面 · 书脊 · 封底三段设置 / 整张展开图三分（封面设置面板）============

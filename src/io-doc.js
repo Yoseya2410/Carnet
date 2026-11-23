@@ -140,7 +140,9 @@ function pageExportHTML(j, idx, W, H) {
        书脊本来就在右边（整张展开图也是「封底 | 书脊 | 封面」这个顺序）。 */
     const back = idx === PAGE_BACK_COVER;
     const cv = back ? backFaceOf(j) : (j.cover || {});
-    const bg = cv.img ? `background-image:url('${cv.img}');background-size:cover;background-position:center;` : `background:${cv.value || '#ddd'};`;
+    const bg = cv.img
+      ? `background:${cv.value || '#ddd'};background-image:url('${cv.img}');background-size:cover;background-position:center;`
+      : `background:${cv.value || '#ddd'};`;
     const pat = (cv.pattern && cv.pattern !== 'none' && !cv.img) ? patternStyle(cv.pattern, cv) : '';
     /* 封面材质：跟屏幕 coverHTML 同一份 textureStyle()（贴片尺寸按封面宽百分比，
        导出不用再乘 sc）。⚠️ 有封面图时 textureStyle 返回空：上传图 / DIY 合成图

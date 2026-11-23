@@ -22,21 +22,33 @@
 const CP_DEFAULT_SWATCHES = ['#ffffff', '#ffe600', '#f38ff2', '#1687d9', '#086b4d'];
 const CP_GRID_HUES = [180, 210, 240, 270, 300, 330, 0, 25, 40, 55, 75, 95];
 const CP_GRID_LEVELS = [[.86, .30], [.90, .40], [.92, .52], [.94, .66], [.96, .82], [.90, 1], [.64, 1], [.40, 1], [.20, 1]];
-const cp = { h: 0, s: 0, v: 1, apply: null, dragging: false, kbTimer: 0,
+const cp = { h: 0, s: 0, v: 1, a: 1, apply: null, dragging: false, kbTimer: 0,
   mode: 'spectrum', built: false, colors: [], gridOn: null };
 /* 取色盘遮罩上「这一下按下是不是点在遮罩空白处」，见下面的 click 判定 */
 let cpPressOutside = false;
-function hsvToHex(h, s, v) {
+/* a < 1 时输出 #RRGGBBAA（八位），否则维持六位，兼容所有老数据。
+   CSS 原生支持八位 HEX，透明度会直接生效，不需要额外转成 rgba()。 */
+function hsvToHex(h, s, v, a) {
   const f = n => {
     const k = (n + h / 60) % 6;
     return Math.round(255 * (v - v * s * Math.max(0, Math.min(k, 4 - k, 1))));
   };
-  return '#' + [f(5), f(3), f(1)].map(x => x.toString(16).padStart(2, '0')).join('');
+  let out = '#' + [f(5), f(3), f(1)].map(x => x.toString(16).padStart(2, '0')).join('');
+  const al = a === undefined ? 1 : clamp(Number(a) || 0, 0, 1);
+  if (al < 1) out += Math.round(al * 255).toString(16).padStart(2, '0');
+  return out;
+}
+/* 统一色值校验：#rgb / #rgba / #rrggbb / #rrggbbaa 都收，返回展开后的 hex 串。
+   各业务白名单（normHex6 / normPaperBg / ribbonSpine…）都靠这个口径接八位色。 */
+function normCpHex(hex) {
+  let c = String(hex || '').replace('#', '').trim();
+  if (c.length === 3 || c.length === 4) c = c.split('').map(x => x + x).join('');
+  return /^([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(c) ? '#' + c.toLowerCase() : '';
 }
 function hexToHsv(hex) {
-  let c = String(hex || '').replace('#', '').trim();
-  if (c.length === 3) c = c.split('').map(x => x + x).join('');
-  if (!/^[0-9a-fA-F]{6}$/.test(c)) return null;
+  const norm = normCpHex(hex);
+  if (!norm) return null;
+  const c = norm.slice(1);
   const r = parseInt(c.slice(0, 2), 16) / 255, g = parseInt(c.slice(2, 4), 16) / 255, b = parseInt(c.slice(4, 6), 16) / 255;
   const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
   let h = 0;
@@ -45,8 +57,9 @@ function hexToHsv(hex) {
     else if (max === g) h = 60 * ((b - r) / d + 2);
     else h = 60 * ((r - g) / d + 4);
   }
-  /* 保留小数色相，避免 HEX→HSV→HEX 往返时通道差 1。 */
-  return { h, s: max ? d / max : 0, v: max };
+  /* 保留小数色相，避免 HEX→HSV→HEX 往返时通道差 1。alpha 单独带出来，
+     不进 HSV —— 调色板只管 RGB，透明度是独立的一维。 */
+  return { h, s: max ? d / max : 0, v: max, a: c.length === 8 ? parseInt(c.slice(6, 8), 16) / 255 : 1 };
 }
 const CP_GRID_COLORS = [
   ...Array.from({ length: 12 }, (_, i) => hsvToHex(0, 0, 1 - i / 11)),
@@ -62,14 +75,26 @@ function cpRGBToHex(rgb) {
 function cpSetHex(hex, keepInput) {
   const hsv = hexToHsv(hex);
   if (!hsv) return false;
-  cp.h = hsv.h; cp.s = hsv.s; cp.v = hsv.v;
+  cp.h = hsv.h; cp.s = hsv.s; cp.v = hsv.v; cp.a = hsv.a;
   paintCP(!!keepInput);
   return true;
 }
 function cpSetChannel(k, value) {
   if (value === '' || !isFinite(+value)) return;
   const rgb = cpRGB(); rgb[k] = clamp(Math.round(+value), 0, 255);
-  cpSetHex(cpRGBToHex(rgb));
+  /* 调 RGB 不改透明度：把当前 a 一起回填，免得设好的半透明被滑块重置成不透明 */
+  let hex = cpRGBToHex(rgb);
+  if (cp.a < 1) hex += Math.round(cp.a * 255).toString(16).padStart(2, '0');
+  cpSetHex(hex);
+}
+/* 透明度滑块 / 数值框：0~100 的百分比，只改 cp.a，RGB 一个字节都不动。
+   走 cpSetHex 回填是为了让 HEX 输入框同步出现 AA 两位。 */
+function cpSetAlpha(value) {
+  if (value === '' || !isFinite(+value)) return;
+  const a = clamp(+value, 0, 100) / 100;
+  let hex = cpRGBToHex(cpRGB());
+  if (a < 1) hex += Math.round(a * 255).toString(16).padStart(2, '0');
+  cpSetHex(hex);
 }
 function cpBuildSwatches() {
   $('#cpSwatches').innerHTML = cp.colors.map(c =>
@@ -83,9 +108,8 @@ function buildCP() {
   let saved = [];
   try {
     const raw = JSON.parse(localStorage.getItem('carnet_cp_swatches_v1') || '[]');
-    if (Array.isArray(raw)) saved = raw.filter(c => !!hexToHsv(c)).map(c => {
-      const h = hexToHsv(c); return hsvToHex(h.h, h.s, h.v);
-    });
+    /* 直接留原始色串：以前过一遍 hsvToHex 会把八位色的 alpha 抹掉 */
+    if (Array.isArray(raw)) saved = raw.map(normCpHex).filter(Boolean);
   } catch (_) {}
   cp.colors = (saved.length ? saved : CP_DEFAULT_SWATCHES).slice(0, 8);
   $('#cpGrid').innerHTML = CP_GRID_COLORS.map(c =>
@@ -104,8 +128,12 @@ function buildCP() {
     slider.addEventListener('keydown', e => e.stopPropagation());
     num.addEventListener('input', () => cpSetChannel(k, num.value));
   });
+  /* 透明度：跟 RGB 同一套「滑块 + 数值框」交互，拖动不写本子，点「使用颜色」才应用 */
+  $('#cpA').addEventListener('input', () => cpSetAlpha($('#cpA').value));
+  $('#cpA').addEventListener('keydown', e => e.stopPropagation());
+  $('#cpAN').addEventListener('input', () => cpSetAlpha($('#cpAN').value));
   $('#cpAdd').onclick = () => {
-    const hex = hsvToHex(cp.h, cp.s, cp.v), at = cp.colors.indexOf(hex);
+    const hex = hsvToHex(cp.h, cp.s, cp.v, cp.a), at = cp.colors.indexOf(hex);
     if (at >= 0) cp.colors.splice(at, 1);
     cp.colors.push(hex);
     while (cp.colors.length > 8) cp.colors.shift();
@@ -127,7 +155,7 @@ function setCPMode(mode) {
 }
 /* keepInput：正在手输 HEX 时不回写，免得把光标和已输入内容打乱。 */
 function paintCP(keepInput) {
-  const hex = hsvToHex(cp.h, cp.s, cp.v), rgb = cpRGB();
+  const hex = hsvToHex(cp.h, cp.s, cp.v, cp.a), rgb = cpRGB();
   /* 光谱横轴左半是白→纯色，右半是纯色→黑，纵轴是完整色相。
      任意 HSV 色切回光谱时，投影到这两条边上；不会仅因切换模式改变颜色。 */
   let x;
@@ -156,6 +184,13 @@ function paintCP(keepInput) {
     slider.setAttribute('aria-valuetext', String(rgb[k]));
     num.setAttribute('aria-label', ({ r: '红色', g: '绿色', b: '蓝色' })[k] + '数值');
   });
+  /* 透明度轨道跟着当前 RGB 换色，滑块 / 数值框跟着 cp.a 走；
+     正在手输透明度数值时别回写，免得打断输入。 */
+  const aVal = Math.round(cp.a * 100), aSlider = $('#cpA'), aNum = $('#cpAN');
+  aSlider.style.setProperty('--cp-alpha-color', cpRGBToHex(rgb));
+  aSlider.value = aVal;
+  aSlider.setAttribute('aria-valuetext', aVal + '%');
+  if (document.activeElement !== aNum) aNum.value = aVal;
   if (!keepInput) $('#cpHex').value = hex.toUpperCase();
   return hex;
 }
@@ -163,7 +198,8 @@ function openColorPicker(title, hex, apply) {
   buildCP();
   const hsv = hexToHsv(hex);
   /* 白、黑与灰色也必须原样打开，不能像旧版那样替换成高饱和默认色。 */
-  if (hsv) { cp.h = hsv.h; cp.s = hsv.s; cp.v = hsv.v; }
+  if (hsv) { cp.h = hsv.h; cp.s = hsv.s; cp.v = hsv.v; cp.a = hsv.a; }
+  else cp.a = 1;
   cp.apply = apply;
   clearTimeout(cp.kbTimer);
   cpPressOutside = false;
@@ -185,7 +221,11 @@ $('#cpMask').addEventListener('click', e => {
   cpPressOutside = false;
 });
 $('#cpOk').onclick = () => {
-  const apply = cp.apply, hex = hsvToHex(cp.h, cp.s, cp.v);
+  /* 手输的八位 HEX 以输入框为准：它在 input 事件里已经把 cp.a 写进来了。
+     这里只补一次 apply，不再用 HSV 重算六位色把透明度抹掉。 */
+  const apply = cp.apply;
+  let hex = normCpHex($('#cpHex').value);
+  if (!hex) hex = hsvToHex(cp.h, cp.s, cp.v, cp.a);
   closeColorPicker();
   if (apply) apply(hex);
 };
@@ -286,7 +326,9 @@ function epOver(top, bot) {
            b: (top.b * top.a + bot.b * ba) / a, a };
 }
 function epToHex(c) {
-  return '#' + [c.r, c.g, c.b].map(n => Math.round(clamp(n, 0, 255)).toString(16).padStart(2, '0')).join('').toUpperCase();
+  let out = '#' + [c.r, c.g, c.b].map(n => Math.round(clamp(n, 0, 255)).toString(16).padStart(2, '0')).join('');
+  if (c.a < 1) out += Math.round(clamp(c.a, 0, 1) * 255).toString(16).padStart(2, '0');
+  return out.toUpperCase();
 }
 
 /* ---------- 图片取样 ---------- */
@@ -575,7 +617,7 @@ function epApply() {
   if (!hex) { toast('先在手账本上点一下取色'); return; }
   closeEyedropper();
   const hsv = hexToHsv(hex);
-  if (hsv) { cp.h = hsv.h; cp.s = hsv.s; cp.v = hsv.v; paintCP(); }
+  if (hsv) { cp.h = hsv.h; cp.s = hsv.s; cp.v = hsv.v; cp.a = hsv.a; paintCP(); }
 }
 $('#cpEye').onclick = openEyedropper;
 $('#epOk').onclick = epApply;
@@ -689,7 +731,7 @@ function syncBgPanel() {
   const box = $('#bgColors');
   if (!box.dataset.built) {
     box.innerHTML = BG_PRESETS.map(c => `<div class="swatch" data-bgcolor="${c}" style="background:${c}" title="${c}"></div>`).join('')
-      + '<div class="swatch custom" id="bgCustom" title="自定义颜色"><span class="cus-ico">＋</span></div><span class="cus-tip" id="bgCustomTip">自定义</span>';
+      + '<div class="swatch custom" id="bgCustom" title="自定义颜色"><span class="cus-ico">＋</span></div>';
     box.dataset.built = '1';
     $$('#bgColors .swatch[data-bgcolor]').forEach(s => s.onclick = () => { setBg({ mode: 'color', value: s.dataset.bgcolor, img: null }); syncBgPanel(); });
     $('#bgCustom').onclick = () => openColorPicker('自定义背景颜色',
@@ -697,11 +739,10 @@ function syncBgPanel() {
       hex => { setBg({ mode: 'color', value: hex, img: null }); syncBgPanel(); });
   }
   $$('#bgColors .swatch[data-bgcolor]').forEach(s => s.classList.toggle('on', b.mode === 'color' && b.value === s.dataset.bgcolor));
-  const cv = (b.mode === 'color' && /^#[0-9a-fA-F]{6}$/.test(String(b.value || '')) && !BG_PRESETS.includes(String(b.value).toLowerCase())) ? b.value : '';
+  const cv = (b.mode === 'color' && normCpHex(b.value) && !BG_PRESETS.includes(String(b.value).toLowerCase())) ? b.value : '';
   const chip = $('#bgCustom');
   chip.classList.toggle('on', !!cv);
   chip.style.background = cv || '';
-  $('#bgCustomTip').textContent = cv ? cv.toUpperCase() : '自定义';
   $('#bgClearImg').disabled = b.mode !== 'image';
   $('#bgUpload').textContent = b.mode === 'image' ? '换一张图片' : '选择图片';
 }

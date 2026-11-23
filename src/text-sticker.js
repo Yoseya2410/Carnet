@@ -527,8 +527,9 @@ function shKb() {
     if (reader) reader.style.setProperty('--sheet-kb', (kb > 4 ? kb : 0) + 'px');
     return;
   }
+  /* 竖屏整块的上移交给 core.js 的 --kb-lift（CSS .tsheet bottom 吃它），
+     这里只收高度：transform 是 motion.js 入场动画的地盘，别再写第二份。 */
   if (kb > 4) {
-    sheet.style.transform = `translateY(${-kb}px)`;
     sheet.style.maxHeight = Math.max(220, Math.round(reader.clientHeight - kb - 10)) + 'px';
   } else {
     sheet.style.transform = '';

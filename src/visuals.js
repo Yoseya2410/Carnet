@@ -302,7 +302,7 @@ function normPat(p) { return PAT_MAP[p] || (PATTERNS.some(x => x.k === p) ? p : 
 /* 计算封面亮度，让图案在深/浅底上都清晰 */
 function coverLum(cover) {
   if (cover.img) return 0.45;
-  const m = String(cover.value || '').match(/#[0-9a-fA-F]{3,6}/);
+  const m = String(cover.value || '').match(/#[0-9a-fA-F]{3,8}/);
   let hex = m ? m[0].replace('#', '') : '888888';
   if (hex.length === 3) hex = hex.split('').map(x => x + x).join('');
   const n = parseInt(hex.slice(0, 6), 16);
@@ -312,9 +312,11 @@ function coverLum(cover) {
 /* 用户自定义的图案颜色：六位 hex 才生效，否则回落到「跟随底色深浅」的自动配色 */
 function hexA(hex, a) {
   let h = String(hex || '').replace('#', '');
-  if (h.length === 3) h = h.split('').map(x => x + x).join('');
+  if (h.length === 3 || h.length === 4) h = h.split('').map(x => x + x).join('');
   const n = parseInt(h.slice(0, 6), 16);
-  return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`;
+  /* 八位色的 alpha 与图案自身透明度相乘，半透明图案色才真的半透明 */
+  const srcA = h.length === 8 ? parseInt(h.slice(6, 8), 16) / 255 : 1;
+  return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${(a * srcA).toFixed(3)})`;
 }
 /* 结构化返回图案的每一层。
    ⚠️ 预览图与真封面的配色是**两条路**（用户 2026-11-08 明确要求）：
@@ -325,7 +327,7 @@ function hexA(hex, a) {
      · 用户显式挑了 patColor：两条路都以它为准，预览和成品不会打架。 */
 function patternLayers(k, cover, preview) {
   const dark = !cover || coverLum(cover) < LUM_DARK;
-  const pc = cover && /^#[0-9a-fA-F]{6}$/i.test(String(cover.patColor || '')) ? cover.patColor : null;
+  const pc = cover && /^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/i.test(String(cover.patColor || '')) ? cover.patColor : null;
   /* 设了图案颜色就以它为准：主形状 85% 不透明度，网格 / 斜纹这类细线用 50% */
   const c  = pc ? hexA(pc, .85) : (dark ? 'rgba(255,255,255,.52)' : 'rgba(92,80,112,.32)');
   const c2 = pc ? hexA(pc, .5)  : (dark ? 'rgba(255,255,255,.34)' : 'rgba(92,80,112,.2)');
@@ -693,11 +695,12 @@ function framePhotoGeom(im) {
 /* 粗细拖动条的默认值与取值域（1~100）。老数据里的 1/2/3 三档由 frameWidth 折算过来 */
 const FRAME_W_DEFAULT = 50;
 function normFrame(f) { return FRAMES.some(x => x.k === f) ? f : 'none'; }
-/* 只认 #rgb / #rrggbb，其它一律当「没设」——各档回落到自己的默认色 */
+/* 认 #rgb / #rgba / #rrggbb / #rrggbbaa，其它一律当「没设」。
+   八位色带透明度：CSS 原生支持，各档照常用它做 background / color，不用转 rgba。 */
 function normHex6(v) {
   let s = String(v || '').trim();
-  if (/^#[0-9a-fA-F]{3}$/.test(s)) s = '#' + s.slice(1).split('').map(x => x + x).join('');
-  return /^#[0-9a-fA-F]{6}$/.test(s) ? s.toLowerCase() : '';
+  if (/^#[0-9a-fA-F]{3,4}$/.test(s)) s = '#' + s.slice(1).split('').map(x => x + x).join('');
+  return /^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(s) ? s.toLowerCase() : '';
 }
 
 /* ==================== 封面内侧（活页内衬）与书槽开关 ====================
@@ -751,8 +754,9 @@ function hexListOf(v) {
   return out.slice(0, INSIDE_PALETTE_MAX);
 }
 function coverFaceStyle(cv) {
+  /* 图片下面垫封面色：透明 PNG 透出的是这本的底色，而不是容器的白 / 灰兜底 */
   const bg = cv.img
-    ? `background-image:url('${cv.img}');background-size:cover;background-position:center;`
+    ? `background:${cv.value || '#ddd'};background-image:url('${cv.img}');background-size:cover;background-position:center;`
     : `background:${cv.value};`;
   return { bg, pat: cv.img ? '' : patternStyle(cv.pattern, cv),
     patKey: cv.img ? 'none' : (cv.pattern || 'none'),
@@ -1050,8 +1054,8 @@ function ribbonSpine(ribbon) {
   let r = String(ribbon || '').trim();
   if (ribbonIsNone(r)) return '';
   if (!r) return RIBBON_FALLBACK;
-  if (!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(r)) return RIBBON_FALLBACK;
-  if (r.length === 4) r = '#' + r.slice(1).split('').map(x => x + x).join('');
+  if (!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(r)) return RIBBON_FALLBACK;
+  if (r.length === 4 || r.length === 5) r = '#' + r.slice(1).split('').map(x => x + x).join('');
   return r;
 }
 /* 图案颜色预设：饱和度高一档，压在浅底 / 深底上都醒目 */
@@ -1107,7 +1111,7 @@ function spineBackdrop(j) {
   if (rb) return `background:${rb};`;
   const cv = (j && j.cover) || {};
   return cv.img
-    ? `background-image:url('${cv.img}');background-size:cover;background-position:center;`
+    ? `background:${cv.value || GRADS[1]};background-image:url('${cv.img}');background-size:cover;background-position:center;`
     : `background:${cv.value || GRADS[1]};`;
 }
 /* ---- 封底（2026-11-16）------------------------------------------------
@@ -1137,6 +1141,12 @@ function backFromOf(j) {
 function hasBackCover(j) {
   const m = backModeOf(j);
   return m === 'follow' || (m === 'image' && !!backImgOf(j));
+}
+/* 移动端（新 UI）翻到最后一页就停，无论有没有封底；只有电脑端才合到封底。
+   ⚠️ 新视觉开关关掉时 isMobile() 恒 false，业务分支整体回到电脑端那套，
+   所以这里读 MHome.isMobile()，不是单纯看屏幕宽度 / 单双页。 */
+function backCoverFlipAllowed() {
+  return !(window.MHome && typeof window.MHome.isMobile === 'function' && window.MHome.isMobile());
 }
 /* 封底那张皮：屏幕封面 / 阅读器封底页 / 导出封底页共用这一份。
    'image' 用封底图（跟上传的封面图一样不叠图案、不叠纹理）；
@@ -1266,12 +1276,13 @@ const PAPER_RAMPS = [
   { n: '灰', c: ['#f4f4f3', '#e4e5e2', '#cccec9', '#adb1ac', '#8b908e', '#6a706e'] },
   { n: '墨', c: ['#8f97a8', '#6f7891', '#545d78', '#3f4759', '#2f3542', '#1e222b'] },
 ];
-/* 只认 #rgb / #rrggbb；其它（空、'auto'、乱填的）一律当「没设」，落回模板底色 */
+/* 认 #rgb / #rgba / #rrggbb / #rrggbbaa；其它（空、'auto'、乱填的）一律当「没设」。
+   八位色让内页底色也能设成半透明（纸底透出下面的模板色）。 */
 function normPaperBg(v) {
   let s = String(v || '').trim();
   if (!s || s === 'auto') return '';
-  if (/^#[0-9a-fA-F]{3}$/.test(s)) s = '#' + s.slice(1).split('').map(x => x + x).join('');
-  return /^#[0-9a-fA-F]{6}$/.test(s) ? s.toLowerCase() : '';
+  if (/^#[0-9a-fA-F]{3,4}$/.test(s)) s = '#' + s.slice(1).split('').map(x => x + x).join('');
+  return /^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(s) ? s.toLowerCase() : '';
 }
 /* 这一页实际该用什么底色：'' = 沿用模板（牛皮纸仍是牛皮纸） */
 function pageBgOf(pg, j) { return normPaperBg(pg && pg.bg) || normPaperBg(j && j.pageBg) || ''; }
@@ -1292,9 +1303,9 @@ function pageBgDarkShown(pg, j, pid) {
 /* 任意 hex 的相对亮度（0~1）。纸色设得深时页码要换成浅色，否则看不见 */
 function hexLum(hex) {
   let h = String(hex || '').replace('#', '');
-  if (h.length === 3) h = h.split('').map(x => x + x).join('');
-  if (!/^[0-9a-fA-F]{6}$/.test(h)) return 1;
-  const n = parseInt(h, 16);
+  if (h.length === 3 || h.length === 4) h = h.split('').map(x => x + x).join('');
+  if (!/^([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(h)) return 1;
+  const n = parseInt(h.slice(0, 6), 16);   // 八位色只按 RGB 算亮度，alpha 不影响字号配色
   return (0.2126 * (n >> 16 & 255) + 0.7152 * (n >> 8 & 255) + 0.0722 * (n & 255)) / 255;
 }
 

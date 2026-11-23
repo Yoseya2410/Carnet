@@ -548,7 +548,17 @@
     if (typeof rawDiySheet === 'function') {
       window.diySheet = function (kind) {
         const el = $('#diySheet'), was = !!(el && !el.hidden);
-        if (was && !kind && mobilePortrait()) dismissSheet(el);
+        if (was && !kind && mobilePortrait()) {
+          /* 克隆整棵面板滑出去，落地（onLand）才真正清面板 / 重排纸。
+             原来克隆刚起步、真面板就在同一个同步任务里被撕掉 + 下一帧全量重建纸面：
+             舞台瞬间拿回面板占的高度、纸要等下一帧才重新量，画布当着克隆的面
+             先闪一帧旧尺寸再跳大 —— 这就是关面板「卡一下」。
+             visibility 让真面板隐身但继续占着布局：滑出全程画布纹丝不动，落地才长回去。 */
+          const ok = dismissSheet(el, { onLand: () => {
+            if (typeof diySheetHideNow === 'function') diySheetHideNow();
+          }});
+          if (ok) el.style.visibility = 'hidden';
+        }
         const result = rawDiySheet.apply(this, arguments);
         if (kind && mobilePortrait()) sheet(el, true);
         return result;

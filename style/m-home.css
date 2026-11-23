@@ -443,7 +443,9 @@ html:not(.mui-off) #home.m-carousel #mCarouselMeta{
 /* 桌面端完全不出现第一步（两步流程只服务移动端，见 m-home.js） */
 @media (orientation:portrait) and (max-width:1024px){
   #mask.modal-mask{
-    align-items:end;padding:0;
+    align-items:end;padding:0;padding-bottom:var(--kb-lift,0px);
+    /* 键盘弹起时底边跟着上移（--kb-lift 由 core.js 统一写），
+       不碰 #modal 的 height / transform —— 那两样被入场动画和测量占着。 */
     background:rgba(18,20,32,.4)
   }
   #mask .modal{
@@ -616,7 +618,6 @@ html:not(.mui-off) #home.m-carousel #mCarouselMeta{
   #mask.ns-setup .swatches{flex-wrap:nowrap;overflow-x:auto;padding:2px 2px 8px;scrollbar-width:none}
   #mask.ns-setup .swatches::-webkit-scrollbar{display:none}
   #mask.ns-setup .swatch{flex:0 0 34px}
-  #mask.ns-setup .cus-tip{flex:0 0 auto}
 }
 
 /* =====================================================================
@@ -717,6 +718,8 @@ html:not(.mui-off) #home.m-carousel #mCarouselMeta{
   position:relative;display:flex;align-items:center;gap:12px;
   width:100%;min-height:54px;padding:14px 18px;text-align:left;color:#20232c
 }
+/* .mn-row 显式给了 display:flex，[hidden] 的 UA 样式压不过，得自己补一条 */
+.mn-row[hidden]{display:none}
 .mn-card .mn-row + .mn-row::before{
   content:"";position:absolute;left:18px;right:18px;top:0;height:1px;
   background:rgba(20,24,40,.06)

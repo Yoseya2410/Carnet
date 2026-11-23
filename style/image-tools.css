@@ -60,7 +60,9 @@
 .pcontent{position:absolute;inset:0;z-index:2}
 .pimg-wrap,.ptext-wrap{position:absolute;z-index:3;touch-action:none;cursor:grab}
 .pimg-wrap .pimg{
-  width:100%;height:100%;display:block;border-radius:3px;pointer-events:none;background:#fff;
+  /* 别给 <img> 自己铺白底：透明 PNG 的透明区应该透出纸面 / 封面底色，
+     写死 background:#fff 会把透明区烘成白块（自定义封面截图里那块白矩形）。 */
+  width:100%;height:100%;display:block;border-radius:3px;pointer-events:none;background:transparent;
   object-fit:fill;
 }
 .pimg-wrap.sticker .pimg{background:transparent}

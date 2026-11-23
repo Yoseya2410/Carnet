@@ -160,7 +160,8 @@ function flip(dir) {
     ? state.spread >= spreadCount(n) - 1
     : state.page >= n - 1;
   if (dir > 0 && atLast) {
-    if (hasBackCover(cur())) closeToBack();
+    /* 移动端不论有没有封底都停在最后一页；电脑端有封底才合书到封底 */
+    if (hasBackCover(cur()) && backCoverFlipAllowed()) closeToBack();
     return;
   }
   if (state.mode === 'spread') {

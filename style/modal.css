@@ -52,8 +52,6 @@
 /* 「自动」色块：图案颜色跟随底色深浅（内页底色那栏已撤掉，不再需要 paper-auto） */
 .swatch.pat-auto{display:grid;place-items:center;font-size:10.5px;font-weight:700;letter-spacing:.05em;
   color:#7d8394;background:linear-gradient(135deg,#ffffff 46%,#c3c7d4 54%)}
-/* 小节里的补充说明：比正文小一号、压暗，说明这一档设置的作用范围 */
-.cus-tip{font-size:12px;opacity:.6;letter-spacing:.04em;font-variant-numeric:tabular-nums}
 /* 彩带「透明」档：白底 + 一道粉斜杠，表示不画彩带（也不画书槽）。
    选中态仍吃 .swatch.on 的黑边 + 浅白外圈；浅底由 background.css 只改边框色 */
 .swatch.ribbon-none{background:linear-gradient(135deg,#fbfbfd 46%,#c9cdda 54%)}

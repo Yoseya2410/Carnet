@@ -91,6 +91,13 @@
   width:30px;height:30px;border:0;border-radius:50%;background:#fff;
   box-shadow:0 1px 6px rgba(0,0,0,.22),inset 0 0 0 1px rgba(0,0,0,.035)
 }
+/* 透明度轨道：上层从「全透明 → 当前 RGB 实色」，下层棋盘格让透明端看得出来。
+   --cp-alpha-color 由 paintCP() 跟着当前颜色写，拖 RGB 时渐变也同步换色。 */
+.cp-range.cp-alpha{
+  background:
+    linear-gradient(90deg,rgba(0,0,0,0),var(--cp-alpha-color,#fff)),
+    conic-gradient(rgba(110,114,128,.34) 25%,#fff 0 50%,rgba(110,114,128,.34) 0 75%,#fff 0) 0 0/12px 12px
+}
 .cp-num{
   flex:0 0 58px;width:58px;height:40px;padding:0 5px;border-radius:10px;outline:none;
   border:1px solid var(--cp-field-bd);background:var(--cp-field);color:inherit;text-align:center;

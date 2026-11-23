@@ -654,8 +654,12 @@
             <label for="cpB">蓝色</label>
             <div class="cp-slider-line"><input class="cp-range" id="cpB" type="range" min="0" max="255" step="1" aria-label="蓝色"><input class="cp-num" id="cpBN" type="number" min="0" max="255" step="1" inputmode="numeric" aria-label="蓝色数值"></div>
           </div>
+          <div class="cp-slider-row">
+            <label for="cpA" title="0 = 全透明，100 = 完全不透明">透明度</label>
+            <div class="cp-slider-line"><input class="cp-range cp-alpha" id="cpA" type="range" min="0" max="100" step="1" aria-label="透明度"><input class="cp-num" id="cpAN" type="number" min="0" max="100" step="1" inputmode="numeric" aria-label="透明度数值"></div>
+          </div>
           <label class="cp-hex-label" for="cpHex">sRGB · HEX</label>
-          <input data-page-node-id="Epa05afpArlckyzwVJOuIs" class="cp-hex" id="cpHex" maxlength="7" placeholder="#RRGGBB" spellcheck="false" autocomplete="off" autocapitalize="off">
+          <input data-page-node-id="Epa05afpArlckyzwVJOuIs" class="cp-hex" id="cpHex" maxlength="9" placeholder="#RRGGBBAA" spellcheck="false" autocomplete="off" autocapitalize="off">
         </div>
       </div>
       <div class="cp-palette">
@@ -742,7 +746,7 @@
       <div class="mn-card">
         <div class="mn-row mn-col"><b>背景颜色</b><div class="mn-sw" id="mnBgColors"></div></div>
         <div class="mn-row"><b>背景图片</b><span class="mn-inline"><button class="mn-mini" id="mnBgUpload">选择图片</button><button class="mn-mini" id="mnBgClear" disabled>移除</button></span></div>
-        <button class="mn-row" data-mnact="bgReset"><b>恢复默认背景</b><span class="mn-arr">›</span></button>
+        <button class="mn-row" data-mnact="bgReset" id="mnBgReset"><b>恢复默认背景</b><span class="mn-arr">›</span></button>
         <label class="mn-row"><b>单层书架台面</b><span class="mn-switch" id="mnPlinthSwitch"><input type="checkbox" id="mnPlinth" aria-label="显示单层书架台面"></span></label>
       </div>
 

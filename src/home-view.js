@@ -32,7 +32,11 @@
    ⚠️ 主页 / 书架 / 编辑器预览 / 飞入动画走的都是不带第二参数的那一支，一个字节都不变。 */
 function coverHTML(j, backside) {
   const st = bookStyleOf(j);
-  const bg = j.cover.img ? `background-image:url('${j.cover.img}');background-size:cover;background-position:center;` : `background:${j.cover.value};`;
+  /* 图片封面保留底色垫在下面：透明 PNG 的透明区显示这本选的封面色 / 渐变，
+     不再露出 .cover 的兜底白灰。顺序不能反 —— background 简写会清掉 background-image。 */
+  const bg = j.cover.img
+    ? `background:${j.cover.value || '#ddd'};background-image:url('${j.cover.img}');background-size:cover;background-position:center;`
+    : `background:${j.cover.value};`;
   /* 上传了封面图片就不叠图案（图案是按底色深浅配色的，压在照片上只会糊成一片） */
   const pat = j.cover.img ? '' : patternStyle(j.cover.pattern, j.cover);
   /* ---- 装订那一列 ----

@@ -732,12 +732,18 @@
     box.addEventListener('pointerdown', e => {
       if (e.pointerType !== 'mouse' || e.button !== 0) return;
       st = { id: e.pointerId, x: e.clientX, left: box.scrollLeft, moved: false };
-      try { box.setPointerCapture(e.pointerId); } catch (_) {}
+      /* ⚠️ 不能在这里就 setPointerCapture：指针一旦被容器捕获，后续 pointerup /
+         click 全部重定向到容器，绑在色块 <i> 上的 click 永远不会触发，
+         表现就是「电脑端点背景色没反应」。只有真的开始拖动才捕获。 */
     });
     box.addEventListener('pointermove', e => {
       if (!st || e.pointerId !== st.id) return;
       const dx = e.clientX - st.x;
-      if (!st.moved && Math.abs(dx) > 4) { st.moved = true; box.classList.add('h-drag'); }
+      if (!st.moved && Math.abs(dx) > 4) {
+        st.moved = true;
+        box.classList.add('h-drag');
+        try { box.setPointerCapture(e.pointerId); } catch (_) {}
+      }
       if (st.moved) box.scrollLeft = st.left - dx;
     });
     const end = e => {
@@ -893,6 +899,10 @@
     const up = $('#mnBgUpload'), clr = $('#mnBgClear');
     if (up) up.textContent = b.mode === 'image' ? '换一张' : '选择图片';
     if (clr) clr.disabled = b.mode !== 'image';
+    /* 「恢复默认背景」只在当前不是默认背景（改过颜色 / 上传过图片）时才露出；
+       已是默认档就收起，免得摆一个点了没变化的按钮。 */
+    const bgReset = $('#mnBgReset');
+    if (bgReset) bgReset.hidden = b.mode === 'default';
     /* 台面 */
     const pl = $('#mnPlinth'), plBox = $('#mnPlinthSwitch');
     if (pl) pl.checked = !!state.prefs.spinePlinth;
